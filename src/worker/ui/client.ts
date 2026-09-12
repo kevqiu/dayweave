@@ -350,12 +350,12 @@ function screenTrip() {
     ]),
     h("div", { class: "sheet stops" + (full ? " full" : ""), id: "sheet" }, [
       grabber(),
-      // The header the sheet grows into, from design/SheetFull.dc.html. It
-      // belongs to the expanded state only; collapsed, the days start at the
-      // handle as Main.dc.html draws them.
+      // SheetFull.dc.html titles this row "All stops". The title is
+      // deliberately not here: the collapsed sheet has no header at all, so a
+      // heading that appears only on expanding reads as the sheet becoming a
+      // different screen. The control it sat beside is the useful half.
       full
         ? h("div", { class: "all-stops" }, [
-            h("div", { class: "all-stops-title", text: "All stops" }, []),
             h("button", {
               class: "filter-pill",
               "aria-pressed": state.hideVisited ? "true" : "false",

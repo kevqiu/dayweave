@@ -26,7 +26,7 @@ That is the map of what exists:
 | `KebabMenu.dc.html` | The stop's kebab (§4e) | yes |
 | `MoveToDay.dc.html` | Move to another date, with the §8 suggestion | yes |
 | `TripMenu.dc.html` | The one dropdown on the trip name (§4h) | yes, less Plan view |
-| `SheetFull.dc.html` | The sheet expanded: All stops, Filter | the sheet and its header, not the drag-to-reorder |
+| `SheetFull.dc.html` | The sheet expanded, and drag-to-reorder | the sheet and its Filter, not the title or the drag |
 | `AddNote.dc.html` | Only the button reading Add note. See below | n/a |
 | `SignIn.dc.html` | Sign in (§5) | no — needs Better Auth |
 | `Planner.dc.html`, `PlannerStop.dc.html`, `PlannerMobile.dc.html` | The day grid (§4f) | no |
@@ -120,8 +120,15 @@ To be planned bucket is `#94897A`, which is not on the ramp.
   Both are kept as a ratio and a `calc` so a phone that is not 667 tall gets
   the same proportions. The handle also drags and snaps, because a handle on a
   phone has to, and its hit area is extended to about 34px without moving the
-  38x4 bar the artboard draws. Expanded, the sheet grows the *All stops*
-  header and Filter pill from `SheetFull.dc.html`.
+  38x4 bar the artboard draws. Expanded, the sheet grows the Filter pill from
+  `SheetFull.dc.html`.
+
+  **`SheetFull.dc.html` titles that row "All stops" and we deliberately do
+  not.** The collapsed sheet has no header at all, so a heading that appears
+  only on expanding reads as the sheet turning into a different screen rather
+  than the same one getting taller. The two artboards disagree because they
+  were drawn as separate screens; the app has one sheet with two heights. Do
+  not add the title back.
 - **Nothing is a placeholder.** Where the app does not know something, the
   artboards leave it out rather than filling it with a dash. Two consequences
   worth knowing: the map carries no place labels, because the artboards' own

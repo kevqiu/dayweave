@@ -217,8 +217,13 @@ button { font-family: ${SANS}; cursor: pointer; }
 .sheet.stops.dragging { transition: none; }
 
 /* The header the sheet grows into (design/SheetFull.dc.html). */
-.all-stops { display: flex; align-items: center; gap: 10px; padding: 2px 14px 10px; flex-shrink: 0; }
-.all-stops-title { font-family: ${SERIF}; font-size: 16.5px; font-weight: 500; flex-grow: 1; }
+/* SheetFull.dc.html's header row, without its "All stops" title — see the
+   note in client.ts. The pill keeps the row's own padding and sits where the
+   artboard puts it, at the right. */
+.all-stops {
+  display: flex; align-items: center; justify-content: flex-end;
+  gap: 10px; padding: 2px 14px 10px; flex-shrink: 0;
+}
 .filter-pill {
   height: 28px; border-radius: 999px; border: 1px solid ${C.border}; background: ${C.card};
   color: ${C.inkSoft}; font-size: 11.5px; font-weight: 600; padding: 0 11px; font-family: ${SANS};
