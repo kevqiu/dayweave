@@ -87,7 +87,7 @@ https://www.google.com/maps/d/kml?mid=<map id>&forcekml=1
 
 That returns KML with a `<Placemark>` per pin, each carrying name, description and **coordinates**.
 No Places API call, no geocoding, no name matching, no scraping, and nothing that breaks when
-Google reskins the Maps front end. A cron re-reads it hourly and new pins land in **Planned**.
+Google reskins the Maps front end. A cron re-reads it hourly and new pins land in **To be planned**.
 
 What this costs you: places get collected in My Maps rather than by tapping Save in the Maps app.
 Mitigations, in order of how much they help:
@@ -119,7 +119,7 @@ and times, a travel row for flights and trains, and a lodging row along the bott
 that hour (§4b). Once this exists the spreadsheet has no job left, because the cells now know where
 they are on Earth and who has been there.
 
-Getting an existing trip in is manual: the Planned sidebar fills from your My Map, and you drag
+Getting an existing trip in is manual: the To be planned sidebar fills from your My Map, and you drag
 places onto days. For an 11-day trip that is one sitting, and it is the sitting where you would be
 rethinking the plan anyway.
 
@@ -165,6 +165,33 @@ everything else on a place carries `refreshed_at`.
 
 Places already on the trip are matched by `google_place_id` and shown as "on trip" rather than
 offered a second time.
+
+---
+
+## 4c. Two lines of text, and only one of them is ours
+
+A stop shows two pieces of text, and it matters that they never blur together.
+
+**The description** is the small grey line under the name. It is **derived, never typed**: the
+category from Places, then the walking time from the previous stop. `ramen · 6 min walk`.
+It is generated, so it is never wrong in an interesting way, and nobody has to maintain it.
+
+Earlier drafts had this line saying things like `hamburg steak · booked` and `sushi · reservation`.
+That was wrong, and worth naming: we have no way of knowing a table is booked. Those strings were
+invented. They are gone.
+
+**The note** is written by a person. Free text, blank until someone types something, shown directly
+under the description when it exists. This is where `Booked 13:15, they release the table if you are
+late` lives.
+
+**This is how a booking time gets in, and it should stay that way.** Uploading a confirmation email
+is too much friction for something you already know; you are standing outside the restaurant, you
+remember the time, you type six words. So the action row is **Navigate · Visited · Add note**, plus
+the kebab. The button reads **Edit note** once a note exists, which is also how you can tell at a
+glance whether anyone has written anything.
+
+Nothing auto-generates a note. If the field is empty the card simply shows nothing, which is the
+honest state and keeps the compact list compact.
 
 ---
 
@@ -357,7 +384,7 @@ places           id, trip_id, google_place_id, name, name_local, lat, lng,
 stops            id, trip_id, day_id, place_id, title, note,
                  start_time, end_time, order_key, status, visited_at, visited_by,
                  created_by, deleted_at
-                 -- day_id NULL  => the Planned bucket, the sidebar
+                 -- day_id NULL  => the To be planned bucket, the sidebar
                  -- place_id NULL => a note with no pin
                  -- created_by is the avatar on the card
                  -- order_key is a fractional index string, see §6
@@ -385,8 +412,8 @@ Presence is DO memory. Tiles are R2 objects. Nothing else is stateful.
 **Deletion is soft** (`deleted_at`). Someone removing a stop on a shared trip while another person is
 offline editing it needs to be undoable.
 
-**The Planned sidebar is not a separate table.** It is `stops WHERE day_id IS NULL`, which is what
-makes dragging onto a day a single field update and keeps drag-back-off free.
+**The To be planned sidebar is not a separate table.** It is `stops WHERE day_id IS NULL`, which is
+what makes dragging onto a day a single field update and keeps drag-back-off free.
 
 ## 10. Decisions made
 
@@ -395,6 +422,7 @@ makes dragging onto a day a single field update and keeps drag-back-off free.
 | Places in | **Google My Maps**, KML endpoint, hourly sync | §3 |
 | Spreadsheet | **Replaced** by the Planner grid. No import, no export in v1 | §4 |
 | Place search | **Places API (New)**, `locationBias` circle centred on the open day | §4b |
+| Stop text | Description derived, note typed. Bookings are notes, not imports | §4c |
 | Auth | **Better Auth** on D1, Google only, no roles, invites never expire | §5 |
 | Drive | Plumbed but unused in v1. `drive.file`, asked incrementally | §5 |
 | Flights | **Out of v1.** Hand-entered in the Planner travel row | §5b |
