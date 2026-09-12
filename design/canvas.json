@@ -58,8 +58,18 @@
       "is_interactive": true
     },
     {
-      "file": "SheetFull.dc.html",
+      "file": "KebabMenu.dc.html",
+      "w": 390,
+      "h": 844,
+      "title": "Today \u00b7 stop menu open",
+      "page": "page-1",
+      "is_interactive": true,
       "x": 1960,
+      "y": 0
+    },
+    {
+      "file": "SheetFull.dc.html",
+      "x": 2450,
       "y": 0,
       "w": 390,
       "h": 844,
@@ -68,7 +78,7 @@
     },
     {
       "file": "MoveToDay.dc.html",
-      "x": 2450,
+      "x": 2940,
       "y": 0,
       "w": 390,
       "h": 844,
@@ -77,7 +87,7 @@
     },
     {
       "file": "PlaceSearch.dc.html",
-      "x": 2940,
+      "x": 3430,
       "y": 0,
       "w": 390,
       "h": 844,
@@ -86,7 +96,7 @@
     },
     {
       "file": "Members.dc.html",
-      "x": 3430,
+      "x": 3920,
       "y": 0,
       "w": 390,
       "h": 844,
@@ -95,7 +105,7 @@
     },
     {
       "file": "Import.dc.html",
-      "x": 3920,
+      "x": 4410,
       "y": 0,
       "w": 390,
       "h": 844,
@@ -112,9 +122,18 @@
       "page": "page-1"
     },
     {
-      "file": "Desktop.dc.html",
+      "file": "PlannerStop.dc.html",
       "x": 0,
       "y": 2030,
+      "w": 1440,
+      "h": 900,
+      "title": "Planner \u00b7 a stop selected, two drags in flight",
+      "page": "page-1"
+    },
+    {
+      "file": "Desktop.dc.html",
+      "x": 0,
+      "y": 3050,
       "w": 1440,
       "h": 900,
       "title": "Desktop map view",
@@ -160,10 +179,10 @@
     {
       "id": "note-places",
       "page": "page-1",
-      "x": 1960,
+      "x": 2450,
       "y": -240,
       "w": 1370,
-      "text": "ADDING PLACES\n\nSearch is biased to the open day, not the whole planet. Places API takes a locationBias circle of up to 50 km, so the centre is the day's stops and the radius is a chip you can widen. Results outside it still appear, greyed, with the distance. Things already on the trip say so instead of offering to add twice.\n\nSign-in is Google. Drive is a separate, later consent, asked only when you first attach a file - see PLAN.md section 5."
+      "text": "THE STOP MENU, AND ADDING PLACES\n\nThe kebab holds exactly two things: Move to date, which opens the sheet beside it, and Remove from list. Navigate, Visited and Add note stay on the row where they are used constantly.\n\nSearch is biased to the open day, not the whole planet. Places API takes a locationBias circle of up to 50 km, centred on that day's stops, and the radius is a chip you can widen. Results outside it still appear, greyed, with the distance.\n\nSign-in is Google. Drive is a separate, later consent, asked only when you first attach a file."
     },
     {
       "id": "note-planner",
@@ -180,6 +199,14 @@
       "y": -200,
       "w": 700,
       "text": "Three ways to shape the day list. A is what the app screens are built on, because it is what you described. B and C are here so you can see what you are giving up. They are sketches, not proposals - say the word and I will build one out properly."
+    },
+    {
+      "id": "note-plannerstop",
+      "page": "page-1",
+      "x": 0,
+      "y": 1930,
+      "w": 1000,
+      "text": "PLANNER \u00b7 SELECTION AND DRAG\n\nClicking an event opens the same three actions the phone has, in a popover beside it: Edit, Add note, Delete. It says Edit note once there is one.\n\nTwo drags are shown at once, which would not happen in life but shows both halves. On Sat Oct 3 an event already on the grid is being moved up its own day, with a dashed ghost left where it was. On Mon Oct 5 an item is being dragged in from To be planned, and its row in the sidebar is dashed out until it lands. Both show a green drop line with the time it would take, and dragging across columns moves the day."
     }
   ],
   "launch": {

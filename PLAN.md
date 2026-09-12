@@ -234,6 +234,42 @@ time. The grid shows which window you are on.
 
 ---
 
+## 4e. What a stop's menu holds
+
+The same three or four actions everywhere, split the same way on both surfaces: the things you do
+constantly stay visible, and the things you do rarely go behind a kebab.
+
+| | Phone, on the card | Planner, on click |
+|---|---|---|
+| visible | Navigate · Visited · Add note | — |
+| in the menu | Move to date · Remove from list | Edit · Add note · Delete |
+
+The phone needs Navigate and Visited in the open because that is the whole job while travelling. The
+Planner needs neither: you are at a desk, you are not walking anywhere, and nothing is being ticked
+off. So its popover is just the three edits.
+
+Both read **Edit note** rather than Add note once a note exists, which is how you tell at a glance
+whether anyone has written anything.
+
+**Editing a time has no menu item on the phone.** It belongs on the time itself, which is already a
+tap target on every row, and an earlier draft that put "Change the time" in the kebab was one item
+too many for a two-item menu. This is worth confirming on a real device.
+
+### Drag and drop
+
+Everything draggable is draggable the same way, and the Planner artboard shows both halves at once:
+
+- **An event already on the grid** picks up with a grip, leaves a dashed ghost in the slot it came
+  from, and follows a green drop line that names the time it would land on. Dragging sideways across
+  a column moves it to that day.
+- **An item in To be planned** drags out of the sidebar onto any cell. Its row stays in place as a
+  dashed outline until the drop lands, so the list does not jump under your hand mid-drag.
+
+Both write the same op: a `day_id` change, an `order_key` between its new neighbours, and a
+`start_time` from the row it lands on.
+
+---
+
 ## 5. Auth
 
 **Better Auth**, which is the right call. Alternatives considered:
@@ -466,6 +502,7 @@ what makes dragging onto a day a single field update and keeps drag-back-off fre
 | Spreadsheet | **Replaced** by the Planner grid. No import, no export in v1 | §4 |
 | Place search | **Places API (New)**, `locationBias` circle centred on the open day | §4b |
 | Stop text | Description derived, note typed. Bookings are notes, not imports | §4c |
+| Stop actions | Navigate, Visited, note on the phone. Edit, note, delete in the Planner | §4e |
 | Trip name | Typed and required. Cities under it are derived, and hidden when empty | §4d |
 | Auth | **Better Auth** on D1, Google only, no roles, invites never expire | §5 |
 | Drive | Plumbed but unused in v1. `drive.file`, asked incrementally | §5 |
