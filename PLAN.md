@@ -405,6 +405,15 @@ day ramp #3F6B4A #57794C #70864D #8C8C4C #AD8A49 #CE8845 #D79C4D #E0B054 #E6C168
 avatars  #C4826A #6E8CA8 #8A83AE #A87A93        (people, deliberately off the day ramp)
 ```
 
+**The phone target is 375 x 667, not 390 x 844.** The earlier drafts were drawn at the size of a
+large phone with no browser chrome, which is a viewport almost nobody has. A small phone is 375 wide,
+and once the browser's address bar and toolbar are taken off, 667 is a generous estimate of what is
+left. Designing at 844 quietly buys 177 px of list that does not exist, and the first real device
+test is where you find out.
+
+What that cost, in the density pass: nav bars 60 to 50, day headers 46 to 40, stop rows 48 to 42,
+action buttons 36 to 30, primary buttons 50 to 44.
+
 Type: **Newsreader** for headings, a warm literary serif. **Figtree** for UI, rounded and friendly
 without being cute. Both from Google Fonts, both with real fallback stacks.
 
@@ -521,9 +530,10 @@ what makes dragging onto a day a single field update and keeps drag-back-off fre
 4. **Visited** — per person or per trip? If Mika eats the ramen and you do not, is it visited?
 5. **The Planner on mobile** — the grid is a desktop view. Is the day accordion enough on a phone, or
    does the Planner need a one-column-per-screen version?
-6. **Tap targets.** You asked for thinner buttons and I made them 36 px tall. Both Apple and Google
-   put the floor at 44-48 px. The buttons carry 4 px of padding so the real target clears 44, but if
-   they feel small on a real phone that is the number to raise.
+6. **Tap targets, and this one now matters.** The action buttons are 30 px tall after the density
+   pass. Apple and Google both put the floor at 44-48 px. The row they sit in gives them some
+   padding, but 30 is under the line however it is measured, and it is the first thing to check on a
+   real phone. The honest options are a taller button, or fewer buttons in the row.
 7. **Undoing a drag.** There is no rearrange mode and so no Done button, which means a drop is
    committed the moment you let go. On a live shared list that wants an undo, most likely a toast
    reading "Moved to Sat Oct 3" with an Undo action. The op log in section 6 already makes this

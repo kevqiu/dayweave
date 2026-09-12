@@ -14,7 +14,7 @@
     * { box-sizing: border-box; }
     .col { flex-grow: 1; flex-basis: 0; min-width: 0; border-right: 1px solid #EFE6D6; position: relative; }
     .card { position: absolute; left: 5px; right: 5px; border-radius: 8px; padding: 6px 8px; overflow: hidden; }
-    .ttl { font-size: 11.5px; font-weight: 600; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ttl { font-size: 11.5px; font-weight: 600; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1 1 auto; }
     .sub { font-size: 9.5px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   </style>
 </helmet>
@@ -155,11 +155,17 @@
         <!-- Oct 1, past -->
         <div class="col" style="opacity: 0.45;">
           <div class="card" style="top: 418px; height: 38px; background: #EFE9DF; border: 1px solid #DFD6C7;">
-            <div class="ttl" style="color: #8C8479; text-decoration: line-through;">Land in Fukuoka</div>
+            <div style="display: flex; align-items: center; gap: 5px; min-width: 0;">
+              <div class="ttl" style="color: #8C8479; text-decoration: line-through;">Land in Fukuoka</div>
+              <span title="KQ added this" style="width: 15px; height: 15px; border-radius: 50%; background: #C4826A; color: #FFF9F0; font-size: 6.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; opacity: 0.45;">KQ</span>
+            </div>
             <div class="sub" style="color: #A8A093;">17:30 · checked into hotel</div>
           </div>
           <div class="card" style="top: 506px; height: 38px; background: #EFE9DF; border: 1px solid #DFD6C7;">
-            <div class="ttl" style="color: #8C8479; text-decoration: line-through;">Uoden Hakata Seafood</div>
+            <div style="display: flex; align-items: center; gap: 5px; min-width: 0;">
+              <div class="ttl" style="color: #8C8479; text-decoration: line-through;">Uoden Hakata Seafood</div>
+              <span title="KQ added this" style="width: 15px; height: 15px; border-radius: 50%; background: #C4826A; color: #FFF9F0; font-size: 6.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; opacity: 0.45;">KQ</span>
+            </div>
             <div class="sub" style="color: #A8A093;">19:30 · izakaya</div>
           </div>
         </div>
@@ -171,22 +177,37 @@
           <div style="position: absolute; left: -3px; top: 227px; width: 8px; height: 8px; border-radius: 50%; background: #3F6B4A; z-index: 3;"></div>
 
           <div class="card" style="top: 88px; height: 38px; background: #EFE9DF; border: 1px solid #DFD6C7;">
-            <div class="ttl" style="color: #8C8479; text-decoration: line-through;">Kanetora Rich Soup Ramen</div>
+            <div style="display: flex; align-items: center; gap: 5px; min-width: 0;">
+              <div class="ttl" style="color: #8C8479; text-decoration: line-through;">Kanetora Rich Soup Ramen</div>
+              <span title="KQ added this" style="width: 15px; height: 15px; border-radius: 50%; background: #C4826A; color: #FFF9F0; font-size: 6.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; opacity: 0.45;">KQ</span>
+            </div>
             <div class="sub" style="color: #A8A093;">10:00 · visited 10:24</div>
           </div>
           <div class="card" style="top: 198px; height: 30px; background: #E9F1E6; border: 1px solid #C6DBC2;">
-            <div class="ttl" style="color: #35502F;">Ohori Park</div>
+            <div style="display: flex; align-items: center; gap: 5px; min-width: 0;">
+              <div class="ttl" style="color: #35502F;">Ohori Park</div>
+              <span title="MT added this" style="width: 15px; height: 15px; border-radius: 50%; background: #6E8CA8; color: #FFF9F0; font-size: 6.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; opacity: 1;">MT</span>
+            </div>
           </div>
           <div class="card" style="top: 231px; height: 38px; background: #E9F1E6; border: 1px solid #C6DBC2;">
-            <div class="ttl" style="color: #35502F;">Hikiniku to Come</div>
+            <div style="display: flex; align-items: center; gap: 5px; min-width: 0;">
+              <div class="ttl" style="color: #35502F;">Hikiniku to Come</div>
+              <span title="KQ added this" style="width: 15px; height: 15px; border-radius: 50%; background: #C4826A; color: #FFF9F0; font-size: 6.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; opacity: 1;">KQ</span>
+            </div>
             <div class="sub" style="color: #6C8A66;">13:15 · booked, see note</div>
           </div>
           <div class="card" style="top: 352px; height: 60px; background: #E9F1E6; border: 1px solid #C6DBC2;">
-            <div class="ttl" style="color: #35502F;">Canal City Hakata</div>
+            <div style="display: flex; align-items: center; gap: 5px; min-width: 0;">
+              <div class="ttl" style="color: #35502F;">Canal City Hakata</div>
+              <span title="MT added this" style="width: 15px; height: 15px; border-radius: 50%; background: #6E8CA8; color: #FFF9F0; font-size: 6.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; opacity: 1;">MT</span>
+            </div>
             <div class="sub" style="color: #6C8A66;">16:00 – 17:30</div>
           </div>
           <div class="card" style="top: 506px; height: 60px; background: #E9F1E6; border: 1.5px solid #6F9A6B; box-shadow: 0 2px 8px rgba(84,68,44,0.12);">
-            <div class="ttl" style="color: #35502F;">Sushi Zaisho</div>
+            <div style="display: flex; align-items: center; gap: 5px; min-width: 0;">
+              <div class="ttl" style="color: #35502F;">Sushi Zaisho</div>
+              <span title="KQ added this" style="width: 15px; height: 15px; border-radius: 50%; background: #C4826A; color: #FFF9F0; font-size: 6.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; opacity: 1;">KQ</span>
+            </div>
             <div class="sub" style="color: #6C8A66;">19:30 · omakase, 8 seats</div>
           </div>
         </div>
@@ -194,14 +215,23 @@
         <!-- Oct 3 -->
         <div class="col">
           <div class="card" style="top: 110px; height: 30px; background: #FBF2DC; border: 1px solid #E6D5A8;">
-            <div class="ttl" style="color: #6B5426;">Menya Ishii</div>
+            <div style="display: flex; align-items: center; gap: 5px; min-width: 0;">
+              <div class="ttl" style="color: #6B5426;">Menya Ishii</div>
+              <span title="KQ added this" style="width: 15px; height: 15px; border-radius: 50%; background: #C4826A; color: #FFF9F0; font-size: 6.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; opacity: 1;">KQ</span>
+            </div>
           </div>
           <div class="card" style="top: 154px; height: 100px; background: #FBF2DC; border: 1px solid #E6D5A8;">
-            <div class="ttl" style="color: #6B5426;">Ainoshima</div>
+            <div style="display: flex; align-items: center; gap: 5px; min-width: 0;">
+              <div class="ttl" style="color: #6B5426;">Ainoshima</div>
+              <span title="KQ added this" style="width: 15px; height: 15px; border-radius: 50%; background: #C4826A; color: #FFF9F0; font-size: 6.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; opacity: 1;">KQ</span>
+            </div>
             <div class="sub" style="color: #97803F;">ferry 11:30, back 13:50</div>
           </div>
           <div class="card" style="top: 484px; height: 38px; background: #FBF2DC; border: 1px solid #E6D5A8;">
-            <div class="ttl" style="color: #6B5426;">Yakiniku night market</div>
+            <div style="display: flex; align-items: center; gap: 5px; min-width: 0;">
+              <div class="ttl" style="color: #6B5426;">Yakiniku night market</div>
+              <span title="MT added this" style="width: 15px; height: 15px; border-radius: 50%; background: #6E8CA8; color: #FFF9F0; font-size: 6.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; opacity: 1;">MT</span>
+            </div>
             <div class="sub" style="color: #97803F;">19:00</div>
           </div>
           <!-- drop target -->
@@ -213,7 +243,10 @@
         <!-- Oct 4 -->
         <div class="col">
           <div class="card" style="top: 88px; height: 30px; background: #FBF2DC; border: 1px solid #E6D5A8;">
-            <div class="ttl" style="color: #6B5426;">Ramen at Hakata Station</div>
+            <div style="display: flex; align-items: center; gap: 5px; min-width: 0;">
+              <div class="ttl" style="color: #6B5426;">Ramen at Hakata Station</div>
+              <span title="KQ added this" style="width: 15px; height: 15px; border-radius: 50%; background: #C4826A; color: #FFF9F0; font-size: 6.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; opacity: 1;">KQ</span>
+            </div>
           </div>
         </div>
 
@@ -259,7 +292,10 @@
         <!-- Oct 6 -->
         <div class="col">
           <div class="card" style="top: 484px; height: 38px; background: #FCF6E6; border: 1px dashed #DCC58A;">
-            <div class="ttl" style="color: #96752F;">Dinner</div>
+            <div style="display: flex; align-items: center; gap: 5px; min-width: 0;">
+              <div class="ttl" style="color: #96752F;">Dinner</div>
+              <span title="MT added this" style="width: 15px; height: 15px; border-radius: 50%; background: #6E8CA8; color: #FFF9F0; font-size: 6.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; opacity: 1;">MT</span>
+            </div>
             <div class="sub" style="color: #B0925A;">unnamed · pick a place</div>
           </div>
         </div>
@@ -267,19 +303,31 @@
         <!-- Oct 7 -->
         <div class="col" style="border-right: none;">
           <div class="card" style="top: 0px; height: 38px; background: #FBF2DC; border: 1px solid #E6D5A8;">
-            <div class="ttl" style="color: #6B5426;">Hakone Shrine</div>
+            <div style="display: flex; align-items: center; gap: 5px; min-width: 0;">
+              <div class="ttl" style="color: #6B5426;">Hakone Shrine</div>
+              <span title="JL added this" style="width: 15px; height: 15px; border-radius: 50%; background: #8A83AE; color: #FFF9F0; font-size: 6.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; opacity: 1;">JL</span>
+            </div>
             <div class="sub" style="color: #97803F;">08:00</div>
           </div>
           <div class="card" style="top: 77px; height: 38px; background: #FBF2DC; border: 1px solid #E6D5A8;">
-            <div class="ttl" style="color: #6B5426;">Amasake Chaya Tea House</div>
+            <div style="display: flex; align-items: center; gap: 5px; min-width: 0;">
+              <div class="ttl" style="color: #6B5426;">Amasake Chaya Tea House</div>
+              <span title="JL added this" style="width: 15px; height: 15px; border-radius: 50%; background: #8A83AE; color: #FFF9F0; font-size: 6.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; opacity: 1;">JL</span>
+            </div>
             <div class="sub" style="color: #97803F;">09:45</div>
           </div>
           <div class="card" style="top: 264px; height: 38px; background: #FBF2DC; border: 1px solid #E6D5A8;">
-            <div class="ttl" style="color: #6B5426;">Owakudani</div>
+            <div style="display: flex; align-items: center; gap: 5px; min-width: 0;">
+              <div class="ttl" style="color: #6B5426;">Owakudani</div>
+              <span title="JL added this" style="width: 15px; height: 15px; border-radius: 50%; background: #8A83AE; color: #FFF9F0; font-size: 6.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; opacity: 1;">JL</span>
+            </div>
             <div class="sub" style="color: #97803F;">14:00</div>
           </div>
           <div class="card" style="top: 484px; height: 38px; background: #FCF6E6; border: 1px dashed #DCC58A;">
-            <div class="ttl" style="color: #96752F;">Dinner</div>
+            <div style="display: flex; align-items: center; gap: 5px; min-width: 0;">
+              <div class="ttl" style="color: #96752F;">Dinner</div>
+              <span title="MT added this" style="width: 15px; height: 15px; border-radius: 50%; background: #6E8CA8; color: #FFF9F0; font-size: 6.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; opacity: 1;">MT</span>
+            </div>
           </div>
         </div>
         <div style="width: 36px; flex-shrink: 0; border-left: 1px solid #EFE6D6; position: relative; z-index: 2;"></div>
