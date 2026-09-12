@@ -261,6 +261,9 @@ export function dateRangeLabel(startIso: string, endIso: string): string {
     return `${startIso} – ${endIso}`;
   }
   const left = `${MONTHS[start.getUTCMonth()]} ${start.getUTCDate()}`;
+  // A trip of one day is a date, not a range.
+  if (startIso === endIso) return left;
+
   const right =
     start.getUTCMonth() === end.getUTCMonth() && start.getUTCFullYear() === end.getUTCFullYear()
       ? `${end.getUTCDate()}`

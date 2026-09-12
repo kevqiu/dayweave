@@ -21,6 +21,10 @@ describe("dateRangeLabel", () => {
   it("does not repeat a month both ends share", () => {
     expect(dateRangeLabel("2026-04-11", "2026-04-22")).toBe("Apr 11 – 22");
   });
+
+  it("writes a one-day trip as a date, not a range", () => {
+    expect(dateRangeLabel("2026-09-12", "2026-09-12")).toBe("Sep 12");
+  });
 });
 
 describe("dayHue", () => {

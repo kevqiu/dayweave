@@ -197,8 +197,35 @@ button { font-family: ${SANS}; cursor: pointer; }
   border-radius: 20px 20px 0 0; box-shadow: 0 -6px 24px rgba(84,68,44,0.16);
   display: flex; flex-direction: column; z-index: 20; border-top: 1px solid ${C.sheetEdge};
 }
-.grabber { padding: 7px 0 4px; display: flex; justify-content: center; flex-shrink: 0; cursor: grab; }
+.grabber {
+  padding: 7px 0 4px; display: flex; justify-content: center; flex-shrink: 0;
+  cursor: grab; position: relative; touch-action: none;
+}
+.grabber:active { cursor: grabbing; }
+/* The bar the artboard draws is 38x4 inside a 15px row, which is far under
+   both the Apple and Google tap floors (PLAN.md section 11, item 5). This
+   extends what a thumb can catch to about 34px without moving anything. */
+.grabber::after { content: ""; position: absolute; left: 0; right: 0; top: -9px; bottom: -10px; }
 .grabber > i { width: 38px; height: 4px; border-radius: 3px; background: #DCD1BD; display: block; }
+.sheet.full .grabber > i { background: #C9BDA6; }
+
+/* Main.dc.html toggles the sheet between 312 and 617 of its 667, so the full
+   state is everything below the 50px top bar. Kept as a ratio and a calc so a
+   phone that is not 667 tall gets the same proportions. */
+.sheet.stops { height: 46.8%; transition: height 160ms ease; }
+.sheet.stops.full { height: calc(100% - 50px); }
+.sheet.stops.dragging { transition: none; }
+
+/* The header the sheet grows into (design/SheetFull.dc.html). */
+.all-stops { display: flex; align-items: center; gap: 10px; padding: 2px 14px 10px; flex-shrink: 0; }
+.all-stops-title { font-family: ${SERIF}; font-size: 16.5px; font-weight: 500; flex-grow: 1; }
+.filter-pill {
+  height: 28px; border-radius: 999px; border: 1px solid ${C.border}; background: ${C.card};
+  color: ${C.inkSoft}; font-size: 11.5px; font-weight: 600; padding: 0 11px; font-family: ${SANS};
+}
+.filter-pill[aria-pressed="true"] {
+  background: ${C.greenTile}; border-color: #BFD4BB; color: ${C.todayInk};
+}
 .sheet-scroll { flex-grow: 1; overflow-y: auto; padding: 0 0 16px; }
 
 .day-head {
@@ -429,6 +456,22 @@ button { font-family: ${SANS}; cursor: pointer; }
 .note-actions .save { flex-grow: 1; border: none; background: ${C.ink}; color: ${C.paper}; }
 .note-actions .cancel {
   border: 1px solid ${C.border}; background: ${C.card}; color: ${C.inkSoft}; padding: 0 14px;
+}
+
+/* Something an optimistic write could not finish, said once and dismissable.
+   No artboard draws this: PLAN.md section 4g settles on last-writer-wins and
+   never shows a conflict, but a write that failed outright still has to be
+   admitted rather than silently dropped. Built from the palette. */
+.toast {
+  position: absolute; left: 12px; right: 12px; bottom: 12px; z-index: 45;
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  border-radius: 12px; background: ${C.card}; border: 1px solid #E0C2B4;
+  box-shadow: 0 6px 20px rgba(84,68,44,0.20);
+}
+.toast span { flex-grow: 1; font-size: 11.5px; color: #8A5230; line-height: 1.4; }
+.toast button {
+  background: none; border: 0; padding: 0; font-family: ${SANS};
+  font-size: 11.5px; font-weight: 700; color: ${C.link};
 }
 
 /* A quiet inline error, in the terracotta the palette already uses. */

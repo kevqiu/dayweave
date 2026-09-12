@@ -26,10 +26,11 @@ That is the map of what exists:
 | `KebabMenu.dc.html` | The stop's kebab (§4e) | yes |
 | `MoveToDay.dc.html` | Move to another date, with the §8 suggestion | yes |
 | `TripMenu.dc.html` | The one dropdown on the trip name (§4h) | yes, less Plan view |
+| `SheetFull.dc.html` | The sheet expanded: All stops, Filter | the sheet and its header, not the drag-to-reorder |
 | `AddNote.dc.html` | Only the button reading Add note. See below | n/a |
 | `SignIn.dc.html` | Sign in (§5) | no — needs Better Auth |
 | `Planner.dc.html`, `PlannerStop.dc.html`, `PlannerMobile.dc.html` | The day grid (§4f) | no |
-| `SheetFull.dc.html`, `Offline.dc.html`, `Import.dc.html`, `Members.dc.html` | The other states (§4g) | no |
+| `Offline.dc.html`, `Import.dc.html`, `Members.dc.html` | The other states (§4g) | no |
 | `Desktop.dc.html` | The wide layout | no |
 | `DirectionA/B/C.dc.html` | Rejected directions. Reference only — do not build these | n/a |
 
@@ -113,6 +114,14 @@ To be planned bucket is `#94897A`, which is not on the ramp.
   not the answer — *already past*, *different city · 290 km away*, *travel day
   · 8 km detour*. The sentences are built on the server so nothing in the
   client reasons about distance.
+- **The bottom sheet has two heights, and the handle is real.**
+  `Main.dc.html` puts a click on the handle that toggles the sheet between 312
+  and 617 of its 667, so the full state is everything below the 50px top bar.
+  Both are kept as a ratio and a `calc` so a phone that is not 667 tall gets
+  the same proportions. The handle also drags and snaps, because a handle on a
+  phone has to, and its hit area is extended to about 34px without moving the
+  38x4 bar the artboard draws. Expanded, the sheet grows the *All stops*
+  header and Filter pill from `SheetFull.dc.html`.
 - **Nothing is a placeholder.** Where the app does not know something, the
   artboards leave it out rather than filling it with a dash. Two consequences
   worth knowing: the map carries no place labels, because the artboards' own
@@ -133,6 +142,18 @@ To be planned bucket is `#94897A`, which is not on the ramp.
 - `src/worker/store.ts` — D1 reads and writes.
 - `src/lib/` — pure, tested logic: Places client, bias circle, derived text,
   order keys, KML.
+
+## Writes are optimistic
+
+An edit applies to the screen first and goes to the network behind it. Saving a
+note closes the sheet and shows the text immediately; the write follows. PLAN.md
+§2 makes this the shape of every edit, because this gets used on hotel wifi and
+in basements, and a round trip is the slowest part of typing six words.
+
+When a write fails the screen goes **back to what it said before** and a notice
+in the palette says why. No artboard draws that notice — §4g settles on
+last-writer-wins and never shows a conflict — but a write that failed outright
+still has to be admitted rather than silently dropped.
 
 ## Checks
 

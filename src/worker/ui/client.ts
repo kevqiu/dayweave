@@ -58,6 +58,9 @@ const state = {
   search: null,
   newTrip: null,
   tripMenu: false,
+  sheetFull: false,
+  hideVisited: false,
+  error: null,
   move: null,
   noteFor: null,
   preview: null,
@@ -319,7 +322,7 @@ function screenTrip() {
   const trip = state.trip;
   const hasStops = trip.days.some((d) => d.stops.length) || trip.unplanned.length;
   const openDay = trip.days.find((d) => d.id === state.openDayId);
-  const sheetHeight = hasStops ? 330 : 312;
+  const full = state.sheetFull;
 
   return h("div", { class: "screen" }, [
     h("div", { class: "trip-bar" }, [
@@ -345,11 +348,98 @@ function screenTrip() {
         h("button", {}, [icon("locate")]),
       ]),
     ]),
-    h("div", { class: "sheet", style: "height:" + sheetHeight + "px" }, [
-      h("div", { class: "grabber" }, [h("i", {}, [])]),
+    h("div", { class: "sheet stops" + (full ? " full" : ""), id: "sheet" }, [
+      grabber(),
+      // The header the sheet grows into, from design/SheetFull.dc.html. It
+      // belongs to the expanded state only; collapsed, the days start at the
+      // handle as Main.dc.html draws them.
+      full
+        ? h("div", { class: "all-stops" }, [
+            h("div", { class: "all-stops-title", text: "All stops" }, []),
+            h("button", {
+              class: "filter-pill",
+              "aria-pressed": state.hideVisited ? "true" : "false",
+              onclick: () => { state.hideVisited = !state.hideVisited; render(); },
+            }, [state.hideVisited ? "Not visited" : "Filter"]),
+          ])
+        : null,
       h("div", { class: "sheet-scroll" }, sheetContents(hasStops)),
     ]),
+    state.error
+      ? h("div", { class: "toast" }, [
+          h("span", { text: state.error }, []),
+          h("button", { onclick: () => { state.error = null; render(); } }, ["Dismiss"]),
+        ])
+      : null,
   ]);
+}
+
+/**
+ * The handle, which drags and taps.
+ *
+ * Main.dc.html puts a click on it that toggles the sheet between 312 and 617
+ * of its 667. A handle on a phone also has to actually drag, so it does both:
+ * a drag follows the thumb and snaps to whichever end it is nearer, and a
+ * press that barely moves is treated as the tap the artboard specifies.
+ */
+function grabber() {
+  let startY = 0;
+  let startHeight = 0;
+  let moved = 0;
+  let frame = null;
+
+  const el = h("div", { class: "grabber" }, [h("i", {}, [])]);
+
+  el.addEventListener("pointerdown", (event) => {
+    const sheet = $("sheet");
+    if (!sheet) return;
+    frame = sheet.parentElement;
+    startY = event.clientY;
+    startHeight = sheet.getBoundingClientRect().height;
+    moved = 0;
+    sheet.classList.add("dragging");
+    el.setPointerCapture(event.pointerId);
+  });
+
+  el.addEventListener("pointermove", (event) => {
+    const sheet = $("sheet");
+    if (!sheet || !el.hasPointerCapture(event.pointerId)) return;
+    const delta = startY - event.clientY;
+    moved = Math.max(moved, Math.abs(delta));
+    const limits = sheetLimits(frame);
+    const height = Math.min(limits.full, Math.max(limits.collapsed, startHeight + delta));
+    sheet.style.height = height + "px";
+  });
+
+  const end = (event) => {
+    const sheet = $("sheet");
+    if (!sheet || !el.hasPointerCapture(event.pointerId)) return;
+    el.releasePointerCapture(event.pointerId);
+    sheet.classList.remove("dragging");
+    sheet.style.height = "";
+
+    if (moved < 6) {
+      // Barely moved: this was the tap the artboard draws.
+      state.sheetFull = !state.sheetFull;
+    } else {
+      // Snap to whichever end the thumb left it nearer.
+      const limits = sheetLimits(frame);
+      const height = sheet.getBoundingClientRect().height;
+      state.sheetFull = height > (limits.collapsed + limits.full) / 2;
+    }
+    // Rendering replaces this very element, so let the gesture finish first.
+    setTimeout(render, 0);
+  };
+
+  el.addEventListener("pointerup", end);
+  el.addEventListener("pointercancel", end);
+  return el;
+}
+
+/** The two heights the sheet snaps between, in pixels of the current frame. */
+function sheetLimits(frame) {
+  const height = frame ? frame.getBoundingClientRect().height : window.innerHeight;
+  return { collapsed: height * 0.468, full: height - 50 };
 }
 
 function emptyMapChip() {
@@ -421,6 +511,10 @@ function sheetContents(hasStops) {
     const open = day.id === state.openDayId;
     const wrap = h("div", { class: open ? "day-wrap open" : "day-wrap" }, []);
     const done = day.stops.filter((s) => statusOf(day, s) === "done").length;
+    // The progress count stays honest: it counts the day, not what is shown.
+    const shown = state.hideVisited
+      ? day.stops.filter((s) => statusOf(day, s) !== "done")
+      : day.stops;
 
     wrap.append(
       h("button", {
@@ -446,8 +540,8 @@ function sheetContents(hasStops) {
         // The 36px time column holds the grid together, but only when there
         // is something to put in it. Many stops never get a time (PLAN.md
         // section 11), and an empty column is just a gap.
-        const showTimes = day.stops.some((s) => s.time);
-        const body = h("div", { class: "day-body" }, day.stops.map((stop) => stopCard(day, stop, showTimes)));
+        const showTimes = shown.some((s) => s.time);
+        const body = h("div", { class: "day-body" }, shown.map((stop) => stopCard(day, stop, showTimes)));
         body.append(
           h("button", { class: "add-stop", onclick: () => openSearch(day.id) }, [icon("plusGrey")]),
         );
@@ -631,12 +725,43 @@ function sheetNote() {
   ];
 }
 
-async function saveNote() {
+/**
+ * Saves the note optimistically: the sheet closes and the card shows the new
+ * text straight away, and the write goes out behind it. On hotel wifi the
+ * round trip is the slowest part of typing six words, and PLAN.md section 2
+ * makes writing-then-reconciling the shape of every edit.
+ *
+ * If the write fails the card goes back to what it said before and the reason
+ * is shown, rather than leaving a note on screen that is not saved anywhere.
+ */
+function saveNote() {
   const target = state.noteFor;
   const field = $("note");
-  await post("/api/stops/" + target.id + "/note", { note: field ? field.value : "" });
+  const next = field ? field.value.trim() : "";
+
+  const stop = findStop(target.id);
+  const previous = stop ? stop.note : "";
+  if (stop) stop.note = next;
+
   state.noteFor = null;
-  await refreshTrip();
+  render();
+
+  post("/api/stops/" + target.id + "/note", { note: next }).catch((error) => {
+    const current = findStop(target.id);
+    if (current) current.note = previous;
+    state.error = "That note did not save: " + error.message;
+    render();
+  });
+}
+
+/** The stop as the current trip view holds it, day or unplanned. */
+function findStop(stopId) {
+  if (!state.trip) return null;
+  for (const day of state.trip.days) {
+    const hit = day.stops.find((s) => s.id === stopId);
+    if (hit) return hit;
+  }
+  return state.trip.unplanned.find((s) => s.id === stopId) || null;
 }
 
 /* ------------------------------------------------------------- trip menu */
