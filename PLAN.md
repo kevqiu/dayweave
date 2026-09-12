@@ -329,9 +329,12 @@ Back to trips
 The same nav runs on every screen inside a trip, so the trip name is always both the title and the
 way out.
 
-**This leaves People and Sources with no route from inside a trip**, which is a real gap rather than
-an oversight. The honest options are a second section under another divider, or reaching them from
-the trip card on the Trips screen. Open question 5.
+**People sits next to the avatars, not in the menu.** A small add-person button at the end of the
+avatar stack opens the People screen. It belongs there because that is already where the question
+"who is on this trip" is being answered, and it keeps the nav to one menu rather than two.
+
+**Sources still has no route from inside a trip.** Open question 5. It is the one thing you touch
+once and then never again, so the Trips card may be the better home for it than any menu.
 
 ---
 
@@ -577,7 +580,7 @@ what makes dragging onto a day a single field update and keeps drag-back-off fre
 | Place search | **Places API (New)**, `locationBias` circle centred on the open day | §4b |
 | Stop text | Description derived, note typed. Bookings are notes, not imports | §4c |
 | Mobile planner | **In v1.** One day per screen, with the To be planned tray | §4f |
-| Navigation | One dropdown on the trip name. No hamburger, no kebab | §4h |
+| Navigation | One dropdown on the trip name. Invite sits with the avatars | §4h |
 | Conflicts | Last writer wins, silently. Deliberate for v1 | §4g |
 | Stop actions | Navigate, Visited, note on the phone. Edit, note, delete in the Planner | §4e |
 | Trip name | Typed and required. Cities under it are derived, and hidden when empty | §4d |
@@ -596,8 +599,9 @@ what makes dragging onto a day a single field update and keeps drag-back-off fre
    It changes the Planner's column widths and forces horizontal paging, not the schema.
 3. **Times** — many stops will have none. End of the day, or hold a position in the order anyway?
 4. **Visited** — per person or per trip? If Mika eats the ramen and you do not, is it visited?
-5. **People and Sources have no route from inside a trip** now that the nav is one menu with three
-   items. Add a second section to the dropdown, or reach them from the trip card on Trips?
+5. **Sources has no route from inside a trip.** People is reachable from the invite button beside the
+   avatars, but connecting a My Map is not. It is a once-per-trip action, so the Trips card may be a
+   better home than a menu item nobody needs twice.
 6. **Tap targets, and this one now matters.** The action buttons are 30 px tall after the density
    pass. Apple and Google both put the floor at 44-48 px. The row they sit in gives them some
    padding, but 30 is under the line however it is measured, and it is the first thing to check on a

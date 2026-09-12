@@ -218,7 +218,7 @@
       "x": -490,
       "y": -250,
       "w": 1850,
-      "text": "THE WAY IN\n\nSign in \u00b7 Trips \u00b7 New trip \u00b7 a brand new trip \u00b7 Today once it has stops.\n\nThere is no hamburger and no kebab in the nav. The chevron beside the trip name is the only menu: Map view, Plan view, then Back to trips. Its artboard is eighth along.\n\nEvery phone artboard is 375 x 667: a small phone with the browser's own chrome already taken off."
+      "text": "THE WAY IN\n\nSign in \u00b7 Trips \u00b7 New trip \u00b7 a brand new trip \u00b7 Today once it has stops.\n\nNo hamburger and no kebab. The chevron beside the trip name is the only menu: Map view, Plan view, then Back to trips. Its artboard is eighth along.\n\nThe one thing beside it is the invite control at the end of the avatar stack, which is how you reach People without the nav growing a second menu.\n\nEvery phone artboard is 375 x 667: a small phone with the browser's own chrome already taken off."
     },
     {
       "id": "note-states",
