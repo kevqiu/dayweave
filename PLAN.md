@@ -180,6 +180,14 @@ offered a second time.
 | Clerk, WorkOS, Stack Auth | Hosted, good, and a third party plus a bill for a trip app for your friends. |
 | Hand-rolled OAuth | About 200 lines and genuinely viable, but you own session rotation, CSRF, token refresh and invite tokens forever. |
 
+The sign-in screen is one button and nothing else: no email form, no password, no second provider.
+The button reads **"Continue with Google"** rather than "Connect with", because Google's sign-in
+branding guidelines permit only a fixed set of strings and Connect is not among them. The `G` mark
+in the wireframe is a placeholder; Google ships the real asset.
+
+The screen also says, in one line, that we ask for a name and an email and nothing else. That is a
+promise §5 has to keep, and it is why Drive is a separate later consent.
+
 **Setup**: Google as the only social provider, sessions in a cookie with the lookup in KV, Better
 Auth's tables in D1 alongside ours through Drizzle.
 
