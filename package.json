@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "deploy": "alchemy deploy",
+    "deploy": "NODE_OPTIONS=\"--import ./scripts/proxy-agent.mjs\" alchemy deploy",
     "destroy": "alchemy destroy",
     "dev": "alchemy dev",
     "test": "vitest run",

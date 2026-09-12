@@ -16,16 +16,21 @@ package managers* so npm keeps working, and list:
 
 ```
 api.cloudflare.com
-workers.dev
+*.workers.dev
 www.google.com
 ```
+
+The allowlist matches a host **exactly**. A bare `workers.dev` entry lets you
+reach `https://workers.dev` and nothing else, so the wildcard is not optional —
+the Worker answers on `<worker>.<subdomain>.workers.dev`, which is two labels
+deeper.
 
 Which side each host is needed on, because it is not obvious:
 
 | Host | Who connects |
 | --- | --- |
 | `api.cloudflare.com` | the session, so `alchemy deploy` can authenticate and create resources |
-| `workers.dev` | the session, to `curl` the spike endpoint on the deployed Worker |
+| `*.workers.dev` | the session, to `curl` the spike endpoint on the deployed Worker |
 | `www.google.com` | the session only, to compare the KML by hand |
 
 The spike's own fetch of `www.google.com/maps/d/kml` runs **on the Worker**, at
@@ -93,3 +98,62 @@ Add at zone level, scoped to `kocho.sh` only, when the custom domain is wired:
 
 Give the token an expiry. D1: Edit and R2: Edit both include deletion, because
 Cloudflare does not split those into create-only.
+
+## 3. Alchemy does not use the proxy
+
+Alchemy's `safeFetch` passes its own `new Agent()` from undici as a per-request
+dispatcher. That overrides the global proxy-aware agent, so every Cloudflare API
+call leaves directly, the egress gateway answers `Host not in allowlist` with a
+non-JSON 403, and Alchemy reports it as:
+
+```
+Failed to create D1 database "..." (403): The API returned an invalid response
+```
+
+Which looks like a token problem and is not. `scripts/proxy-agent.mjs` fixes it
+by resolving undici's `Agent` to `EnvHttpProxyAgent` for that one module. Deploy
+with it loaded:
+
+```
+NODE_OPTIONS="--import ./scripts/proxy-agent.mjs" npx alchemy deploy
+```
+
+The hook is deliberately scoped to Alchemy's `safe-fetch`. Miniflare requires
+undici synchronously from CommonJS, and a shim with top-level await cannot be
+`require()`d, so a blanket hook breaks `alchemy dev`. The script no-ops when no
+proxy is set.
+
+## 4. A workers.dev subdomain has to exist
+
+The account needs one before any Worker will upload, and a fresh account does
+not have one. Without it the upload fails with:
+
+```
+[10063] You need a workers.dev subdomain in order to proceed.
+```
+
+This account's is **`yvr-kocho`**, so the API Worker is at
+`https://yvr-kocho-sh-api-dev.yvr-kocho.workers.dev`. It is account-wide and
+effectively permanent. Opening the Workers & Pages page in the dashboard once
+creates one, or it can be claimed with:
+
+```
+PUT /accounts/<account>/workers/subdomain  {"subdomain":"..."}
+```
+
+## 5. ALCHEMY_PASSWORD
+
+`alchemy.run.ts` wraps the Google and Better Auth values in `alchemy.secret()`,
+and Alchemy refuses to serialize a secret into its state file without an
+encryption password:
+
+```
+Cannot serialize secret without password
+```
+
+Add `ALCHEMY_PASSWORD` to the environment variables in section 2. It must stay
+the same between deploys or the existing state cannot be decrypted. State lives
+in `.alchemy/`, which is gitignored and does not survive a cloud session, so
+losing it means the next deploy tries to create resources that already exist and
+fails on the name. Until state is moved to a remote store, a deploy from a fresh
+session needs the old resources removed, or the state restored.
