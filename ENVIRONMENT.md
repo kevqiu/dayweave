@@ -9,15 +9,37 @@ select the cloud icon on the session composer, and edit the environment.
 **This is the blocker people hit first.** The default **Trusted** level allows
 package registries and GitHub, and nothing else. It does not allow the
 Cloudflare API, so `alchemy deploy` fails before it authenticates, and it does
-not allow Google, so the My Maps spike cannot run.
+not allow `workers.dev`, so the deployed spike cannot be called.
 
 Set **Network access** to **Custom**, tick *Also include default list of common
 package managers* so npm keeps working, and list:
 
 ```
 api.cloudflare.com
+workers.dev
 www.google.com
 ```
+
+Which side each host is needed on, because it is not obvious:
+
+| Host | Who connects |
+| --- | --- |
+| `api.cloudflare.com` | the session, so `alchemy deploy` can authenticate and create resources |
+| `workers.dev` | the session, to `curl` the spike endpoint on the deployed Worker |
+| `www.google.com` | the session only, to compare the KML by hand |
+
+The spike's own fetch of `www.google.com/maps/d/kml` runs **on the Worker**, at
+Cloudflare's edge, so it is not subject to this policy at all. That is the whole
+reason section 3's spike is an endpoint and not a script — see the comment on
+`/api/_spike/my-map/:mid` in `src/worker/index.ts`. Allowing `www.google.com`
+here is a convenience for checking the Worker's answer against the raw KML, not
+a requirement.
+
+A denied host fails as `curl: (56) CONNECT tunnel failed, response 403`, and
+Alchemy reports it as `Failed to create D1 database ... (403): The API returned
+an invalid response` — which reads like a token scope problem but is not. The
+request never left the VM. `curl -sS "$HTTPS_PROXY/__agentproxy/status"` lists
+the rejected hosts under `recentRelayFailures`, which tells the two apart.
 
 Add these when the matching feature lands, not before:
 
