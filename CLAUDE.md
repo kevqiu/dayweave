@@ -147,7 +147,13 @@ To be planned bucket is `#94897A`, which is not on the ramp.
   top of the frame with the sheet over its lower 28px. The map there shows the
   trip's stops as small green pins, the bias circle dashed in terracotta, and
   the result being looked at as one bigger terracotta pin. Tapping a row looks
-  at it; only the `+` adds it. The drop writes one op: a day, and an order key between
+  at it; only the `+` adds it.
+
+  **The way out is a "Back to trip" button above the field, not the X the
+  artboard draws inside it.** An X in a search field reads as "clear what I
+  typed" as readily as "leave", and this is the one screen with no top bar to
+  fall back on. It uses the same arrow and 13px label as *Back to trips* in
+  `TripMenu.dc.html`. Do not put the X back. The drop writes one op: a day, and an order key between
   the two rows it landed between.
 
   **A drag's `pointermove` and `pointerup` listeners go on the `window`, never

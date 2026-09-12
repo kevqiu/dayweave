@@ -1600,6 +1600,12 @@ function sheetSearch() {
   return h("div", { class: "sheet", id: "search-sheet", style: "height:529px" }, [
     h("div", { class: "grabber", onclick: closeSearch }, [h("i", {}, [])]),
     h("div", { class: "search-head" }, [
+      // The way out, named. PlaceSearch.dc.html puts a bare X inside the field
+      // instead, which reads as "clear what I typed" as readily as "leave".
+      h("button", { class: "back-to-trip", onclick: closeSearch }, [
+        icon("arrowLeftSoft"),
+        h("span", { text: "Back to trip" }, []),
+      ]),
       h("div", { class: "search-field" }, [
         icon("search"),
         h("input", {
@@ -1609,7 +1615,6 @@ function sheetSearch() {
           autocomplete: "off",
           oninput: onSearchInput,
         }, []),
-        h("button", { class: "clear", onclick: closeSearch, title: "Close" }, [icon("closeFaint")]),
       ]),
       h("div", { class: "chips" }, [
         s.bias && s.bias.label

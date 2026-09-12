@@ -20,7 +20,6 @@ function iconSet(): Record<string, string> {
     search: icons.search({ size: 17, color: C.inkSoft }),
     searchLight: icons.search({ size: 14, color: C.paper }),
     close: icons.close({ size: 17, color: C.inkSoft }),
-    closeFaint: icons.close({ size: 15, color: "#A59C90", width: 2.2 }),
     plus: icons.plus({ size: 15, color: C.inkSoft }),
     plusGrey: icons.plus({ size: 14, color: C.grey, width: 2.6 }),
     chevron: icons.chevron({ size: 13 }),
@@ -47,6 +46,7 @@ function iconSet(): Record<string, string> {
     chevronRight: icons.chevronRight({ size: 14 }),
     grid: icons.grid({ size: 16, color: C.inkSoft }),
     arrowLeft: icons.arrowLeft({ size: 16, color: C.inkSoft }),
+    arrowLeftSoft: icons.arrowLeft({ size: 16, color: C.inkSoft, width: 2.2 }),
     pinInk: icons.pinDot({ size: 16, color: C.ink }),
     checkGreen: icons.check({ size: 14, color: C.todayInk }),
   };

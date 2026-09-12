@@ -389,6 +389,16 @@ button { font-family: ${SANS}; cursor: pointer; }
 .result.looking { background: ${C.highlight}; }
 
 .search-head { padding: 6px 13px 8px; flex-shrink: 0; }
+
+/* Leaving the search, said in words rather than drawn as an X in the field.
+   Matches the Back to trips item in design/TripMenu.dc.html: the same arrow at
+   16px and the same 13px label. */
+.back-to-trip {
+  display: flex; align-items: center; gap: 7px; height: 32px; margin: 0 0 8px;
+  background: none; border: 0; padding: 0; font-family: ${SANS};
+  font-size: 13px; font-weight: 600; color: ${C.inkSoft};
+}
+.back-to-trip:active { color: ${C.ink}; }
 .search-field {
   height: 40px; border-radius: 10px; border: 1.5px solid ${C.ink}; background: ${C.card};
   display: flex; align-items: center; gap: 10px; padding: 0 13px;
@@ -399,7 +409,7 @@ button { font-family: ${SANS}; cursor: pointer; }
   caret-color: ${C.accent}; min-width: 0;
 }
 .search-field input::placeholder { color: ${C.faint}; font-weight: 400; }
-.search-field .clear { background: none; border: 0; padding: 0; display: flex; }
+
 .chips { display: flex; align-items: center; gap: 7px; margin-top: 10px; min-width: 0; }
 .chip {
   display: flex; align-items: center; gap: 6px; height: 28px; border-radius: 999px;
