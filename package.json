@@ -3,20 +3,30 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "deploy": "NODE_OPTIONS=\"--import ./scripts/proxy-agent.mjs\" alchemy deploy",
+    "deploy": "vite build && NODE_OPTIONS=\"--import ./scripts/proxy-agent.mjs\" alchemy deploy",
     "destroy": "alchemy destroy",
-    "dev": "alchemy dev",
+    "dev": "vite",
+    "build": "vite build",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc -p tsconfig.worker.json && tsc -p tsconfig.web.json"
   },
   "dependencies": {
     "alchemy": "0.94.0",
-    "hono": "^4.9.10"
+    "fractional-indexing": "^4.0.0",
+    "hono": "^4.9.10",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-router-dom": "^7.18.3"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250927.0",
     "@types/node": "^22.20.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^5.2.0",
+    "playwright": "^1.63.0",
     "typescript": "^5.9.3",
+    "vite": "^7.3.6",
     "vitest": "^3.2.4"
   }
 }

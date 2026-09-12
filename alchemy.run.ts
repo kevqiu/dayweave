@@ -1,6 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 import alchemy from "alchemy";
 import {
+  Assets,
   D1Database,
   DurableObjectNamespace,
   KVNamespace,
@@ -34,11 +35,18 @@ const tripRoom = DurableObjectNamespace("trip-room", {
   sqlite: true,
 });
 
+// The SPA, built by Vite into dist/web and served from Workers Assets. One
+// Worker serves both the API and the app, so there is no second origin and no
+// CORS. PLAN.md section 2 draws these as two Workers; they collapsed into one
+// because nothing needed them apart.
+const web = await Assets({ path: "dist/web" });
+
 export const worker = await Worker("api", {
   entrypoint: "src/worker/index.ts",
   compatibilityDate: "2025-09-01",
   compatibilityFlags: ["nodejs_compat"],
   bindings: {
+    ASSETS: web,
     DB: db,
     SESSIONS: sessions,
     TILES: tiles,
@@ -48,6 +56,9 @@ export const worker = await Worker("api", {
     GOOGLE_PLACES_KEY: alchemy.secret(process.env.GOOGLE_PLACES_KEY),
     BETTER_AUTH_SECRET: alchemy.secret(process.env.BETTER_AUTH_SECRET),
   },
+  // Unknown paths fall through to the Worker, which hands them to ASSETS, so
+  // a deep link into the SPA router does not 404.
+  assets: { not_found_handling: "single-page-application" },
   // Set once the zone is on Cloudflare. Until then `url: true` gives a
   // workers.dev hostname to test against.
   url: true,
