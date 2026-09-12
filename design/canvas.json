@@ -21,7 +21,7 @@
     },
     {
       "file": "Trips.dc.html",
-      "x": 0,
+      "x": -20,
       "y": 0,
       "w": 375,
       "h": 667,
@@ -34,12 +34,21 @@
       "h": 667,
       "title": "New trip",
       "page": "page-1",
-      "x": 490,
+      "x": 450,
+      "y": 0
+    },
+    {
+      "file": "EmptyTrip.dc.html",
+      "w": 375,
+      "h": 667,
+      "title": "Today \u00b7 a brand new trip",
+      "page": "page-1",
+      "x": 920,
       "y": 0
     },
     {
       "file": "Main.dc.html",
-      "x": 980,
+      "x": 1390,
       "y": 0,
       "w": 375,
       "h": 667,
@@ -49,7 +58,7 @@
     },
     {
       "file": "AddNote.dc.html",
-      "x": 1470,
+      "x": 1860,
       "y": 0,
       "w": 375,
       "h": 667,
@@ -64,12 +73,12 @@
       "title": "Today \u00b7 stop menu open",
       "page": "page-1",
       "is_interactive": true,
-      "x": 1960,
+      "x": 2330,
       "y": 0
     },
     {
       "file": "SheetFull.dc.html",
-      "x": 2450,
+      "x": 2800,
       "y": 0,
       "w": 375,
       "h": 667,
@@ -78,7 +87,7 @@
     },
     {
       "file": "MoveToDay.dc.html",
-      "x": 2940,
+      "x": 3270,
       "y": 0,
       "w": 375,
       "h": 667,
@@ -87,7 +96,7 @@
     },
     {
       "file": "PlaceSearch.dc.html",
-      "x": 3430,
+      "x": 3740,
       "y": 0,
       "w": 375,
       "h": 667,
@@ -95,8 +104,17 @@
       "page": "page-1"
     },
     {
+      "file": "Offline.dc.html",
+      "w": 375,
+      "h": 667,
+      "title": "Today \u00b7 no connection",
+      "page": "page-1",
+      "x": 4210,
+      "y": 0
+    },
+    {
       "file": "Members.dc.html",
-      "x": 3920,
+      "x": 4680,
       "y": 0,
       "w": 375,
       "h": 667,
@@ -105,7 +123,7 @@
     },
     {
       "file": "Import.dc.html",
-      "x": 4410,
+      "x": 5150,
       "y": 0,
       "w": 375,
       "h": 667,
@@ -115,7 +133,7 @@
     {
       "file": "Planner.dc.html",
       "x": 0,
-      "y": 1010,
+      "y": 800,
       "w": 1440,
       "h": 900,
       "title": "Planner \u00b7 the spreadsheet, replaced",
@@ -124,16 +142,25 @@
     {
       "file": "PlannerStop.dc.html",
       "x": 0,
-      "y": 2030,
+      "y": 1820,
       "w": 1440,
       "h": 900,
       "title": "Planner \u00b7 a stop selected, two drags in flight",
       "page": "page-1"
     },
     {
+      "file": "PlannerMobile.dc.html",
+      "w": 375,
+      "h": 667,
+      "title": "Plan on a phone (post-MVP)",
+      "page": "page-1",
+      "x": 1560,
+      "y": 800
+    },
+    {
       "file": "Desktop.dc.html",
       "x": 0,
-      "y": 3050,
+      "y": 2840,
       "w": 1440,
       "h": 900,
       "title": "Desktop map view",
@@ -169,30 +196,6 @@
   ],
   "annotations": [
     {
-      "id": "note-flow",
-      "page": "page-1",
-      "x": -490,
-      "y": -240,
-      "w": 1450,
-      "text": "THE WAY IN\n\nSign in, then Trips, then New trip, then the trip opens on Today.\n\nEVERY PHONE ARTBOARD IS NOW 375 x 667, not 390 x 844. That is a small phone with the browser's own chrome already taken off the top and bottom, which is what people actually have in their hand. Rows, headers and buttons all came down to fit it.\n\nThe G mark on the sign-in button is a PLACEHOLDER for the asset Google ships."
-    },
-    {
-      "id": "note-places",
-      "page": "page-1",
-      "x": 2450,
-      "y": -240,
-      "w": 1370,
-      "text": "THE STOP MENU, AND ADDING PLACES\n\nThe kebab holds exactly two things: Move to date, which opens the sheet beside it, and Remove from list. Navigate, Visited and Add note stay on the row where they are used constantly.\n\nSearch is biased to the open day, not the whole planet. Places API takes a locationBias circle of up to 50 km, centred on that day's stops, and the radius is a chip you can widen. Results outside it still appear, greyed, with the distance.\n\nSign-in is Google. Drive is a separate, later consent, asked only when you first attach a file."
-    },
-    {
-      "id": "note-planner",
-      "page": "page-1",
-      "x": 0,
-      "y": 900,
-      "w": 960,
-      "text": "PLANNER\n\nClick any empty cell and the search opens right there, already scoped to that day and that hour. The sidebar is To be planned: uncollapsed, scrollable, everything not on a day yet. Two rows along the bottom: travel and where you sleep.\n\nThe plus at each end of the grid extends the trip by a day, so a trip that runs long or gets cut short is a click rather than a settings screen. The arrows by the view switcher page through a trip too long to fit."
-    },
-    {
       "id": "note-dirs",
       "page": "page-2",
       "x": 0,
@@ -201,12 +204,44 @@
       "text": "Three ways to shape the day list. A is what the app screens are built on, because it is what you described. B and C are here so you can see what you are giving up. They are sketches, not proposals - say the word and I will build one out properly."
     },
     {
+      "id": "note-flow",
+      "page": "page-1",
+      "x": -490,
+      "y": -250,
+      "w": 1400,
+      "text": "THE WAY IN\n\nSign in \u00b7 Trips \u00b7 New trip \u00b7 a brand new trip, which is the first thing anyone actually sees and had no design until now \u00b7 Today once it has stops.\n\nEvery phone artboard is 375 x 667: a small phone with the browser's own chrome already taken off. Not 390 x 844, which is a viewport almost nobody has."
+    },
+    {
+      "id": "note-states",
+      "page": "page-1",
+      "x": 1420,
+      "y": -250,
+      "w": 1400,
+      "text": "STATES THAT WERE MISSING\n\nEmpty trip: no pins, no stops, and two ways out - find a place, or bring in a My Map. Everything else on this canvas assumed a full trip.\n\nNo connection: the app keeps working. A strip says so and counts what is waiting, a change made offline carries a clock, and something added offline is dashed until it is shared. PLAN.md calls offline a requirement and nothing had drawn it."
+    },
+    {
+      "id": "note-planner",
+      "page": "page-1",
+      "x": 0,
+      "y": 700,
+      "w": 1000,
+      "text": "PLANNER \u00b7 DESKTOP\n\nClick an empty cell and search opens there, scoped to that day and hour. Click an event for Edit, Add note, Delete. The plus at each end of the grid extends the trip by a day.\n\nCards now carry the author avatar the phone cards have."
+    },
+    {
       "id": "note-plannerstop",
       "page": "page-1",
       "x": 0,
-      "y": 1930,
+      "y": 1720,
       "w": 1000,
-      "text": "PLANNER \u00b7 SELECTION AND DRAG\n\nClicking an event opens the same three actions the phone has, in a popover beside it: Edit, Add note, Delete. It says Edit note once there is one.\n\nTwo drags are shown at once, which would not happen in life but shows both halves. On Sat Oct 3 an event already on the grid is being moved up its own day, with a dashed ghost left where it was. On Mon Oct 5 an item is being dragged in from To be planned, and its row in the sidebar is dashed out until it lands. Both show a green drop line with the time it would take, and dragging across columns moves the day."
+      "text": "PLANNER \u00b7 SELECTION AND DRAG\n\nTwo drags at once, which would not happen in life but shows both halves. On Sat Oct 3 an event already on the grid moves up its own day, leaving a dashed ghost. On Mon Oct 5 an item is dragged in from To be planned, its sidebar row dashed out until it lands."
+    },
+    {
+      "id": "note-mobileplan",
+      "page": "page-1",
+      "x": 1560,
+      "y": 700,
+      "w": 700,
+      "text": "PLAN ON A PHONE \u00b7 NOT IN V1\n\nThe answer to your question, drawn so you can judge it. A seven-column grid cannot work at 375px, so this is one day per screen with the time running down and the gaps drawn to scale. It is Direction C from the other page, which earns its place here.\n\nMy read: Today plus the full list already covers planning on a phone, and this is the thing to build only if that turns out false. See PLAN.md section 4f."
     }
   ],
   "launch": {
