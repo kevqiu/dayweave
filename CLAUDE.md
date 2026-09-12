@@ -113,6 +113,16 @@ To be planned bucket is `#94897A`, which is not on the ramp.
   `locationRestriction` precisely so a Hakone teahouse stays findable from
   Fukuoka, and a UI that refuses to add one has reimposed the restriction the
   API call was chosen to avoid.
+- **There is no "Search anywhere", and there should not be.** The artboard
+  draws one and §4b describes it, but measured against the deployed Worker it
+  does the opposite of its name. Dropping `locationBias` does not search
+  anywhere: Google falls back to the caller's location, which is the
+  Cloudflare edge serving the request. "onsen" with it on returned San
+  Francisco, Desert Hot Springs and two places in Oregon. It also bought
+  nothing — "hakone teahouse", "nara park" and "tsutaya books daikanyama"
+  returned identical results with and without the bias, because a name is
+  specific enough on its own. The bias only orders generic queries, and
+  ordering those by the day you are planning is the whole point.
 - **"Outside the day" is only said when the circle came from the open day** —
   its own stops or its lodging. When the circle fell back to a neighbouring day
   or the viewport (§4b's third and fourth cases), the open day has no location

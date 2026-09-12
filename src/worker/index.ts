@@ -224,8 +224,23 @@ app.get("/api/trips/:tripId/place-search", async (c) => {
   if (!trip) return c.json({ error: "no such trip" }, 404);
 
   const [days, stops] = await Promise.all([listDays(c.env.DB, tripId), listStops(c.env.DB, tripId)]);
-  const anywhere = c.req.query("anywhere") === "1";
-  const bias = anywhere ? null : biasFor(c.req.query("dayId") ?? null, days, stops);
+
+  /**
+   * There is no way to turn the bias off, and that is deliberate.
+   *
+   * The screen used to carry a "Search anywhere" control that dropped
+   * `locationBias`. Measured against the deployed Worker, dropping it does not
+   * search anywhere: Google falls back to the *caller's* location, which is
+   * whichever Cloudflare edge served the request. Searching "onsen" with it on
+   * returned San Francisco, Desert Hot Springs and two places in Oregon.
+   *
+   * It also bought nothing. A named place is found either way — "hakone
+   * teahouse", "nara park" and "tsutaya books daikanyama" returned identical
+   * results with and without the bias — because a name is specific enough on
+   * its own. The bias only orders generic queries, and ordering those by the
+   * day you are planning is the entire point of PLAN.md section 4b.
+   */
+  const bias = biasFor(c.req.query("dayId") ?? null, days, stops);
 
   let places: PlaceDetails[];
   try {

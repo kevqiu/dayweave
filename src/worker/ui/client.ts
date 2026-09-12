@@ -1578,7 +1578,7 @@ function openSearch(dayId) {
   openLayer(() => { state.search = null; clearLookMarker(); render(); });
   state.search = {
     dayId: dayId === "unplanned" ? null : dayId,
-    query: "", rows: [], pins: [], bias: null, anywhere: false,
+    query: "", rows: [], pins: [], bias: null,
     note: null, busy: false, lookingAt: null,
   };
   render();
@@ -1625,12 +1625,6 @@ function sheetSearch() {
             ])
           : null,
         s.bias ? h("div", { class: "chip plain", text: Math.round(s.bias.radius / 1000) + " km" }, []) : null,
-        h("span", { style: "flex-grow:1" }, []),
-        h("button", {
-          class: "chip-link",
-          "aria-pressed": s.anywhere ? "true" : "false",
-          onclick: () => { s.anywhere = !s.anywhere; if (s.query.trim().length >= MIN_CHARS) runSearch(s.query.trim()); else render(); },
-        }, ["Search anywhere"]),
       ]),
     ]),
     results,
@@ -1657,7 +1651,6 @@ async function runSearch(query) {
   const s = state.search;
   const params = new URLSearchParams({ q: query });
   if (s.dayId) params.set("dayId", s.dayId);
-  if (s.anywhere) params.set("anywhere", "1");
 
   const ticket = ++searchTicket;
   s.busy = true;

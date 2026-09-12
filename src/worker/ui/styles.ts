@@ -420,11 +420,6 @@ button { font-family: ${SANS}; cursor: pointer; }
 }
 .chip > span { overflow: hidden; text-overflow: ellipsis; }
 .chip.plain { background: transparent; border-color: ${C.border}; color: ${C.grey}; flex-shrink: 0; }
-.chip-link {
-  font-size: 11px; font-weight: 600; color: ${C.link}; background: none;
-  border: 0; padding: 0; font-family: ${SANS}; white-space: nowrap; flex-shrink: 0;
-}
-.chip-link[aria-pressed="true"] { text-decoration: underline; }
 .results { flex-grow: 1; overflow-y: auto; }
 
 .result {
