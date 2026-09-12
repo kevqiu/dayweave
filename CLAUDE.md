@@ -166,6 +166,26 @@ To be planned bucket is `#94897A`, which is not on the ramp.
   `TripMenu.dc.html`. Do not put the X back. The drop writes one op: a day, and an order key between
   the two rows it landed between.
 
+  **Holding a dragged stop over a collapsed day springs it open**, so the stop
+  can be placed between that day's items rather than only tacked on its end.
+  No artboard draws this; it is built from the palette. Nothing moves for the
+  first 500ms, because a finger passing over a day on its way somewhere else
+  must not disturb it. Over the next 1000ms a skeleton accordion grows under
+  the header and the card in the air shrinks from `scale(1.015)` to `0.915`
+  as it straightens — the growing *is* the progress, so there is no separate
+  "keep holding" indicator. At the end the day really opens.
+
+  The skeleton has as many rows as the day has stops, up to three, so it is
+  not a lie about what is about to appear. All of it is painted frame by frame
+  through `requestAnimationFrame` with direct DOM writes, because the finger is
+  still and `pointermove` has stopped firing, and because a `render()` would
+  destroy the skeleton mid-grow.
+
+  **What is being dropped is decided by whether a neighbour is known, not by
+  which day it started on.** After a day springs open the stop is being ordered
+  inside a day it did not come from, so the green thread shows; the
+  `DROP HERE TO MOVE` highlight is only for a day whose list is not showing.
+
   **A drag's `pointermove` and `pointerup` listeners go on the `window`, never
   on the handle.** Starting a drag re-renders, which replaces the handle and
   throws away any pointer capture held on it — nothing moves and nothing

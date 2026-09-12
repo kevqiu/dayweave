@@ -323,6 +323,33 @@ button { font-family: ${SANS}; cursor: pointer; }
   font-size: 10.5px; font-weight: 700; color: ${C.aheadInk}; letter-spacing: 0.04em; white-space: nowrap;
 }
 
+/* Holding a dragged stop over a collapsed day springs it open.
+   No artboard draws this — SheetFull.dc.html only shows the static DROP HERE
+   TO MOVE state — so it is built from the palette. The skeleton grows as you
+   hold, so the opening itself is the progress bar. */
+.day-skeleton { overflow: hidden; will-change: height; }
+.skel-row {
+  height: 42px; margin: 0 9px 3px; border-radius: 10px;
+  background: linear-gradient(90deg, ${C.line} 0%, ${C.paper} 50%, ${C.line} 100%);
+  background-size: 300px 100%;
+  animation: shimmer 1.15s linear infinite;
+}
+.skel-row:nth-child(2) { animation-delay: 0.12s; }
+.skel-row:nth-child(3) { animation-delay: 0.24s; }
+@keyframes shimmer {
+  from { background-position: -150px 0; }
+  to { background-position: 150px 0; }
+}
+
+/* The card shrinks as it is held, so it reads as going *into* the list rather
+   than sitting on top of it. Set frame by frame while the finger is still. */
+.lifted { transition: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .skel-row { animation: none; background: ${C.line}; }
+  .sheet.stops { transition: none; }
+}
+
 .stop-actions { padding: 0 7px 7px 36px; position: relative; }
 .stop-note { display: flex; gap: 6px; padding-bottom: 7px; }
 .stop-note > i { width: 2px; border-radius: 2px; background: #E0D5BF; flex-shrink: 0; }

@@ -854,7 +854,10 @@ function sheetContents(hasStops) {
 
   for (const day of trip.days) {
     const open = day.id === state.openDayId;
-    const wrap = h("div", { class: open ? "day-wrap open" : "day-wrap" }, []);
+    const wrap = h("div", {
+      class: open ? "day-wrap open" : "day-wrap",
+      "data-day-id": day.id,
+    }, []);
     const done = day.stops.filter((s) => statusOf(day, s) === "done").length;
     // The progress count stays honest: it counts the day, not what is shown.
     const shown = state.hideVisited
@@ -900,7 +903,7 @@ function sheetContents(hasStops) {
 
   const unplanned = trip.unplanned;
   out.push(
-    h("div", { class: "day-wrap" }, [
+    h("div", { class: "day-wrap", "data-day-id": "unplanned" }, [
       h("button", {
         class: "day-head",
         "data-day-id": "unplanned",
@@ -1017,6 +1020,8 @@ function dragHandle(day, stop) {
       y: event.clientY,
       targetDayId: day.id,
       afterStopId: undefined,
+      hoverDayId: null,
+      hoverStart: 0,
       moved: false,
     };
 
@@ -1037,6 +1042,7 @@ function dragHandle(day, stop) {
       window.removeEventListener("pointerup", end);
       window.removeEventListener("pointercancel", end);
       if (!state.drag) return;
+      endHover();
 
       const drag = state.drag;
       state.drag = null;
@@ -1060,24 +1066,129 @@ function dragHandle(day, stop) {
  */
 function resolveDropTarget(x, y) {
   const drag = state.drag;
+  const wraps = [...document.querySelectorAll(".day-wrap[data-day-id]")];
 
-  for (const head of document.querySelectorAll(".day-head")) {
-    const rect = head.getBoundingClientRect();
-    if (y >= rect.top && y <= rect.bottom && head.dataset.dayId !== drag.fromDayId) {
-      drag.targetDayId = head.dataset.dayId === "unplanned" ? null : head.dataset.dayId;
-      // Onto another day it joins the end; ordering within it is a later drag.
-      drag.afterStopId = undefined;
-      return;
+  let hit = null;
+  for (const wrap of wraps) {
+    const rect = wrap.getBoundingClientRect();
+    if (y >= rect.top && y <= rect.bottom) { hit = wrap; break; }
+  }
+  if (!hit) { endHover(); return; }
+
+  const id = hit.dataset.dayId === "unplanned" ? null : hit.dataset.dayId;
+  drag.targetDayId = id;
+
+  const rows = [...hit.querySelectorAll(".stop[data-stop-id]")]
+    .filter((row) => row.dataset.stopId !== drag.stopId);
+
+  if (rows.length) {
+    // An open day: the row it would follow is whichever midpoint it has passed.
+    let after = null;
+    for (const row of rows) {
+      const rect = row.getBoundingClientRect();
+      if (y > rect.top + rect.height / 2) after = row.dataset.stopId;
     }
+    drag.afterStopId = after;
+    endHover();
+    return;
   }
 
-  drag.targetDayId = drag.fromDayId;
-  drag.afterStopId = null;
-  for (const row of document.querySelectorAll(".stop[data-stop-id]")) {
-    if (row.dataset.stopId === drag.stopId) continue;
-    const rect = row.getBoundingClientRect();
-    if (y > rect.top + rect.height / 2) drag.afterStopId = row.dataset.stopId;
+  // A day with nothing showing. Dropping here puts the stop at the end, but
+  // holding still springs the day open so it can go between its stops instead.
+  drag.afterStopId = undefined;
+  if (!hit.classList.contains("open") && hit.dataset.dayId !== drag.fromDayId) {
+    beginHover(hit.dataset.dayId);
+  } else {
+    endHover();
   }
+}
+
+/* --- spring-loaded opening ------------------------------------------------
+ *
+ * Hold a dragged stop over a collapsed day and it opens, so the stop can be
+ * placed between its items rather than only tacked on the end. Nothing moves
+ * for the first half second, because a finger passing over a day on its way
+ * somewhere else should not disturb it. After that a skeleton grows under the
+ * header and the card in the air shrinks, and when the skeleton is full the
+ * day really opens. The growing is the progress: there is no separate spinner
+ * saying "keep holding".
+ */
+const HOVER_QUIET_MS = 500;
+const HOVER_GROW_MS = 1000;
+
+let hoverFrame = null;
+
+function beginHover(dayId) {
+  const drag = state.drag;
+  if (drag.hoverDayId === dayId) return;
+  endHover();
+  drag.hoverDayId = dayId;
+  drag.hoverStart = performance.now();
+  hoverFrame = requestAnimationFrame(hoverTick);
+}
+
+function endHover() {
+  const drag = state.drag;
+  if (hoverFrame) { cancelAnimationFrame(hoverFrame); hoverFrame = null; }
+  const skeleton = $("day-skeleton");
+  if (skeleton) skeleton.remove();
+  if (drag) { drag.hoverDayId = null; drag.hoverStart = 0; }
+  shrinkLifted(0);
+}
+
+function hoverTick() {
+  const drag = state.drag;
+  if (!drag || !drag.hoverDayId) { endHover(); return; }
+
+  const elapsed = performance.now() - drag.hoverStart;
+  const progress = Math.min(1, Math.max(0, (elapsed - HOVER_QUIET_MS) / HOVER_GROW_MS));
+  paintHover(drag.hoverDayId, progress);
+
+  if (progress >= 1) { openHoveredDay(drag.hoverDayId); return; }
+  hoverFrame = requestAnimationFrame(hoverTick);
+}
+
+/** How many skeleton rows a day deserves: as many stops as it has, up to three. */
+function skeletonRows(dayId) {
+  const day = state.trip.days.find((d) => d.id === dayId);
+  const count = day ? day.stops.length : state.trip.unplanned.length;
+  return Math.min(3, Math.max(1, count));
+}
+
+function paintHover(dayId, progress) {
+  const wrap = document.querySelector('.day-wrap[data-day-id="' + dayId + '"]');
+  if (!wrap) return;
+
+  let skeleton = $("day-skeleton");
+  if (!skeleton || skeleton.parentElement !== wrap) {
+    if (skeleton) skeleton.remove();
+    skeleton = h("div", { class: "day-skeleton", id: "day-skeleton" }, []);
+    const rows = skeletonRows(dayId);
+    for (let i = 0; i < rows; i++) skeleton.append(h("div", { class: "skel-row" }, []));
+    skeleton.append(h("div", { style: "height:8px" }, []));
+    wrap.append(skeleton);
+    skeleton.dataset.full = String(rows * 45 + 8);
+  }
+  skeleton.style.height = Math.round(Number(skeleton.dataset.full) * progress) + "px";
+  shrinkLifted(progress);
+}
+
+/** The card goes into the list, so it gets smaller as it is held over one. */
+function shrinkLifted(progress) {
+  const card = $("lifted");
+  if (!card) return;
+  const scale = 1.015 - 0.1 * progress;
+  const tilt = -1.1 + 0.7 * progress;
+  card.style.transform = "rotate(" + tilt.toFixed(2) + "deg) scale(" + scale.toFixed(3) + ")";
+}
+
+function openHoveredDay(dayId) {
+  const drag = state.drag;
+  endHover();
+  state.openDayId = dayId === "unplanned" ? "unplanned" : dayId;
+  render();
+  // The day has real rows now, so work out which two it would land between.
+  if (state.drag) { resolveDropTarget(0, state.drag.y); paintDrag(); }
 }
 
 /**
@@ -1093,18 +1204,26 @@ function paintDrag() {
   const top = drag.y - frame.getBoundingClientRect().top - 23;
   card.style.top = top + "px";
 
-  const onADay = drag.targetDayId !== drag.fromDayId;
+  // Two different things can be happening: placing the stop between two rows
+  // of a list that is showing, or dropping it on a day that is not. Which one
+  // is decided by whether a neighbour has been worked out, not by whether the
+  // day is the one it started on — after a day springs open, the stop is being
+  // ordered inside a day it did not come from.
+  const ordering = drag.afterStopId !== undefined;
+  const landingOnADay = !ordering && drag.targetDayId !== drag.fromDayId;
+
   for (const head of document.querySelectorAll(".day-head")) {
     const id = head.dataset.dayId === "unplanned" ? null : head.dataset.dayId;
-    head.classList.toggle("droppable", onADay && id === drag.targetDayId);
+    const marked = landingOnADay && id === drag.targetDayId;
+    head.classList.toggle("droppable", marked);
     const tag = head.querySelector(".drop-here");
-    if (tag) tag.hidden = !(onADay && id === drag.targetDayId);
+    if (tag) tag.hidden = !marked;
   }
 
   const line = $("drop-line");
   if (line) {
-    line.hidden = onADay;
-    if (!onADay) placeDropLine(line);
+    line.hidden = !ordering;
+    if (ordering) placeDropLine(line);
   }
 }
 
