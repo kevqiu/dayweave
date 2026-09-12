@@ -333,8 +333,11 @@ way out.
 avatar stack opens the People screen. It belongs there because that is already where the question
 "who is on this trip" is being answered, and it keeps the nav to one menu rather than two.
 
-**Sources still has no route from inside a trip.** Open question 5. It is the one thing you touch
-once and then never again, so the Trips card may be the better home for it than any menu.
+**Sources lives in the Planner**, at the foot of the To be planned sidebar, as a row showing which
+My Map is connected and when it last synced. That is the right place: the sidebar is the thing the
+My Map fills, so the source of those places belongs directly under them rather than in a settings
+screen two taps away. The phone Plan view carries the same control as a small button on the tray
+header.
 
 ---
 
@@ -580,7 +583,7 @@ what makes dragging onto a day a single field update and keeps drag-back-off fre
 | Place search | **Places API (New)**, `locationBias` circle centred on the open day | §4b |
 | Stop text | Description derived, note typed. Bookings are notes, not imports | §4c |
 | Mobile planner | **In v1.** One day per screen, with the To be planned tray | §4f |
-| Navigation | One dropdown on the trip name. Invite sits with the avatars | §4h |
+| Navigation | One dropdown on the trip name. Invite with the avatars, Sources in the Planner | §4h |
 | Conflicts | Last writer wins, silently. Deliberate for v1 | §4g |
 | Stop actions | Navigate, Visited, note on the phone. Edit, note, delete in the Planner | §4e |
 | Trip name | Typed and required. Cities under it are derived, and hidden when empty | §4d |
@@ -599,13 +602,8 @@ what makes dragging onto a day a single field update and keeps drag-back-off fre
    It changes the Planner's column widths and forces horizontal paging, not the schema.
 3. **Times** — many stops will have none. End of the day, or hold a position in the order anyway?
 4. **Visited** — per person or per trip? If Mika eats the ramen and you do not, is it visited?
-5. **Sources has no route from inside a trip.** People is reachable from the invite button beside the
-   avatars, but connecting a My Map is not. It is a once-per-trip action, so the Trips card may be a
-   better home than a menu item nobody needs twice.
-6. **Tap targets, and this one now matters.** The action buttons are 30 px tall after the density
-   pass. Apple and Google both put the floor at 44-48 px. The row they sit in gives them some
-   padding, but 30 is under the line however it is measured, and it is the first thing to check on a
-   real phone. The honest options are a taller button, or fewer buttons in the row.
+5. **Tap targets on the phone.** The action buttons are 30 px after the density pass, under both the
+   Apple and Google floors. First thing to check on a device.
 7. **Undoing a drag.** There is no rearrange mode and so no Done button, which means a drop is
    committed the moment you let go. On a live shared list that wants an undo, most likely a toast
    reading "Moved to Sat Oct 3" with an Undo action. The op log in section 6 already makes this
