@@ -1,0 +1,315 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Figtree:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; font-family: Figtree, "Helvetica Neue", sans-serif; background: #FBF6EE; }
+    a { color: #A8663C; } a:hover { color: #8A5230; }
+    * { box-sizing: border-box; }
+    .col { flex-grow: 1; flex-basis: 0; min-width: 0; border-right: 1px solid #EFE6D6; position: relative; }
+    .card { position: absolute; left: 5px; right: 5px; border-radius: 8px; padding: 6px 8px; overflow: hidden; }
+    .ttl { font-size: 11.5px; font-weight: 600; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sub { font-size: 9.5px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; height: 900px; background: #FBF6EE; color: #33302B; display: flex; flex-direction: column; overflow: hidden;">
+
+  <!-- top bar -->
+  <div style="height: 60px; flex-shrink: 0; display: flex; align-items: center; gap: 16px; padding: 0 22px; border-bottom: 1px solid #E9DFCE;">
+    <span style="font-family: Newsreader, Georgia, serif; font-size: 21px; font-weight: 500;">Japan, autumn</span>
+    <div style="display: flex; background: #F0E9DC; border-radius: 9px; padding: 3px; gap: 2px;">
+      <span style="font-size: 12px; font-weight: 600; color: #8C8479; padding: 5px 13px; border-radius: 7px;">Map</span>
+      <span style="font-size: 12px; font-weight: 600; color: #33302B; background: #FFFCF6; padding: 5px 13px; border-radius: 7px; box-shadow: 0 1px 2px rgba(80,66,44,0.10);">Planner</span>
+      <span style="font-size: 12px; font-weight: 600; color: #8C8479; padding: 5px 13px; border-radius: 7px;">List</span>
+    </div>
+    <span style="flex-grow: 1;"></span>
+    <span style="font-size: 11.5px; color: #9A9184;">Mika is editing Sat Oct 3</span>
+    <div style="display: flex;">
+      <div style="width: 29px; height: 29px; border-radius: 50%; background: #C4826A; color: #FFF9F0; font-size: 10.5px; font-weight: 600; display: flex; align-items: center; justify-content: center; border: 2px solid #FBF6EE;">KQ</div>
+      <div style="width: 29px; height: 29px; border-radius: 50%; background: #6E8CA8; color: #FFF9F0; font-size: 10.5px; font-weight: 600; display: flex; align-items: center; justify-content: center; border: 2px solid #FBF6EE; margin-left: -9px;">MT</div>
+    </div>
+    <button style="height: 35px; border-radius: 10px; border: 1px solid #E9DFCE; background: #FFFCF6; color: #6B645B; font-family: Figtree, sans-serif; font-size: 12.5px; font-weight: 600; padding: 0 13px; cursor: pointer;">Export CSV</button>
+    <button style="height: 35px; border-radius: 10px; border: none; background: #33302B; color: #FBF6EE; font-family: Figtree, sans-serif; font-size: 12.5px; font-weight: 600; padding: 0 14px; cursor: pointer;">Share</button>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; min-height: 0;">
+
+    <!-- grid -->
+    <div style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+
+      <!-- day headers -->
+      <div style="height: 58px; flex-shrink: 0; display: flex; border-bottom: 1px solid #E9DFCE;">
+        <div style="width: 56px; flex-shrink: 0; border-right: 1px solid #EFE6D6;"></div>
+
+        <div class="col" style="opacity: 0.5;">
+          <div style="padding: 8px 10px;">
+            <div style="display: flex; align-items: baseline; gap: 6px;"><span style="width: 7px; height: 7px; border-radius: 50%; background: #C4826A;"></span><span style="font-size: 12.5px; font-weight: 600;">Wed Oct 1</span></div>
+            <div style="font-size: 10.5px; color: #9A9184; margin-top: 3px;">Fukuoka · 2/2</div>
+          </div>
+        </div>
+
+        <div class="col" style="background: #F6EFE2;">
+          <div style="padding: 8px 10px;">
+            <div style="display: flex; align-items: baseline; gap: 6px;"><span style="width: 7px; height: 7px; border-radius: 50%; background: #B98F4E;"></span><span style="font-size: 12.5px; font-weight: 700;">Fri Oct 2</span><span style="font-size: 8.5px; font-weight: 700; letter-spacing: 0.07em; color: #4E7A4B; background: #E4EEE1; border-radius: 3px; padding: 1px 4px;">TODAY</span></div>
+            <div style="font-size: 10.5px; color: #9A9184; margin-top: 3px;">Fukuoka · 1/5</div>
+          </div>
+        </div>
+
+        <div class="col">
+          <div style="padding: 8px 10px;">
+            <div style="display: flex; align-items: baseline; gap: 6px;"><span style="width: 7px; height: 7px; border-radius: 50%; background: #8E9A57;"></span><span style="font-size: 12.5px; font-weight: 600;">Sat Oct 3</span></div>
+            <div style="font-size: 10.5px; color: #9A9184; margin-top: 3px;">Fukuoka · 0/4</div>
+          </div>
+        </div>
+
+        <div class="col">
+          <div style="padding: 8px 10px;">
+            <div style="display: flex; align-items: baseline; gap: 6px;"><span style="width: 7px; height: 7px; border-radius: 50%; background: #6E9A78;"></span><span style="font-size: 12.5px; font-weight: 600;">Sun Oct 4</span></div>
+            <div style="font-size: 10.5px; color: #9A9184; margin-top: 3px;">Fukuoka to Kagoshima</div>
+          </div>
+        </div>
+
+        <div class="col">
+          <div style="padding: 8px 10px;">
+            <div style="display: flex; align-items: baseline; gap: 6px;"><span style="width: 7px; height: 7px; border-radius: 50%; background: #5E9694;"></span><span style="font-size: 12.5px; font-weight: 600;">Mon Oct 5</span></div>
+            <div style="font-size: 10.5px; color: #C08A6E; margin-top: 3px;">Kagoshima · nothing planned</div>
+          </div>
+        </div>
+
+        <div class="col">
+          <div style="padding: 8px 10px;">
+            <div style="display: flex; align-items: baseline; gap: 6px;"><span style="width: 7px; height: 7px; border-radius: 50%; background: #6E8CA8;"></span><span style="font-size: 12.5px; font-weight: 600;">Tue Oct 6</span></div>
+            <div style="font-size: 10.5px; color: #9A9184; margin-top: 3px;">Kagoshima to Hakone</div>
+          </div>
+        </div>
+
+        <div class="col" style="border-right: none;">
+          <div style="padding: 8px 10px;">
+            <div style="display: flex; align-items: baseline; gap: 6px;"><span style="width: 7px; height: 7px; border-radius: 50%; background: #8A83AE;"></span><span style="font-size: 12.5px; font-weight: 600;">Wed Oct 7</span></div>
+            <div style="font-size: 10.5px; color: #9A9184; margin-top: 3px;">Hakone · 0/4</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- time grid -->
+      <div style="flex-grow: 1; display: flex; position: relative; overflow: hidden;">
+
+        <!-- hour lines -->
+        <div style="position: absolute; left: 56px; right: 0; top: 0; bottom: 0;">
+          <div style="position: absolute; left: 0; right: 0; top: 44px; height: 1px; background: #F1E9DA;"></div>
+          <div style="position: absolute; left: 0; right: 0; top: 88px; height: 1px; background: #F1E9DA;"></div>
+          <div style="position: absolute; left: 0; right: 0; top: 132px; height: 1px; background: #F1E9DA;"></div>
+          <div style="position: absolute; left: 0; right: 0; top: 176px; height: 1px; background: #F1E9DA;"></div>
+          <div style="position: absolute; left: 0; right: 0; top: 220px; height: 1px; background: #F1E9DA;"></div>
+          <div style="position: absolute; left: 0; right: 0; top: 264px; height: 1px; background: #F1E9DA;"></div>
+          <div style="position: absolute; left: 0; right: 0; top: 308px; height: 1px; background: #F1E9DA;"></div>
+          <div style="position: absolute; left: 0; right: 0; top: 352px; height: 1px; background: #F1E9DA;"></div>
+          <div style="position: absolute; left: 0; right: 0; top: 396px; height: 1px; background: #F1E9DA;"></div>
+          <div style="position: absolute; left: 0; right: 0; top: 440px; height: 1px; background: #F1E9DA;"></div>
+          <div style="position: absolute; left: 0; right: 0; top: 484px; height: 1px; background: #F1E9DA;"></div>
+          <div style="position: absolute; left: 0; right: 0; top: 528px; height: 1px; background: #F1E9DA;"></div>
+          <div style="position: absolute; left: 0; right: 0; top: 572px; height: 1px; background: #F1E9DA;"></div>
+          <div style="position: absolute; left: 0; right: 0; top: 616px; height: 1px; background: #F1E9DA;"></div>
+        </div>
+
+        <!-- time gutter -->
+        <div style="width: 56px; flex-shrink: 0; border-right: 1px solid #EFE6D6; position: relative; z-index: 2;">
+          <span style="position: absolute; right: 9px; top: -6px; font-size: 10px; color: #B5ACA0;">08:00</span>
+          <span style="position: absolute; right: 9px; top: 82px; font-size: 10px; color: #B5ACA0;">10:00</span>
+          <span style="position: absolute; right: 9px; top: 170px; font-size: 10px; color: #B5ACA0;">12:00</span>
+          <span style="position: absolute; right: 9px; top: 258px; font-size: 10px; color: #B5ACA0;">14:00</span>
+          <span style="position: absolute; right: 9px; top: 346px; font-size: 10px; color: #B5ACA0;">16:00</span>
+          <span style="position: absolute; right: 9px; top: 434px; font-size: 10px; color: #B5ACA0;">18:00</span>
+          <span style="position: absolute; right: 9px; top: 522px; font-size: 10px; color: #B5ACA0;">20:00</span>
+          <span style="position: absolute; right: 9px; top: 610px; font-size: 10px; color: #B5ACA0;">22:00</span>
+        </div>
+
+        <!-- Oct 1, past -->
+        <div class="col" style="opacity: 0.45;">
+          <div class="card" style="top: 418px; height: 38px; background: #EFE9DF; border: 1px solid #DFD6C7;">
+            <div class="ttl" style="color: #8C8479; text-decoration: line-through;">Land in Fukuoka</div>
+            <div class="sub" style="color: #A8A093;">17:30 · checked into hotel</div>
+          </div>
+          <div class="card" style="top: 506px; height: 38px; background: #EFE9DF; border: 1px solid #DFD6C7;">
+            <div class="ttl" style="color: #8C8479; text-decoration: line-through;">Uoden Hakata Seafood</div>
+            <div class="sub" style="color: #A8A093;">19:30 · izakaya</div>
+          </div>
+        </div>
+
+        <!-- Oct 2, today -->
+        <div class="col" style="background: #FBF5E9;">
+          <!-- now line -->
+          <div style="position: absolute; left: 0; right: 0; top: 231px; height: 1.5px; background: #C4826A; z-index: 3;"></div>
+          <div style="position: absolute; left: -3px; top: 227px; width: 8px; height: 8px; border-radius: 50%; background: #C4826A; z-index: 3;"></div>
+
+          <div class="card" style="top: 88px; height: 38px; background: #EFE9DF; border: 1px solid #DFD6C7;">
+            <div class="ttl" style="color: #8C8479; text-decoration: line-through;">Kanetora Rich Soup Ramen</div>
+            <div class="sub" style="color: #A8A093;">10:00 · visited 10:24</div>
+          </div>
+          <div class="card" style="top: 198px; height: 30px; background: #E9F1E6; border: 1px solid #C6DBC2;">
+            <div class="ttl" style="color: #35502F;">Ohori Park</div>
+          </div>
+          <div class="card" style="top: 231px; height: 38px; background: #E9F1E6; border: 1px solid #C6DBC2;">
+            <div class="ttl" style="color: #35502F;">Hikiniku to Come</div>
+            <div class="sub" style="color: #6C8A66;">13:15 · booked</div>
+          </div>
+          <div class="card" style="top: 352px; height: 60px; background: #E9F1E6; border: 1px solid #C6DBC2;">
+            <div class="ttl" style="color: #35502F;">Canal City Hakata</div>
+            <div class="sub" style="color: #6C8A66;">16:00 – 17:30</div>
+          </div>
+          <div class="card" style="top: 506px; height: 60px; background: #E9F1E6; border: 1.5px solid #6F9A6B; box-shadow: 0 2px 8px rgba(84,68,44,0.12);">
+            <div class="ttl" style="color: #35502F;">Sushi Zaisho</div>
+            <div class="sub" style="color: #6C8A66;">19:30 · omakase, 8 seats</div>
+          </div>
+        </div>
+
+        <!-- Oct 3 -->
+        <div class="col">
+          <div class="card" style="top: 110px; height: 30px; background: #FBF2DC; border: 1px solid #E6D5A8;">
+            <div class="ttl" style="color: #6B5426;">Menya Ishii</div>
+          </div>
+          <div class="card" style="top: 154px; height: 100px; background: #FBF2DC; border: 1px solid #E6D5A8;">
+            <div class="ttl" style="color: #6B5426;">Ainoshima</div>
+            <div class="sub" style="color: #97803F;">ferry 11:30, back 13:50</div>
+          </div>
+          <div class="card" style="top: 484px; height: 38px; background: #FBF2DC; border: 1px solid #E6D5A8;">
+            <div class="ttl" style="color: #6B5426;">Yakiniku night market</div>
+            <div class="sub" style="color: #97803F;">19:00</div>
+          </div>
+          <!-- drop target -->
+          <div class="card" style="top: 286px; height: 44px; background: transparent; border: 1.5px dashed #C7B98F; display: flex; align-items: center; justify-content: center;">
+            <span style="font-size: 10px; font-weight: 700; color: #96752F; letter-spacing: 0.05em;">DROP · 14:30</span>
+          </div>
+        </div>
+
+        <!-- Oct 4 -->
+        <div class="col">
+          <div class="card" style="top: 88px; height: 30px; background: #FBF2DC; border: 1px solid #E6D5A8;">
+            <div class="ttl" style="color: #6B5426;">Ramen at Hakata Station</div>
+          </div>
+          <div class="card" style="top: 132px; height: 60px; background: #F2EDE3; border: 1px solid #DFD6C7;">
+            <div class="ttl" style="color: #6B645B;">Train to Kagoshima</div>
+            <div class="sub" style="color: #A0978A;">note, no pin · 1h 20m</div>
+          </div>
+        </div>
+
+        <!-- Oct 5, empty -->
+        <div class="col">
+          <div class="card" style="top: 180px; height: 60px; background: transparent; border: 1.5px dashed #E2D8C6; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;">
+            <span style="font-size: 10.5px; color: #B5ACA0;">nothing here yet</span>
+            <span style="font-size: 10px; font-weight: 600; color: #A8663C;">6 saved places nearby</span>
+          </div>
+        </div>
+
+        <!-- Oct 6 -->
+        <div class="col">
+          <div class="card" style="top: 264px; height: 38px; background: #F2EDE3; border: 1px solid #DFD6C7;">
+            <div class="ttl" style="color: #6B645B;">Fly to Haneda</div>
+            <div class="sub" style="color: #A0978A;">14:00 · note, no pin</div>
+          </div>
+          <div class="card" style="top: 374px; height: 38px; background: #F2EDE3; border: 1px solid #DFD6C7;">
+            <div class="ttl" style="color: #6B645B;">Trains to Hakone</div>
+            <div class="sub" style="color: #A0978A;">16:30</div>
+          </div>
+          <div class="card" style="top: 484px; height: 38px; background: #FCF6E6; border: 1px dashed #DCC58A;">
+            <div class="ttl" style="color: #96752F;">Dinner</div>
+            <div class="sub" style="color: #B0925A;">unnamed · pick a place</div>
+          </div>
+        </div>
+
+        <!-- Oct 7 -->
+        <div class="col" style="border-right: none;">
+          <div class="card" style="top: 0px; height: 38px; background: #FBF2DC; border: 1px solid #E6D5A8;">
+            <div class="ttl" style="color: #6B5426;">Hakone Shrine</div>
+            <div class="sub" style="color: #97803F;">08:00</div>
+          </div>
+          <div class="card" style="top: 77px; height: 38px; background: #FBF2DC; border: 1px solid #E6D5A8;">
+            <div class="ttl" style="color: #6B5426;">Amasake Chaya Tea House</div>
+            <div class="sub" style="color: #97803F;">09:45</div>
+          </div>
+          <div class="card" style="top: 264px; height: 38px; background: #FBF2DC; border: 1px solid #E6D5A8;">
+            <div class="ttl" style="color: #6B5426;">Owakudani</div>
+            <div class="sub" style="color: #97803F;">14:00</div>
+          </div>
+          <div class="card" style="top: 484px; height: 38px; background: #FCF6E6; border: 1px dashed #DCC58A;">
+            <div class="ttl" style="color: #96752F;">Dinner</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- lodging row -->
+      <div style="height: 54px; flex-shrink: 0; display: flex; border-top: 1px solid #E9DFCE; background: #F6EFE2;">
+        <div style="width: 56px; flex-shrink: 0; border-right: 1px solid #EFE6D6; display: flex; align-items: center; justify-content: center;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#A59C90" stroke-width="1.9" stroke-linejoin="round"><path d="M3 10.5L12 3l9 7.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"></path></svg>
+        </div>
+        <div class="col" style="display: flex; align-items: center; padding: 0 10px; opacity: 0.5;"><span style="font-size: 11px; color: #6B645B;">The Blossom Hakata</span></div>
+        <div class="col" style="display: flex; align-items: center; padding: 0 10px; background: #F1E8D6;"><span style="font-size: 11px; color: #6B645B;">The Blossom Hakata</span></div>
+        <div class="col" style="display: flex; align-items: center; padding: 0 10px;"><span style="font-size: 11px; color: #6B645B;">The Blossom Hakata</span></div>
+        <div class="col" style="display: flex; align-items: center; padding: 0 10px;"><span style="font-size: 11px; color: #6B645B;">fav KAGOSHIMA CHUO</span></div>
+        <div class="col" style="display: flex; align-items: center; padding: 0 10px;"><span style="font-size: 11px; color: #6B645B;">fav KAGOSHIMA CHUO</span></div>
+        <div class="col" style="display: flex; align-items: center; padding: 0 10px;"><span style="font-size: 11px; color: #6B645B;">Hakone Gora KARAKU</span></div>
+        <div class="col" style="display: flex; align-items: center; padding: 0 10px; border-right: none;"><span style="font-size: 11px; color: #6B645B;">Hakone Gora KARAKU</span></div>
+      </div>
+    </div>
+
+    <!-- unscheduled tray -->
+    <div style="width: 252px; flex-shrink: 0; border-left: 1px solid #E9DFCE; display: flex; flex-direction: column;">
+      <div style="padding: 13px 15px 10px; border-bottom: 1px solid #EFE6D6;">
+        <div style="font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: #A8A093;">UNSCHEDULED</div>
+        <div style="font-size: 11px; color: #9A9184; margin-top: 4px;">14 places from your My Map, not on a day yet</div>
+      </div>
+      <div style="padding: 10px; display: flex; flex-direction: column; gap: 6px;">
+        <div style="border-radius: 9px; border: 1px solid #E4D9C5; background: #FFFCF6; padding: 9px 10px; display: flex; align-items: center; gap: 8px;">
+          <svg width="11" height="15" viewBox="0 0 12 16" style="flex-shrink: 0; opacity: 0.4;"><g fill="#A59C90"><circle cx="3.5" cy="3" r="1.3"></circle><circle cx="8.5" cy="3" r="1.3"></circle><circle cx="3.5" cy="8" r="1.3"></circle><circle cx="8.5" cy="8" r="1.3"></circle><circle cx="3.5" cy="13" r="1.3"></circle><circle cx="8.5" cy="13" r="1.3"></circle></g></svg>
+          <div style="display: flex; flex-direction: column; gap: 1px; min-width: 0;">
+            <span style="font-size: 11.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Tenjin Underground</span>
+            <span style="font-size: 9.5px; color: #A0978A;">Fukuoka · shopping</span>
+          </div>
+        </div>
+        <div style="border-radius: 9px; border: 1px solid #E4D9C5; background: #FFFCF6; padding: 9px 10px; display: flex; align-items: center; gap: 8px;">
+          <svg width="11" height="15" viewBox="0 0 12 16" style="flex-shrink: 0; opacity: 0.4;"><g fill="#A59C90"><circle cx="3.5" cy="3" r="1.3"></circle><circle cx="8.5" cy="3" r="1.3"></circle><circle cx="3.5" cy="8" r="1.3"></circle><circle cx="8.5" cy="8" r="1.3"></circle><circle cx="3.5" cy="13" r="1.3"></circle><circle cx="8.5" cy="13" r="1.3"></circle></g></svg>
+          <div style="display: flex; flex-direction: column; gap: 1px; min-width: 0;">
+            <span style="font-size: 11.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Sengan-en</span>
+            <span style="font-size: 9.5px; color: #C08A6E;">Kagoshima · fits Mon Oct 5</span>
+          </div>
+        </div>
+        <div style="border-radius: 9px; border: 1px solid #E4D9C5; background: #FFFCF6; padding: 9px 10px; display: flex; align-items: center; gap: 8px;">
+          <svg width="11" height="15" viewBox="0 0 12 16" style="flex-shrink: 0; opacity: 0.4;"><g fill="#A59C90"><circle cx="3.5" cy="3" r="1.3"></circle><circle cx="8.5" cy="3" r="1.3"></circle><circle cx="3.5" cy="8" r="1.3"></circle><circle cx="8.5" cy="8" r="1.3"></circle><circle cx="3.5" cy="13" r="1.3"></circle><circle cx="8.5" cy="13" r="1.3"></circle></g></svg>
+          <div style="display: flex; flex-direction: column; gap: 1px; min-width: 0;">
+            <span style="font-size: 11.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Sakurajima ferry</span>
+            <span style="font-size: 9.5px; color: #C08A6E;">Kagoshima · fits Mon Oct 5</span>
+          </div>
+        </div>
+        <div style="border-radius: 9px; border: 1px solid #E4D9C5; background: #FFFCF6; padding: 9px 10px; display: flex; align-items: center; gap: 8px;">
+          <svg width="11" height="15" viewBox="0 0 12 16" style="flex-shrink: 0; opacity: 0.4;"><g fill="#A59C90"><circle cx="3.5" cy="3" r="1.3"></circle><circle cx="8.5" cy="3" r="1.3"></circle><circle cx="3.5" cy="8" r="1.3"></circle><circle cx="8.5" cy="8" r="1.3"></circle><circle cx="3.5" cy="13" r="1.3"></circle><circle cx="8.5" cy="13" r="1.3"></circle></g></svg>
+          <div style="display: flex; flex-direction: column; gap: 1px; min-width: 0;">
+            <span style="font-size: 11.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Hakone Open-Air Museum</span>
+            <span style="font-size: 9.5px; color: #A0978A;">Hakone · museum</span>
+          </div>
+        </div>
+        <div style="text-align: center; padding-top: 4px; font-size: 10.5px; color: #A8A093;">10 more</div>
+      </div>
+
+      <span style="flex-grow: 1;"></span>
+
+      <div style="margin: 10px; border-radius: 11px; background: #F2F7F0; border: 1px solid #DCE8D9; padding: 11px 12px;">
+        <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 6px;">
+          <span style="width: 7px; height: 7px; border-radius: 50%; background: #6F9A6B;"></span>
+          <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.07em; color: #4E7A4B;">MY MAP SYNCED</span>
+        </div>
+        <div style="font-size: 11px; color: #5E7A5C; line-height: 1.5;">"Japan 2025" · 46 places · read 8 minutes ago</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

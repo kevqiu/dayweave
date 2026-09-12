@@ -13,12 +13,12 @@ Status: planning. No application code yet. Wireframes are in `design/`.
 | | Capability | Hard part |
 |---|---|---|
 | 1 | Show every stop on one full-screen map, clustered | none, solved problem |
-| 2 | Import a Google Maps saved list | **no public API exists** — see §3 |
-| 3 | Read a planning spreadsheet and assign stops to days | the sheet is a grid, not a table — see §4 |
-| 4 | Colour by day and by progress | two encodings competing for one channel — see §7 |
+| 2 | Pull places in from Google | saved lists have no API, so we use My Maps — §3 |
+| 3 | Plan days and times as a grid | built in, replacing the spreadsheet — §4 |
+| 4 | Colour by progress, group by day | two encodings, one channel — §7 |
 | 5 | Mark visited, add notes | none |
-| 6 | Import flights from Gmail | Google OAuth verification — see §5 |
-| 7 | Live collaboration, no refreshing | ordering conflicts on drag-reorder — see §6 |
+| 6 | ~~Import flights from Gmail~~ | deferred past v1 — §5 |
+| 7 | Live collaboration, no refreshing | ordering conflicts on drag-reorder — §6 |
 | 8 | Drag a stop to another day, or "move to day" with a suggestion | the suggestion needs a distance model — see §8 |
 
 ---
@@ -40,8 +40,7 @@ yvr.kocho.sh
    │      ├── Queue          import jobs
    │      └── Workflow       ImportRun — durable multi-step import, retries per place
    │
-   ├── Email Worker          trips@yvr.kocho.sh — forwarded confirmations (§5)
-   └── Cron                  */5  poll spreadsheet;  hourly  re-read Maps list
+   └── Cron                  hourly — re-read the My Maps KML
 ```
 
 **Why these pieces**
@@ -58,7 +57,7 @@ yvr.kocho.sh
   MB, R2 has no egress fee, and MapLibre lets us style it to the warm palette. Google tiles would
   cost per load, cannot be restyled past their preset themes, and force Google's UI attributions
   into a design meant to be calm.
-- **Email Routing** because it removes an entire OAuth verification project. See §5.
+- **No Gmail and no Sheets integration in v1**, so no Google OAuth beyond sign-in. See §4 and §5.
 
 **Frontend**: React 19 + Vite + TanStack Router + MapLibre GL JS. Tailwind v4 with the palette as
 CSS variables; no component library, the UI is small and specific. Framer Motion only for the sheet.
@@ -70,93 +69,85 @@ shapes the data model below, which is why ordering is a string and not an intege
 
 ---
 
-## 3. The Google Maps list problem
+## 3. Places come from Google My Maps
 
-**There is no API for a user's saved lists.** Not in Maps Platform, not in Drive, not in People.
-This is the single biggest unknown in the project and I want to decide it before writing code.
+**Decided.** There is no API for a Google Maps *saved list* — not in Maps Platform, not in Drive,
+not in People. Every route into one is either a manual export or scraping a page that will change.
 
-Four ways in, honestly ranked:
+So we use **Google My Maps** instead, which is a different product with a real public endpoint:
 
-**a. Google Takeout upload** — the user exports their list, gets a CSV of `Title, Note, URL`, and
-uploads it. Supported, stable, no ToS grey area. Costs one manual step per refresh, so it is an
-import rather than a sync. We still have to geocode each title against the Places API because the
-CSV has no coordinates.
+```
+https://www.google.com/maps/d/kml?mid=<map id>&forcekml=1
+```
 
-**b. Google My Maps instead of a saved list** — a different Google product. A My Map has a real
-public KML endpoint (`/maps/d/kml?mid=...`) that returns coordinates directly, no geocoding, no
-scraping, refreshable on a cron. Fully live sync. The catch is it is not the saved-list UI you
-already use, so it means changing how you collect places.
+That returns KML with a `<Placemark>` per pin, each carrying name, description and **coordinates**.
+No Places API call, no geocoding, no name matching, no scraping, and nothing that breaks when
+Google reskins the Maps front end. A cron re-reads it hourly and new pins land in **Unscheduled**.
 
-**c. Parse the shared list page** — a public list URL returns HTML with the places in an embedded
-JSON blob. It works today. It is automated access to Google's site, it breaks whenever they ship a
-change, and datacenter IPs get challenged. I would build this only as a convenience path with (a)
-as the fallback the moment it returns nothing.
+What this costs you: places get collected in My Maps rather than by tapping Save in the Maps app.
+Mitigations, in order of how much they help:
 
-**d. Paste place links** — you share individual places into the app, we resolve each with Places
-API. Reliable and boring. Fine as the always-available manual path regardless of what else we do.
+- **Import your existing saved list once.** Google Takeout exports a saved list as CSV, and My Maps
+  imports CSV directly. One migration, then you are on My Maps for good.
+- **Paste a place link** in the app any time. We resolve it with the Places API and write it straight
+  to the trip, so a place found while walking around never needs My Maps at all.
+- Layers in a My Map can mirror categories, which gives us `places.category` for free.
 
-**Recommendation**: build (a) and (d) first, since they are the ones that cannot break. Add (c)
-behind a flag as "try to fetch it for me", and treat (b) as the answer if you want genuinely live
-sync from Google.
-
-**Places API terms**: place IDs may be stored indefinitely; other place content (name, address,
-coordinates) is subject to caching limits and needs periodic refresh. The `places` table carries a
-`refreshed_at` for exactly this. I will confirm the current clause before we ship.
+Places added by link still touch the Places API, so `places.refreshed_at` stays in the schema to
+honour Google's content caching limits. KML pins do not, because we hold the coordinates ourselves.
 
 ---
 
-## 4. The spreadsheet
+## 4. The spreadsheet: replaced, not integrated
 
-Your sheet is a **grid**, not a table: columns are days, rows are time slots, cells hold activity
-names. A lot of trip spreadsheets look like this and a lot look like a flat `date | time | place`
-list instead. The parser has to detect which it is.
+**Decided, and you were right to push on it.** A sync means committing to parse layouts we have never
+seen, forever, and a parser that is 70% right *continuously* is worse than useless — it re-breaks
+every time anyone edits a cell.
 
-Grid parse, as applied to your sheet:
+But "ignore spreadsheets entirely" loses something real. The reason you use one is not the file. It
+is the **grid**: days across, time down, the whole trip visible at once. That is a view, not a data
+source.
 
-- Row 1 holds dates (`Sep 30`, `Oct 1`, …) → one `day` per column.
-- Row 2 holds weekday names → confirms the axis, discarded.
-- Row 3 holds the day's location (`Fukuoka`, `Fukuoka->Kagoshima`) → `days.place_label`, and the
-  `->` gives us travel days for free.
-- Column A holds times (`08:00`…`23:00`) → `stops.start_time`, taken from the row a cell starts in.
-- A merged or tall cell spanning rows means a duration → `end_time`.
-- The `House 🏠` row at the bottom is accommodation, not a stop → its own `lodging` record per night.
+So:
 
-Each non-empty cell becomes an import candidate. Then it has to become either a place or a note:
+**1. The app grows a Planner view that is the grid.** Days as columns, hours as rows, stops as cards
+you drag between days and times, the lodging row along the bottom (your `House 🏠` row). It is the
+`Planner` artboard on the canvas. Once that exists the spreadsheet has no job left, because the
+cells now know where they are on Earth and who has been there.
 
-- `Kanetora Rich Soup Ramen` → looks like a place → geocode, make a pin.
-- `Take train to Kagoshima` → looks like an activity → keep as a note on the day, no pin.
-- `Dinner` → too vague → keep as an unpinned note and say so.
+**2. A one-time import, not a sync.** Upload a CSV or paste a range. A best-effort parse handles both
+the grid shape (yours) and the flat `date | time | place` shape, then drops you in the Reconcile
+screen to fix what it got wrong. A 70%-correct parse is completely fine when it runs once and a
+human reviews it. Nobody has to keep their sheet in a schema, because after the import there is no
+sheet.
 
-That classification plus the fuzzy match against the Maps list is what the **Reconcile** wireframe
-shows. I would rather show you 7 uncertain matches than silently pin the wrong ramen shop.
+**3. Export CSV, always available.** No lock-in, and the reason nobody has to trust us.
 
-**Sync direction**: one-way, sheet → app, is much safer and is what I would build. Two-way means
-resolving "Mika moved it in the app while you moved it in the sheet", and spreadsheets have no
-per-cell identity to merge against. Open question §10.2.
+What the grid parse gets from your sheet, for reference:
 
-**Sync mechanism**: Drive API push notifications when the file changes, with a 5-minute cron poll
-as the fallback, since Drive channels expire and drop.
+- Row 1 dates → one `day` per column. Row 2 weekdays confirm the axis and are discarded.
+- Row 3 locations → `days.place_label`, and the `->` in `Fukuoka->Kagoshima` marks travel days.
+- Column A times → `stops.start_time`; a cell spanning rows gives `end_time`.
+- The `House 🏠` row → lodging per night, not a stop.
+- Each cell then classifies as a place (`Kanetora Rich Soup Ramen` → pin), an activity
+  (`Take train to Kagoshima` → note, no pin), or too vague (`Dinner` → note, flagged).
 
 ---
 
-## 5. Flights from Gmail
+## 5. Flights and hotels — not in v1
 
-The obvious path is the Gmail API with `gmail.readonly`. That is a **restricted scope**: to let
-anyone but you use it, Google requires an app verification and an independent CASA security
-assessment, which is a multi-week project with an annual cost. For a trip app this is out of
-proportion.
+**Decided: out of scope for the first build.** Added by hand, like any other stop.
 
-**The alternative is better anyway**: Cloudflare Email Routing gives us `trips@yvr.kocho.sh`. You
-set a Gmail filter that auto-forwards airline and hotel confirmations there. An Email Worker parses
-the message and files the flight. No OAuth, no verification, no standing read access to your inbox,
-and it works for anyone you share the trip with regardless of their mail provider.
+Recorded for later, because the obvious path is the wrong one. Gmail's `gmail.readonly` is a
+**restricted scope**: shipping it to anyone but yourself requires Google app verification plus an
+independent CASA security assessment, which is a multi-week project with an annual fee.
 
-Parsing: structured data first (many confirmations carry schema.org `FlightReservation` JSON-LD),
-then per-airline templates, then an LLM pass for the rest with the result shown for confirmation
-rather than applied silently. The wireframe shows that "confirm" state on the Hakone ryokan row.
-
-If you want true zero-touch Gmail reading for just your own account, a personal OAuth client works
-without verification for a handful of users. It does not scale past that.
+When we do come back to this, the answer is almost certainly **Cloudflare Email Routing**:
+`trips@yvr.kocho.sh`, a Gmail filter that auto-forwards confirmations to it, and an Email Worker
+that parses them. No OAuth, no verification, no standing access to anyone's inbox, and it works for
+every person you share a trip with regardless of their mail provider. Parsing goes structured data
+first (many confirmations carry schema.org `FlightReservation` JSON-LD), then per-airline templates,
+then an LLM pass whose result is shown for confirmation rather than applied silently.
 
 ---
 
@@ -193,9 +184,9 @@ own hue appears as a small dot next to its header in the list, and on the thin r
 map. Opening a day's accordion dims every other day's pins, which is what actually makes a day's
 cluster readable — dimming, not hue.
 
-There is a real alternative: hue = day, and status shown as fill vs hollow vs struck-through. It
-makes multi-day clusters legible at a glance and makes "what have I done today" harder. This is
-open question §10.4 and it is worth deciding by looking at the canvas.
+**Decided.** The alternative — hue = day, status as fill style — makes multi-day clusters legible
+at a glance but makes "what have I done today" harder, and today is what you look at while
+travelling.
 
 Palette, warm and low-saturation throughout:
 
@@ -255,7 +246,7 @@ stops            id, trip_id, day_id, place_id, title, note,
                  -- status: planned | visited | skipped
 
 sources          id, trip_id, kind, config, credential_ref, last_synced_at, cursor, status
-                 -- kind: google_maps_list | google_sheet | email | manual
+                 -- kind: google_my_map | sheet_import | manual   (email later)
 import_runs      id, source_id, workflow_id, status, stats, started_at, finished_at
 import_candidates id, import_run_id, raw, matched_stop_id, matched_place_id,
                  confidence, decision, resolved_by
@@ -272,19 +263,23 @@ is offline editing it needs to be undoable.
 
 ---
 
-## 10. Open questions
+## 10. Decisions made
 
-1. **Maps list import** — which of §3 a/b/c/d do we commit to? This changes whether the list is a
-   live sync or a periodic upload.
-2. **Spreadsheet** — one-way sheet → app, or two-way? One-way is a week of work, two-way is a month
-   and can lose data.
-3. **Gmail** — forwarding address, or personal OAuth for your account only?
-4. **Colour** — status on the pins with day as a dim, or day hue on the pins with status as fill
-   style? Worth looking at the canvas before answering.
-5. **Auth and sharing** — Google sign-in only? And can a share link be view-only-no-account, or must
-   every viewer sign in?
-6. **Trip scale** — is 11 days and ~50 stops the shape, or should this hold a 30-day trip with 300?
-   It changes the day list design, not the data model.
-7. **Times** — your sheet leaves many cells without times. Should a stop without a time sort to the
-   end of its day, or hold a position in the order anyway?
-8. **Visited** — per person or per trip? If Mika eats the ramen and you do not, is it visited?
+| | | |
+|---|---|---|
+| Places | **Google My Maps**, KML endpoint, hourly sync | §3 |
+| Spreadsheet | **Replaced** by an in-app Planner grid. One-time import, CSV export | §4 |
+| Flights | **Out of v1.** Email Routing when we come back to it | §5 |
+| Colour | **Status on the pins**, day as a dot and as dimming | §7 |
+
+## 11. Still open
+
+1. **Auth and sharing** — Google sign-in only? And can a share link be view-only with no account, or
+   must every viewer sign in?
+2. **Trip scale** — is 11 days and ~50 stops the shape, or should this hold a 30-day trip with 300?
+   It changes the day list and the Planner's column widths, not the data model.
+3. **Times** — many of your cells have no time. Should a stop without one sort to the end of its day,
+   or hold a position in the order anyway?
+4. **Visited** — per person or per trip? If Mika eats the ramen and you do not, is it visited?
+5. **The Planner on mobile** — the grid is a desktop view. On a phone, is the day accordion enough,
+   or does the Planner need a one-column-per-screen version?
