@@ -65,6 +65,12 @@ export const worker = await Worker("api", {
     // one or Google refuses it outright. Not a secret, and not a security
     // control either — see the note in src/lib/places.ts.
     PLACES_REFERRER: process.env.PLACES_REFERRER ?? "https://yvr.kocho.sh",
+    // A *separate* key for the map in the browser, and deliberately not
+    // GOOGLE_PLACES_KEY. A Maps JavaScript key is public by design and is
+    // protected only by its HTTP referrer list; the Places key is a server
+    // credential and must never be in a page. Empty until one is provisioned,
+    // and the map falls back to the drawn one. See INFRA.md.
+    GOOGLE_MAPS_BROWSER_KEY: process.env.GOOGLE_MAPS_BROWSER_KEY ?? "",
     BETTER_AUTH_SECRET: alchemy.secret(process.env.BETTER_AUTH_SECRET),
   },
   // Set once the zone is on Cloudflare. Until then `url: true` gives a

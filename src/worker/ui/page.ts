@@ -1,6 +1,7 @@
 import { CLIENT } from "./client.ts";
 import * as icons from "./icons.ts";
 import { cardMap, mapBackground } from "./map.ts";
+import { mapStyle, pinIcon } from "./gmap.ts";
 import { styles } from "./styles.ts";
 import { COLOR as C, FONTS_HREF } from "./tokens.ts";
 
@@ -51,7 +52,7 @@ function iconSet(): Record<string, string> {
   };
 }
 
-export function page(): string {
+export function page(mapsKey = ""): string {
   const boot = {
     icons: iconSet(),
     map: mapBackground(),
@@ -76,6 +77,14 @@ export function page(): string {
 window.__ICONS__ = ${JSON.stringify(boot.icons)};
 window.__MAP__ = ${JSON.stringify(boot.map)};
 window.__CARD_MAP__ = ${JSON.stringify(boot.cardMap)};
+// Empty until a browser key is provisioned, and the drawn map stands in.
+window.__MAPS_KEY__ = ${JSON.stringify(mapsKey)};
+window.__MAP_STYLE__ = ${JSON.stringify(mapStyle())};
+window.__PIN__ = ${JSON.stringify({
+  today: { plain: pinIcon(C.today, false), selected: pinIcon(C.today, true) },
+  ahead: { plain: pinIcon(C.ahead, false), selected: pinIcon(C.ahead, true) },
+  done: { plain: pinIcon(C.done, false), selected: pinIcon(C.done, true) },
+})};
 </script>
 <script type="module">
 ${CLIENT}

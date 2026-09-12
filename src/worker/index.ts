@@ -77,7 +77,8 @@ const todayIso = () => new Date().toISOString().slice(0, 10);
 app.get("/", (c) => {
   const { setCookie } = identity(c);
   if (setCookie) c.header("set-cookie", setCookie);
-  return c.html(page());
+  // The browser key is public by design; the Places key stays server-side.
+  return c.html(page(c.env.GOOGLE_MAPS_BROWSER_KEY));
 });
 
 // --- trips ------------------------------------------------------------------

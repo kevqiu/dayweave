@@ -93,14 +93,45 @@ section 5 has to collapse them into one:
 - A per-browser id in a `yvr_dev_uid` cookie, which is what actually owns trips
   and stops today.
 
-### 5. The basemap bucket is empty
+### 5. The map needs its own browser key
+
+The app can draw the real Google map with the trip's stops on it, and the code
+is deployed, but it is **switched off** until you provision a key for it. Until
+then the screen shows the drawn map from the artboards, which is a real
+fallback rather than a placeholder.
+
+Three things, in the Google Cloud console on the same project:
+
+1. **Maps JavaScript API is already enabled** — no action. Maps Static API and
+   Map Tiles API are **not**, and are not needed by this approach.
+2. **Create a second key**, restricted by HTTP referrer to the app's hosts:
+
+   ```
+   https://yvr-kocho-sh-api-dev.yvr-kocho.workers.dev/*
+   https://yvr.kocho.sh/*
+   ```
+
+   Restrict it by API to the Maps JavaScript API only.
+3. Put it on the environment as `GOOGLE_MAPS_BROWSER_KEY` and start a new
+   session.
+
+**It must not be the Places key.** A Maps JavaScript key is public by design —
+it is in the page, and its referrer list is all that protects it. The Places
+key is a server credential. Sharing one key between them would put a key that
+can spend Places quota into every page load.
+
+Note the cost: PLAN.md section 2 chose a self-hosted Protomaps basemap partly
+to avoid per-load tile charges. Google tiles bill per map load, so set a quota
+on the Maps JavaScript API at the same time.
+
+### 6. The basemap bucket is empty
 
 The R2 bucket `yvr-kocho-sh-dev-tiles` exists and has **zero objects**. PLAN.md
 section 2 wants a Protomaps `.pmtiles` extract for Japan served from it, which
 is a few hundred MB and has to be uploaded once. Until then the map in the UI is
 the drawn placeholder from the artboards, not real tiles.
 
-### 6. Give the API token an expiry
+### 7. Give the API token an expiry
 
 Not checked from here — the token cannot read its own metadata. If it has no
 expiry, set one. `D1: Edit` and `R2: Edit` both include deletion, because
@@ -118,6 +149,7 @@ Cloudflare does not split those into create-only.
 | KV | `yvr-kocho-sh-dev-sessions` | created, unused until auth lands |
 | KV | `yvr-kocho-sh-dev-places-cache` | in use, 1 hour TTL |
 | R2 | `yvr-kocho-sh-dev-tiles` | created, empty |
+| Google APIs | Places (New), Maps JavaScript | enabled; Static Maps and Map Tiles are not |
 | Durable Object | `TripRoom` | deployed, still a stub |
 | Zone | `kocho.sh` | on the account, not pointed at the Worker |
 

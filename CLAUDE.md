@@ -162,6 +162,28 @@ To be planned bucket is `#94897A`, which is not on the ramp.
 - `src/lib/` — pure, tested logic: Places client, bias circle, derived text,
   order keys, KML.
 
+## The map
+
+`Main.dc.html` draws the map by hand, and `src/worker/ui/map.ts` reproduces that
+drawing. It is the fallback, not a placeholder: it renders the day's real
+coordinates as pins in their real relative positions.
+
+When `GOOGLE_MAPS_BROWSER_KEY` is set the screen shows the real Google map
+instead, with the day's stops as the artboards' status pins. **PLAN.md §2
+decided against Google tiles** — per-load cost, tiles that cannot be restyled,
+and Google's furniture in a calm design — and that decision was overridden
+later. Two of the three objections are answered in `gmap.ts`: the style takes
+the map down to the palette in `tokens.ts`, and every default control is off so
+the only furniture is ours. The cost is real and remains.
+
+The key in the page is **never** `GOOGLE_PLACES_KEY`. A Maps JavaScript key is
+public by design; the Places key is a server credential. See INFRA.md.
+
+If the Maps script does not load within 8 seconds the drawn map comes back.
+That timeout is not decoration: on a network that drops the connection
+silently the script tag fires no event at all, and without it the map hangs
+forever. This is an app for basements.
+
 ## Writes are optimistic
 
 An edit applies to the screen first and goes to the network behind it. Saving a

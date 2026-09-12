@@ -81,6 +81,7 @@ function render() {
   // The lifted card is created by the render that starts a drag, so it has to
   // be put under the finger before the first paint rather than on the next move.
   if (state.drag) paintDrag();
+  if (state.screen === "trip") paintMap();
 }
 
 /* ---------------------------------------------------------------- trips */
@@ -344,8 +345,12 @@ function screenTrip() {
       h("button", { class: "round-btn", title: "Invite someone" }, [icon("invite")]),
     ]),
     h("div", { class: "map" }, [
-      h("div", { style: "position:absolute;inset:0", html: window.__MAP__ }, []),
-      ...mapPins(openDay),
+      // The real map when a browser key is configured; the drawn one from the
+      // artboards otherwise, so the screen is never a grey rectangle.
+      mapsKey()
+        ? h("div", { id: "gmap", style: "position:absolute;inset:0" }, [])
+        : h("div", { style: "position:absolute;inset:0", html: window.__MAP__ }, []),
+      ...(mapsKey() ? [] : mapPins(openDay)),
       hasStops ? mapLegend() : emptyMapChip(),
       h("div", { class: "map-controls" }, [
         h("button", {}, [icon("layers")]),
@@ -465,6 +470,112 @@ function mapLegend() {
     key("#E0B355", "#96752F", "ahead"),
     key("#BDB4A7", "#9A9184", "done"),
   ]);
+}
+
+/* ------------------------------------------------------------------- map */
+
+const mapsKey = () => window.__MAPS_KEY__ || "";
+
+let gmap = null;
+let gmarkers = [];
+let mapsLoading = null;
+
+/**
+ * Loads the Maps JavaScript API once.
+ *
+ * Resolves to null if it cannot load — a blocked host, a key the referrer list
+ * refuses, no network in a basement — and the caller leaves the drawn map in
+ * place rather than showing a broken one.
+ */
+function loadMaps() {
+  if (mapsLoading) return mapsLoading;
+  if (window.google && window.google.maps) return Promise.resolve(window.google.maps);
+
+  mapsLoading = new Promise((resolve) => {
+    const done = (value) => { clearTimeout(timer); resolve(value); };
+
+    // A request that neither loads nor errors would hang the map forever, and
+    // this is an app for basements and hotel wifi (PLAN.md section 2). On a
+    // network that drops the connection silently the script tag fires no
+    // event at all, so the timeout is what makes the drawn map appear instead.
+    const timer = setTimeout(() => done(null), 8000);
+
+    const tag = document.createElement("script");
+    tag.src = "https://maps.googleapis.com/maps/api/js?v=weekly&key=" + encodeURIComponent(mapsKey());
+    tag.async = true;
+    tag.onload = () => done(window.google && window.google.maps ? window.google.maps : null);
+    tag.onerror = () => done(null);
+    document.head.append(tag);
+  });
+  return mapsLoading;
+}
+
+/**
+ * Puts the open day's stops on the real map.
+ *
+ * Every default control is off: the legend, the layers button and the locate
+ * button are the artboards', and PLAN.md section 2 objects specifically to
+ * Google's own furniture landing in a design meant to be calm.
+ */
+async function paintMap() {
+  if (!mapsKey()) return;
+  const host = $("gmap");
+  if (!host) return;
+
+  const maps = await loadMaps();
+  if (!maps) {
+    // Fall back to the drawn map for the rest of the session.
+    window.__MAPS_KEY__ = "";
+    render();
+    return;
+  }
+
+  if (!gmap || gmap.getDiv() !== host) {
+    gmap = new maps.Map(host, {
+      center: { lat: 33.5904, lng: 130.4017 },
+      zoom: 13,
+      styles: window.__MAP_STYLE__,
+      disableDefaultUI: true,
+      clickableIcons: false,
+      keyboardShortcuts: false,
+      gestureHandling: "greedy",
+    });
+  }
+
+  for (const marker of gmarkers) marker.setMap(null);
+  gmarkers = [];
+
+  const day = state.trip.days.find((d) => d.id === state.openDayId);
+  const stops = day ? day.stops.filter((s) => s.location) : [];
+  if (!stops.length) return;
+
+  const bounds = new maps.LatLngBounds();
+  for (const stop of stops) {
+    const status = statusOf(day, stop);
+    const selected = stop.id === state.selectedStopId;
+    const icon = window.__PIN__[status][selected ? "selected" : "plain"];
+    const marker = new maps.Marker({
+      position: stop.location,
+      map: gmap,
+      title: stop.title,
+      icon: { url: icon },
+      zIndex: selected ? 2 : 1,
+    });
+    marker.addListener("click", () => {
+      state.selectedStopId = selected ? null : stop.id;
+      state.menuOpen = false;
+      render();
+    });
+    gmarkers.push(marker);
+    bounds.extend(stop.location);
+  }
+
+  // The sheet covers the lower half, so the pins are fitted into the band
+  // above it rather than into the whole viewport.
+  const sheet = $("sheet");
+  const covered = sheet ? sheet.getBoundingClientRect().height : 0;
+  gmap.fitBounds(bounds, { top: 60, right: 40, bottom: covered + 20, left: 40 });
+  if (stops.length === 1) gmap.setZoom(15);
 }
 
 /**
