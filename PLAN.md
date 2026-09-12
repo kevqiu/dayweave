@@ -4,7 +4,87 @@ A shared map of a trip. Stops come in from the places you already saved and the
 spreadsheet you already wrote, get grouped by day, and grey out as you visit them.
 Built to be used one-handed, on a phone, on hotel wifi.
 
-Status: planning. No application code yet. Wireframes are in `design/`.
+Status: **deployed and usable**, on the branch `claude/my-maps-spike-deploy-gk8s4z`.
+Wireframes are in `design/`. Section 0 is what actually exists; everything after it
+is the design it is being built towards.
+
+---
+
+## 0. Where this is
+
+Live at **https://yvr-kocho-sh-api-dev.yvr-kocho.workers.dev**, stage `dev`.
+
+One Worker serves both the API and the SPA, so there is one origin and no CORS.
+Section 2 draws these as two Workers; they collapsed into one because nothing
+needed them apart.
+
+### Built and working
+
+| | |
+|---|---|
+| Infrastructure | D1, KV, R2 and the Worker, all created by `alchemy.run.ts` |
+| Schema | `0001_init.sql` applied, plus `0002_stub_user.sql` — see below |
+| API | `GET/POST /api/trips`, `GET /api/trips/:slug`, and create, patch, soft-delete on `:slug/stops` |
+| Trips screen | happening now / coming up / past. City subtitle stays absent until stops exist |
+| New trip | a name and two dates, asked in words (§4d) |
+| Trip screen | day accordion, every day listed at 0/0, hue as a dot, opening one dims the rest (§7) |
+| Stops | derived description and typed note kept apart (§4c), mark visited, add note, remove |
+| Planner | day grid, drag between columns, To be planned sidebar (§4, §4e) |
+| Ordering | fractional indexing, the `fractional-indexing` package. Produces the `a0` / `a1` / `a0V` keys §6 specifies |
+| Tests | 28, covering the KML parser, trip dates and the day ramp |
+
+### Deliberately not built yet
+
+- **Sign-in.** `src/worker/auth.ts` is a single stub identity that owns
+  everything. It is one seam on purpose: landing Better Auth (§5) means
+  replacing that file, not threading a user through every route. `app_user` in
+  `0002` is a stand-in for the table Better Auth generates, named so it cannot
+  collide with it. Drop it when §5 lands.
+- **Place search.** Stops are typed titles, so `stops.place_id` is always NULL
+  and the derived description line is empty. Wiring §4b is what gives it a
+  category and a walking time, and what fills `places.city`, which is what the
+  trip card subtitle is built from.
+- **The map itself.** No Protomaps basemap, no pins. The R2 bucket exists and
+  is empty.
+- **Realtime.** `TripRoom` is still the stub it always was. The SPA re-reads
+  the trip after each change rather than holding a socket.
+- **Offline** (§4g), **invites and sharing** (§5), **travel and lodging rows**,
+  **move-to-day suggestion** (§8).
+
+### The My Maps spike is answered
+
+`/api/_spike/my-map/:mid` is deployed and **a Worker does reach Google's KML
+endpoint from Cloudflare's edge** — a nonexistent map id returns Google's own
+404 in 187 ms, which only happens if the request arrived. §3's bet holds. The
+parser has 14 tests against My Maps-shaped KML. What is still unproven is one
+real map end to end, which needs a map id nobody has supplied yet.
+
+### Before the next deploy
+
+Read `ENVIRONMENT.md` first — it is now specific about what bites. Two things
+are not optional and neither is obvious from an error message:
+
+1. The egress allowlist matches hosts **exactly**, so it needs `api.cloudflare.com`
+   and `*.workers.dev`. A bare `workers.dev` is not enough.
+2. Alchemy does not use the proxy on its own. `npm run deploy` loads
+   `scripts/proxy-agent.mjs`, which is what makes it work. Running
+   `alchemy deploy` directly fails with a 403 that reads like a bad token.
+
+`ALCHEMY_PASSWORD` must be set and must stay the same between deploys. State
+lives in `.alchemy/`, which is gitignored and does not survive a cloud session,
+so a fresh session will find these resources already on Cloudflare and fail on
+the name. Either reuse the existing password and state, or `npm run destroy`
+first, or rename the stage.
+
+### Worth doing next, roughly in order
+
+1. **Place search** (§4b). Everything downstream is thin without it: no
+   coordinates means no map, no city subtitle, no walking times, no
+   move-to-day ranking.
+2. **Better Auth** (§5), which also turns the avatar stack into real people.
+3. **The map** (§2, §7), which is the feature the app is named after.
+4. **The real My Maps import**, replacing the spike endpoint with the Workflow
+   and the hourly cron.
 
 ---
 
@@ -96,6 +176,10 @@ https://www.google.com/maps/d/kml?mid=<map id>&forcekml=1
 That returns KML with a `<Placemark>` per pin, each carrying name, description and **coordinates**.
 No Places API call, no geocoding, no name matching, no scraping, and nothing that breaks when
 Google reskins the Maps front end. A cron re-reads it hourly and new pins land in **To be planned**.
+
+**Proven from a deployed Worker**, which was the one real risk here — see section 0. The parser is
+`src/lib/kml.ts`; the throwaway endpoint that tested it is `/api/_spike/my-map/:mid` and should be
+deleted when the import Workflow replaces it.
 
 What this costs you: places get collected in My Maps rather than by tapping Save in the Maps app.
 Mitigations, in order of how much they help:
