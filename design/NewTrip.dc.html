@@ -1,0 +1,109 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Figtree:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; font-family: Figtree, "Helvetica Neue", sans-serif; background: #FBF6EE; }
+    a { color: #A8663C; } a:hover { color: #8A5230; }
+    * { box-sizing: border-box; }
+    .cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+    .dw  { height: 26px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; color: #B5ACA0; }
+    .d   { height: 40px; display: flex; align-items: center; justify-content: center; font-size: 13px; color: #4A443C; font-variant-numeric: tabular-nums; }
+    .off { color: #CFC6B8; }
+    .in  { background: #F3EAD8; }
+    .s   { background: #F3EAD8; border-radius: 999px 0 0 999px; }
+    .e   { background: #F3EAD8; border-radius: 0 999px 999px 0; }
+    .cap { width: 32px; height: 32px; border-radius: 50%; background: #33302B; color: #FBF6EE; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  </style>
+</helmet>
+
+<div style="position: relative; width: 390px; height: 844px; overflow: hidden; background: #FBF6EE; color: #33302B; display: flex; flex-direction: column;">
+
+  <div style="display: flex; align-items: center; gap: 12px; height: 58px; flex-shrink: 0; padding: 0 14px;">
+    <button style="width: 34px; height: 34px; border-radius: 10px; border: 1px solid #E9DFCE; background: #FFFCF6; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6B645B" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+    </button>
+    <div style="font-family: Newsreader, Georgia, serif; font-size: 19px; font-weight: 500; flex-grow: 1;">New trip</div>
+  </div>
+
+  <div style="padding: 2px 20px 12px; flex-shrink: 0;">
+    <div style="font-family: Newsreader, Georgia, serif; font-size: 26px; font-weight: 500; line-height: 1.15;">When are you going?</div>
+    <div style="font-size: 12.5px; color: #8C8479; margin-top: 5px;">Everything else can wait.</div>
+  </div>
+
+  <!-- scrolling months -->
+  <div style="flex-grow: 1; overflow: hidden; padding: 0 14px; position: relative;">
+
+    <div style="opacity: 0.55;">
+      <div style="font-size: 13px; font-weight: 700; padding: 2px 4px 6px;">September 2025</div>
+      <div class="cal">
+        <span class="d">14</span><span class="d">15</span><span class="d">16</span><span class="d">17</span><span class="d">18</span><span class="d">19</span><span class="d">20</span>
+        <span class="d">21</span><span class="d">22</span><span class="d">23</span><span class="d">24</span><span class="d">25</span><span class="d">26</span><span class="d">27</span>
+      </div>
+    </div>
+
+    <div class="cal">
+      <span class="d">28</span><span class="d">29</span>
+      <span class="d s"><span class="cap">30</span></span>
+      <span class="d in">1</span><span class="d in">2</span><span class="d in">3</span><span class="d in">4</span>
+    </div>
+
+    <div style="font-size: 13px; font-weight: 700; padding: 16px 4px 2px;">October 2025</div>
+    <div class="cal">
+      <span class="dw">S</span><span class="dw">M</span><span class="dw">T</span><span class="dw">W</span><span class="dw">T</span><span class="dw">F</span><span class="dw">S</span>
+    </div>
+    <div class="cal">
+      <span class="d off"></span><span class="d off"></span><span class="d off"></span>
+      <span class="d in">1</span><span class="d in">2</span><span class="d in">3</span><span class="d in">4</span>
+
+      <span class="d in">5</span><span class="d in">6</span><span class="d in">7</span><span class="d in">8</span><span class="d in">9</span>
+      <span class="d e"><span class="cap">10</span></span>
+      <span class="d">11</span>
+
+      <span class="d">12</span><span class="d">13</span><span class="d">14</span><span class="d">15</span><span class="d">16</span><span class="d">17</span><span class="d">18</span>
+      <span class="d">19</span><span class="d">20</span><span class="d">21</span><span class="d">22</span><span class="d">23</span><span class="d">24</span><span class="d">25</span>
+      <span class="d">26</span><span class="d">27</span><span class="d">28</span><span class="d">29</span><span class="d">30</span><span class="d">31</span><span class="d off"></span>
+    </div>
+
+    <div style="position: absolute; left: 0; right: 0; bottom: 0; height: 40px; background: linear-gradient(to bottom, rgba(251,246,238,0), #FBF6EE);"></div>
+  </div>
+
+  <!-- bottom panel -->
+  <div style="flex-shrink: 0; border-top: 1px solid #EFE6D6; background: #FBF6EE; padding: 14px 16px 22px;">
+
+    <div style="display: flex; align-items: center; gap: 9px; margin-bottom: 13px;">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6B645B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2.5"></rect><path d="M8 2v4M16 2v4M3 10h18"></path></svg>
+      <span style="font-size: 14px; font-weight: 600; flex-grow: 1;">Sep 30 &ndash; Oct 10</span>
+      <span style="font-size: 12px; color: #9A9184;">11 days</span>
+    </div>
+
+    <div style="height: 46px; border-radius: 11px; border: 1px solid #E4D9C5; background: #FFFCF6; display: flex; align-items: center; gap: 10px; padding: 0 13px; margin-bottom: 8px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8C8479" stroke-width="1.9" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11z"></path><circle cx="12" cy="10" r="2.4"></circle></svg>
+      <span style="font-size: 13.5px; font-weight: 500; flex-grow: 1;">Fukuoka</span>
+      <span style="font-size: 11px; color: #A8A093;">starting city</span>
+    </div>
+
+    <div style="height: 46px; border-radius: 11px; border: 1px dashed #DFD3BE; display: flex; align-items: center; gap: 10px; padding: 0 13px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#B5ACA0" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg>
+      <span style="font-size: 13.5px; color: #B5ACA0; flex-grow: 1;">Name it something fun</span>
+      <span style="font-size: 11px; color: #C1B8AB;">optional</span>
+    </div>
+
+    <div style="display: flex; align-items: flex-start; gap: 8px; margin-top: 11px; margin-bottom: 14px;">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#A59C90" stroke-width="2" stroke-linecap="round" style="flex-shrink: 0; margin-top: 2px;"><circle cx="12" cy="12" r="9"></circle><path d="M12 16v-4M12 8.5v.01"></path></svg>
+      <span style="font-size: 11.5px; color: #9A9184; line-height: 1.5;">Leave it blank and the trip is called <strong style="font-weight: 600; color: #6B645B;">Fukuoka</strong> for now. Add stops in Kagoshima and Hakone and it becomes <strong style="font-weight: 600; color: #6B645B;">Japan</strong>.</span>
+    </div>
+
+    <button style="width: 100%; height: 50px; border-radius: 12px; border: none; background: #33302B; color: #FBF6EE; font-family: Figtree, sans-serif; font-size: 14px; font-weight: 600; cursor: pointer;">Create trip</button>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

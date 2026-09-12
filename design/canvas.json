@@ -29,8 +29,17 @@
       "page": "page-1"
     },
     {
-      "file": "Main.dc.html",
+      "file": "NewTrip.dc.html",
+      "w": 390,
+      "h": 844,
+      "title": "New trip",
+      "page": "page-1",
       "x": 490,
+      "y": 0
+    },
+    {
+      "file": "Main.dc.html",
+      "x": 980,
       "y": 0,
       "w": 390,
       "h": 844,
@@ -40,7 +49,7 @@
     },
     {
       "file": "AddNote.dc.html",
-      "x": 990,
+      "x": 1470,
       "y": 0,
       "w": 390,
       "h": 844,
@@ -50,7 +59,7 @@
     },
     {
       "file": "SheetFull.dc.html",
-      "x": 1470,
+      "x": 1960,
       "y": 0,
       "w": 390,
       "h": 844,
@@ -59,7 +68,7 @@
     },
     {
       "file": "MoveToDay.dc.html",
-      "x": 1960,
+      "x": 2450,
       "y": 0,
       "w": 390,
       "h": 844,
@@ -68,7 +77,7 @@
     },
     {
       "file": "PlaceSearch.dc.html",
-      "x": 2450,
+      "x": 2940,
       "y": 0,
       "w": 390,
       "h": 844,
@@ -77,7 +86,7 @@
     },
     {
       "file": "Members.dc.html",
-      "x": 2940,
+      "x": 3430,
       "y": 0,
       "w": 390,
       "h": 844,
@@ -86,7 +95,7 @@
     },
     {
       "file": "Import.dc.html",
-      "x": 3430,
+      "x": 3920,
       "y": 0,
       "w": 390,
       "h": 844,
@@ -145,13 +154,13 @@
       "page": "page-1",
       "x": -490,
       "y": -240,
-      "w": 1940,
-      "text": "THE WAY IN\n\nSign in, then Trips, then a trip opens on Today.\n\nThe G mark on the button is a PLACEHOLDER. Google ships the real asset. The wording is \"Continue with Google\" because Google's branding guidelines allow only a fixed set of strings.\n\nBoth Today artboards are live. The third one has Ohori Park open instead: no note, so the button reads Add note. Kanetora has one, so it reads Edit note and the note sits under the description."
+      "w": 1450,
+      "text": "THE WAY IN\n\nSign in, then Trips, then New trip, then the trip opens on Today.\n\nNew trip asks for dates and nothing else that matters. A starting city and a name are both optional. Leave the name blank and the trip is called Fukuoka until stops appear in a second and third city, at which point it becomes Japan. Naming rules are in PLAN.md section 4d.\n\nThe G mark on the sign-in button is a PLACEHOLDER for the asset Google ships."
     },
     {
       "id": "note-places",
       "page": "page-1",
-      "x": 2450,
+      "x": 1960,
       "y": -240,
       "w": 1370,
       "text": "ADDING PLACES\n\nSearch is biased to the open day, not the whole planet. Places API takes a locationBias circle of up to 50 km, so the centre is the day's stops and the radius is a chip you can widen. Results outside it still appear, greyed, with the distance. Things already on the trip say so instead of offering to add twice.\n\nSign-in is Google. Drive is a separate, later consent, asked only when you first attach a file - see PLAN.md section 5."
@@ -162,7 +171,7 @@
       "x": 0,
       "y": 900,
       "w": 960,
-      "text": "PLANNER\n\nClick any empty cell and the search opens right there, already scoped to that day and that hour. The sidebar is To be planned: uncollapsed, scrollable, everything the trip has that is not on a day yet. Two rows along the bottom: travel (plane and train) and where you sleep.\n\nThe one-time spreadsheet import is gone, as you asked. This view is the replacement."
+      "text": "PLANNER\n\nClick any empty cell and the search opens right there, already scoped to that day and that hour. The sidebar is To be planned: uncollapsed, scrollable, everything not on a day yet. Two rows along the bottom: travel and where you sleep.\n\nThe plus at each end of the grid extends the trip by a day, so a trip that runs long or gets cut short is a click rather than a settings screen. The arrows by the view switcher page through a trip too long to fit."
     },
     {
       "id": "note-dirs",
