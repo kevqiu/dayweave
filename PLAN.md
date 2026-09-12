@@ -201,6 +201,10 @@ honest state and keeps the compact list compact.
 step. The name comes first and is required, because a trip people are sharing needs something to be
 called, and "October trip" is not a thing anyone says.
 
+The screen asks in words rather than labelling fields: **"Where are we going?"** over the name, then
+**"And when?"** over the calendar. Same voice as the rest of the app, and *we* rather than *you*,
+because a trip is a thing people do together.
+
 **The cities are derived, the name is not.** This is the split that matters: `trips.name` is typed
 by a person and is the only name the app ever shows. The line under it on a trip card is a separate,
 computed thing — the cities the trip's stops are actually in, in day order, as
