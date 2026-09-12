@@ -119,9 +119,6 @@ and times, a travel row for flights and trains, and a lodging row along the bott
 that hour (§4b). Once this exists the spreadsheet has no job left, because the cells now know where
 they are on Earth and who has been there.
 
-**Export CSV stays**, in the top right of the Planner. No lock-in, and the reason nobody has to trust
-us with the only copy.
-
 Getting an existing trip in is manual: the Planned sidebar fills from your My Map, and you drag
 places onto days. For an 11-day trip that is one sitting, and it is the sitting where you would be
 rethinking the plan anyway.
@@ -365,7 +362,7 @@ makes dragging onto a day a single field update and keeps drag-back-off free.
 | | | |
 |---|---|---|
 | Places in | **Google My Maps**, KML endpoint, hourly sync | §3 |
-| Spreadsheet | **Replaced** by the Planner grid. No import at all. CSV export | §4 |
+| Spreadsheet | **Replaced** by the Planner grid. No import, no export in v1 | §4 |
 | Place search | **Places API (New)**, `locationBias` circle centred on the open day | §4b |
 | Auth | **Better Auth** on D1, Google only, roles hand-rolled | §5 |
 | Drive | Plumbed but unused in v1. `drive.file`, asked incrementally | §5 |
@@ -386,3 +383,5 @@ makes dragging onto a day a single field update and keeps drag-back-off free.
 6. **Tap targets.** You asked for thinner buttons and I made them 36 px tall. Both Apple and Google
    put the floor at 44-48 px. The buttons carry 4 px of padding so the real target clears 44, but if
    they feel small on a real phone that is the number to raise.
+7. **Getting data out.** CSV export is cut from v1. Worth adding back before anyone trusts this with
+   a trip they cannot afford to lose, since there is no longer a spreadsheet holding a second copy.
