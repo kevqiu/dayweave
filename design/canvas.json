@@ -4,11 +4,13 @@
     { "id": "page-2", "name": "Directions" }
   ],
   "artboards": [
-    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 390, "h": 844, "title": "Today (interactive)", "page": "page-1", "is_interactive": true },
-    { "file": "SheetFull.dc.html", "x": 490, "y": 0, "w": 390, "h": 844, "title": "Full list · rearranging", "page": "page-1" },
-    { "file": "MoveToDay.dc.html", "x": 980, "y": 0, "w": 390, "h": 844, "title": "Move to day", "page": "page-1" },
-    { "file": "Import.dc.html", "x": 1470, "y": 0, "w": 390, "h": 844, "title": "Sources", "page": "page-1" },
-    { "file": "Reconcile.dc.html", "x": 1960, "y": 0, "w": 390, "h": 844, "title": "One-time sheet import", "page": "page-1" },
+    { "file": "Trips.dc.html", "x": 0, "y": 0, "w": 390, "h": 844, "title": "Trips", "page": "page-1" },
+    { "file": "Main.dc.html", "x": 490, "y": 0, "w": 390, "h": 844, "title": "Today (interactive)", "page": "page-1", "is_interactive": true },
+    { "file": "SheetFull.dc.html", "x": 980, "y": 0, "w": 390, "h": 844, "title": "Full list · rearranging", "page": "page-1" },
+    { "file": "MoveToDay.dc.html", "x": 1470, "y": 0, "w": 390, "h": 844, "title": "Move to day", "page": "page-1" },
+    { "file": "PlaceSearch.dc.html", "x": 1960, "y": 0, "w": 390, "h": 844, "title": "Add a place", "page": "page-1" },
+    { "file": "Members.dc.html", "x": 2450, "y": 0, "w": 390, "h": 844, "title": "People and invites", "page": "page-1" },
+    { "file": "Import.dc.html", "x": 2940, "y": 0, "w": 390, "h": 844, "title": "Sources and account", "page": "page-1" },
     { "file": "Planner.dc.html", "x": 0, "y": 1010, "w": 1440, "h": 900, "title": "Planner · the spreadsheet, replaced", "page": "page-1" },
     { "file": "Desktop.dc.html", "x": 0, "y": 2030, "w": 1440, "h": 900, "title": "Desktop map view", "page": "page-1" },
     { "file": "DirectionA.dc.html", "x": 0, "y": 0, "w": 320, "h": 640, "title": "A · Accordion sheet", "page": "page-2" },
@@ -16,10 +18,9 @@
     { "file": "DirectionC.dc.html", "x": 840, "y": 0, "w": 320, "h": 640, "title": "C · Time spine", "page": "page-2" }
   ],
   "annotations": [
-    { "id": "note-colour", "page": "page-1", "x": 0, "y": -230, "w": 470, "text": "COLOUR, AS YOU DECIDED\n\nPin fill = status. Green today, soft yellow ahead, grey done or past.\nEach day's own hue shows up as the dot beside its header, not on the pins.\nOpening a day dims every other day, which is what actually makes a cluster readable." },
-    { "id": "note-tap", "page": "page-1", "x": 490, "y": -230, "w": 470, "text": "TRY IT\n\nThe first artboard is live. Tap a day header to open it, tap a stop to expand the actions, tap Visited to grey it out. Tap the grab handle to throw the sheet to full screen." },
-    { "id": "note-risk", "page": "page-1", "x": 1470, "y": -230, "w": 880, "text": "SOURCES, AS YOU DECIDED\n\nGoogle My Maps, so we get a real KML endpoint with coordinates and genuine hourly sync. No scraping, no geocoding, nothing to break.\n\nGmail is out of v1. The spreadsheet is now a ONE-TIME import, not a sync - the screen on the right runs once, you fix what it got wrong, and then the Planner below owns the trip." },
-    { "id": "note-planner", "page": "page-1", "x": 0, "y": 900, "w": 900, "text": "THE ANSWER TO YOUR SPREADSHEET QUESTION\n\nYou were right that parsing other people's layouts forever does not work. So this view IS the spreadsheet: days across, time down, drag cells around, the lodging row along the bottom. Everything your sheet does, except the cells know where they are on Earth.\n\nExport CSV is in the top right so nobody feels trapped." },
+    { "id": "note-flow", "page": "page-1", "x": 0, "y": -240, "w": 960, "text": "THE WAY IN\n\nTrips comes first now: your trips, a pending invite, and Start a new trip. Opening one lands you on Today.\n\nToday is live. Tap a day header, tap a stop. The card is tighter: buttons are 36px, the author is a 17px avatar left of the name, and Move to day, Edit note and Remove now live under the kebab." },
+    { "id": "note-places", "page": "page-1", "x": 1960, "y": -240, "w": 1370, "text": "ADDING PLACES\n\nSearch is biased to the open day, not the whole planet. Places API takes a locationBias circle of up to 50 km, so the centre is the day's stops and the radius is a chip you can widen. Results outside it still appear, greyed, with the distance. Things already on the trip say so instead of offering to add twice.\n\nSign-in is Google. Drive is a separate, later consent, asked only when you first attach a file - see PLAN.md section 5." },
+    { "id": "note-planner", "page": "page-1", "x": 0, "y": 900, "w": 960, "text": "PLANNER\n\nClick any empty cell and the search opens right there, already scoped to that day and that hour. Sidebar is now Planned, uncollapsed and scrollable, with a small green arrow marking anything that came from your My Map. Two rows along the bottom: travel (plane and train) and where you sleep.\n\nThe one-time spreadsheet import is gone, as you asked. This view is the replacement." },
     { "id": "note-dirs", "page": "page-2", "x": 0, "y": -200, "w": 700, "text": "Three ways to shape the day list. A is what the app screens are built on, because it is what you described. B and C are here so you can see what you are giving up. They are sketches, not proposals - say the word and I will build one out properly." }
   ],
   "launch": { "view": "canvas", "page": "page-1" }
