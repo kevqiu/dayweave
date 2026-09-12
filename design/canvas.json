@@ -6,7 +6,7 @@
   "artboards": [
     { "file": "Trips.dc.html", "x": 0, "y": 0, "w": 390, "h": 844, "title": "Trips", "page": "page-1" },
     { "file": "Main.dc.html", "x": 490, "y": 0, "w": 390, "h": 844, "title": "Today (interactive)", "page": "page-1", "is_interactive": true },
-    { "file": "SheetFull.dc.html", "x": 980, "y": 0, "w": 390, "h": 844, "title": "Full list · rearranging", "page": "page-1" },
+    { "file": "SheetFull.dc.html", "x": 980, "y": 0, "w": 390, "h": 844, "title": "Full list · mid-drag", "page": "page-1" },
     { "file": "MoveToDay.dc.html", "x": 1470, "y": 0, "w": 390, "h": 844, "title": "Move to day", "page": "page-1" },
     { "file": "PlaceSearch.dc.html", "x": 1960, "y": 0, "w": 390, "h": 844, "title": "Add a place", "page": "page-1" },
     { "file": "Members.dc.html", "x": 2450, "y": 0, "w": 390, "h": 844, "title": "People and invites", "page": "page-1" },

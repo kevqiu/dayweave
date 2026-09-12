@@ -407,5 +407,9 @@ makes dragging onto a day a single field update and keeps drag-back-off free.
 6. **Tap targets.** You asked for thinner buttons and I made them 36 px tall. Both Apple and Google
    put the floor at 44-48 px. The buttons carry 4 px of padding so the real target clears 44, but if
    they feel small on a real phone that is the number to raise.
-7. **Getting data out.** CSV export is cut from v1. Worth adding back before anyone trusts this with
+7. **Undoing a drag.** There is no rearrange mode and so no Done button, which means a drop is
+   committed the moment you let go. On a live shared list that wants an undo, most likely a toast
+   reading "Moved to Sat Oct 3" with an Undo action. The op log in section 6 already makes this
+   cheap, but nothing in the wireframes shows it yet.
+8. **Getting data out.** CSV export is cut from v1. Worth adding back before anyone trusts this with
    a trip they cannot afford to lose, since there is no longer a spreadsheet holding a second copy.
