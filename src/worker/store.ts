@@ -7,7 +7,7 @@
  * may use any of it.
  */
 
-import { orderKeyAppend } from "../lib/order.ts";
+import { orderKeyAppend, orderKeyBetween } from "../lib/order.ts";
 import { describeStop, tripCities } from "../lib/derive.ts";
 import type { PlaceDetails } from "../lib/places.ts";
 import type { DayGeo, LatLng } from "../lib/geo.ts";
@@ -147,28 +147,54 @@ export async function getStop(db: D1Database, stopId: string): Promise<(StopRow 
 }
 
 /**
- * Moves a stop to another day, or to the To be planned bucket.
+ * Moves a stop to another day, or to the To be planned bucket, and puts it
+ * immediately after `afterStopId` in that day's order.
  *
- * The order key is recomputed against its new neighbours rather than carried
- * over, because a key only means anything within one day's list.
+ * `afterStopId` of null means first in the day; undefined means the end. The
+ * key is recomputed against its new neighbours rather than carried over,
+ * because a fractional index only means anything within one list (PLAN.md
+ * section 6), and computing it between the two rows the drop landed between is
+ * what makes the write a single field rather than a renumbering.
  */
 export async function moveStopToDay(
   db: D1Database,
   stop: StopRow & { trip_id: string },
   dayId: string | null,
-): Promise<void> {
-  const siblings = await db
+  afterStopId?: string | null,
+): Promise<string> {
+  const { results } = await db
     .prepare(
-      `SELECT order_key FROM stops
-        WHERE trip_id = ? AND deleted_at IS NULL AND day_id IS ? AND id != ?`,
+      `SELECT id, order_key FROM stops
+        WHERE trip_id = ? AND deleted_at IS NULL AND day_id IS ? AND id != ?
+        ORDER BY order_key`,
     )
     .bind(stop.trip_id, dayId, stop.id)
-    .all<{ order_key: string }>();
+    .all<{ id: string; order_key: string }>();
+
+  const siblings = results ?? [];
+  let orderKey: string;
+
+  if (afterStopId === undefined) {
+    orderKey = orderKeyAppend(siblings.map((r) => r.order_key));
+  } else {
+    const index = afterStopId === null ? -1 : siblings.findIndex((r) => r.id === afterStopId);
+    // A neighbour that is not on this day any more means the list moved under
+    // the drag; appending is the safe answer rather than guessing a position.
+    if (afterStopId !== null && index === -1) {
+      orderKey = orderKeyAppend(siblings.map((r) => r.order_key));
+    } else {
+      const before = index === -1 ? null : (siblings[index] as { order_key: string }).order_key;
+      const next = siblings[index + 1];
+      orderKey = orderKeyBetween(before, next ? next.order_key : null);
+    }
+  }
 
   await db
     .prepare(`UPDATE stops SET day_id = ?, order_key = ?, updated_at = ? WHERE id = ?`)
-    .bind(dayId, orderKeyAppend((siblings.results ?? []).map((r) => r.order_key)), now(), stop.id)
+    .bind(dayId, orderKey, now(), stop.id)
     .run();
+
+  return orderKey;
 }
 
 /** The day's city, taken from whatever its stops say they are in. */

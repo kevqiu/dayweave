@@ -61,6 +61,7 @@ const state = {
   sheetFull: false,
   hideVisited: false,
   error: null,
+  drag: null,
   move: null,
   noteFor: null,
   preview: null,
@@ -77,6 +78,9 @@ function render() {
   if (state.tripMenu) frame.append(...tripMenu());
   if (state.move) frame.append(...sheetMove());
   if (state.noteFor) frame.append(...sheetNote());
+  // The lifted card is created by the render that starts a drag, so it has to
+  // be put under the finger before the first paint rather than on the next move.
+  if (state.drag) paintDrag();
 }
 
 /* ---------------------------------------------------------------- trips */
@@ -371,6 +375,7 @@ function screenTrip() {
           h("button", { onclick: () => { state.error = null; render(); } }, ["Dismiss"]),
         ])
       : null,
+    ...dragLayer(),
   ]);
 }
 
@@ -519,6 +524,7 @@ function sheetContents(hasStops) {
     wrap.append(
       h("button", {
         class: open ? "day-head open" : "day-head",
+        "data-day-id": day.id,
         onclick: () => { state.openDayId = open ? null : day.id; state.selectedStopId = null; render(); },
       }, [
         h("span", { class: "day-hue", style: "background:" + day.hue }, []),
@@ -529,6 +535,7 @@ function sheetContents(hasStops) {
           ]),
           day.place_label ? h("span", { class: "day-place", text: day.place_label }, []) : null,
         ]),
+        h("span", { class: "drop-here", text: "DROP HERE TO MOVE", hidden: true }, []),
         h("span", { class: "day-progress", text: done + "/" + day.stops.length }, []),
         h("span", { style: "display:flex;transform:rotate(" + (open ? 0 : -90) + "deg)", html: ICONS.chevron }, []),
       ]),
@@ -554,13 +561,18 @@ function sheetContents(hasStops) {
   const unplanned = trip.unplanned;
   out.push(
     h("div", { class: "day-wrap" }, [
-      h("button", { class: "day-head", onclick: () => { state.openDayId = "unplanned"; render(); } }, [
+      h("button", {
+        class: "day-head",
+        "data-day-id": "unplanned",
+        onclick: () => { state.openDayId = "unplanned"; render(); },
+      }, [
         h("span", { class: "day-hue", style: "background:#94897A" }, []),
         h("div", { class: "day-head-text" }, [
           h("div", { class: "day-head-top" }, [
             h("span", { class: "day-label", text: "To be planned" }, []),
           ]),
         ]),
+        h("span", { class: "drop-here", text: "DROP HERE TO MOVE", hidden: true }, []),
         h("span", { class: "day-progress", text: String(unplanned.length) }, []),
       ]),
     ]),
@@ -587,38 +599,275 @@ function stopCard(day, stop, showTimes) {
   const selected = stop.id === state.selectedStopId;
   const done = st === "done";
 
-  const card = h("div", { class: "stop" + (selected ? " selected" : "") + (done ? " done" : "") }, [
-    h("button", {
-      class: "stop-row",
-      onclick: () => { state.selectedStopId = selected ? null : stop.id; state.menuOpen = false; render(); },
-    }, [
-      h("span", { style: "display:flex", html: ICONS.grip }, []),
-      showTimes
-        ? h("span", {
-            class: "stop-time",
-            style: "color:" + (done ? "#BDB4A7" : st === "now" ? "#4E7A4B" : "#96752F"),
-            text: stop.time,
-          }, [])
-        : null,
-      h("div", { class: "stop-text" }, [
-        h("span", { class: "stop-name", text: stop.title }, []),
-        h("span", { class: "stop-meta", text: stop.description }, []),
+  const dragging = state.drag && state.drag.stopId === stop.id;
+
+  const card = h("div", {
+    class: "stop" + (selected ? " selected" : "") + (done ? " done" : "") + (dragging ? " ghost" : ""),
+    "data-stop-id": stop.id,
+  }, [
+    h("div", { class: "stop-row" }, [
+      dragHandle(day, stop),
+      h("button", {
+        class: "stop-tap",
+        onclick: () => {
+          // A drag ends on this same element, so a click it produced is not a tap.
+          if (suppressTap) { suppressTap = false; return; }
+          state.selectedStopId = selected ? null : stop.id;
+          state.menuOpen = false;
+          render();
+        },
+      }, [
+        showTimes
+          ? h("span", {
+              class: "stop-time",
+              style: "color:" + (done ? "#BDB4A7" : st === "now" ? "#4E7A4B" : "#96752F"),
+              text: stop.time,
+            }, [])
+          : null,
+        h("div", { class: "stop-text" }, [
+          h("span", { class: "stop-name", text: stop.title }, []),
+          h("span", { class: "stop-meta", text: stop.description }, []),
+        ]),
+        h("span", {
+          class: "stop-author",
+          style: "background:" + stop.authorColor,
+          text: stop.author,
+          title: stop.author + " added this",
+        }, []),
+        h("span", {
+          class: "stop-dot",
+          style: "background:" + STATUS_FILL[st] + ";border-color:" + STATUS_RING[st],
+        }, []),
       ]),
-      h("span", {
-        class: "stop-author",
-        style: "background:" + stop.authorColor,
-        text: stop.author,
-        title: stop.author + " added this",
-      }, []),
-      h("span", {
-        class: "stop-dot",
-        style: "background:" + STATUS_FILL[st] + ";border-color:" + STATUS_RING[st],
-      }, []),
     ]),
   ]);
 
-  if (selected) card.append(stopActions(stop, done, showTimes));
+  if (selected && !dragging) card.append(stopActions(stop, done, showTimes));
   return card;
+}
+
+/* ------------------------------------------------------------- dragging */
+
+/**
+ * Dragging a stop, PLAN.md section 4e, drawn by design/SheetFull.dc.html.
+ *
+ * The row leaves a dashed ghost in the slot it came from, a lifted card
+ * follows the finger, and a green thread shows where it would land and what
+ * the walk there costs. Dropping on a collapsed day header moves it to that
+ * day. All of it writes one op: a day, and an order key between the two rows
+ * it landed between.
+ */
+
+/** Set when a drag ends, so the click it produces is not read as a tap. */
+let suppressTap = false;
+
+function dragHandle(day, stop) {
+  const el = h("button", { class: "grip", title: "Drag to reorder", html: ICONS.grip }, []);
+
+  el.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    // The row underneath is a tap target; grabbing the handle is not a tap.
+    event.stopPropagation();
+
+    state.drag = {
+      stopId: stop.id,
+      fromDayId: day.id,
+      title: stop.title,
+      description: stop.description,
+      y: event.clientY,
+      targetDayId: day.id,
+      afterStopId: undefined,
+      moved: false,
+    };
+
+    // The listeners go on the window, not on this button, and deliberately so:
+    // starting a drag re-renders, which replaces this element and would throw
+    // away a pointer capture held on it. Nothing would move and nothing would
+    // drop. The window survives every render.
+    const move = (e) => {
+      if (!state.drag) return;
+      state.drag.moved = true;
+      state.drag.y = e.clientY;
+      resolveDropTarget(e.clientX, e.clientY);
+      paintDrag();
+    };
+
+    const end = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+      if (!state.drag) return;
+
+      const drag = state.drag;
+      state.drag = null;
+      suppressTap = drag.moved;
+      if (drag.moved) commitDrag(drag);
+      else render();
+    };
+
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+    render();
+  });
+
+  return el;
+}
+
+/**
+ * Where the finger is over. A collapsed day header takes the whole stop; over
+ * the open day, the row it would follow is whichever midpoint it has passed.
+ */
+function resolveDropTarget(x, y) {
+  const drag = state.drag;
+
+  for (const head of document.querySelectorAll(".day-head")) {
+    const rect = head.getBoundingClientRect();
+    if (y >= rect.top && y <= rect.bottom && head.dataset.dayId !== drag.fromDayId) {
+      drag.targetDayId = head.dataset.dayId === "unplanned" ? null : head.dataset.dayId;
+      // Onto another day it joins the end; ordering within it is a later drag.
+      drag.afterStopId = undefined;
+      return;
+    }
+  }
+
+  drag.targetDayId = drag.fromDayId;
+  drag.afterStopId = null;
+  for (const row of document.querySelectorAll(".stop[data-stop-id]")) {
+    if (row.dataset.stopId === drag.stopId) continue;
+    const rect = row.getBoundingClientRect();
+    if (y > rect.top + rect.height / 2) drag.afterStopId = row.dataset.stopId;
+  }
+}
+
+/**
+ * Moves the lifted card and the thread without a full render, so the card
+ * keeps up with the finger.
+ */
+function paintDrag() {
+  const drag = state.drag;
+  const frame = $("frame");
+  const card = $("lifted");
+  if (!drag || !frame || !card) return;
+
+  const top = drag.y - frame.getBoundingClientRect().top - 23;
+  card.style.top = top + "px";
+
+  const onADay = drag.targetDayId !== drag.fromDayId;
+  for (const head of document.querySelectorAll(".day-head")) {
+    const id = head.dataset.dayId === "unplanned" ? null : head.dataset.dayId;
+    head.classList.toggle("droppable", onADay && id === drag.targetDayId);
+    const tag = head.querySelector(".drop-here");
+    if (tag) tag.hidden = !(onADay && id === drag.targetDayId);
+  }
+
+  const line = $("drop-line");
+  if (line) {
+    line.hidden = onADay;
+    if (!onADay) placeDropLine(line);
+  }
+}
+
+/** Puts the thread under the row the stop would follow, and labels the walk. */
+function placeDropLine(line) {
+  const drag = state.drag;
+  const rows = [...document.querySelectorAll(".stop[data-stop-id]")];
+  const after = drag.afterStopId
+    ? rows.find((r) => r.dataset.stopId === drag.afterStopId)
+    : null;
+
+  const body = after ? after.parentElement : (rows[0] || {}).parentElement;
+  if (!body) return;
+  if (after) after.after(line);
+  else body.prepend(line);
+
+  const when = line.querySelector(".when");
+  if (when) {
+    // The artboard writes "13:00 &middot; 6 min walk". Nothing here has a time, so the
+    // label is the walk alone rather than a made-up clock.
+    const previous = after ? findStop(after.dataset.stopId) : null;
+    const moving = findStop(drag.stopId);
+    when.textContent = walkLabel(previous, moving);
+  }
+}
+
+/** Straight-line walking minutes, the same 80 m a minute the server uses. */
+function walkLabel(from, to) {
+  if (!from || !to || !from.location || !to.location) return "first stop";
+  const R = 6371000;
+  const rad = (d) => (d * Math.PI) / 180;
+  const dLat = rad(to.location.lat - from.location.lat);
+  const dLng = rad(to.location.lng - from.location.lng);
+  const h = Math.sin(dLat / 2) ** 2 +
+    Math.cos(rad(from.location.lat)) * Math.cos(rad(to.location.lat)) * Math.sin(dLng / 2) ** 2;
+  const metres = 2 * R * Math.asin(Math.min(1, Math.sqrt(h))) * 1.3;
+  const minutes = Math.max(1, Math.round(metres / 80));
+  // Past 45 minutes it is not a walk, so the thread gives the distance
+  // instead of a walking time nobody would act on. Same threshold the derived
+  // line uses, so the two never say different things about one gap.
+  if (minutes > 45) {
+    return metres < 10000
+      ? (metres / 1000).toFixed(1) + " km away"
+      : Math.round(metres / 1000) + " km away";
+  }
+  return minutes + " min walk";
+}
+
+/** The lifted card, and the thread it will drop on to. */
+function dragLayer() {
+  const drag = state.drag;
+  if (!drag) return [];
+
+  return [
+    h("div", { class: "drop-line", id: "drop-line", hidden: true }, [
+      h("span", { class: "dot" }, []),
+      h("span", { class: "thread" }, []),
+      h("span", { class: "when" }, []),
+    ]),
+    h("div", { class: "lifted", id: "lifted", style: "top:0" }, [
+      h("span", { style: "display:flex", html: ICONS.gripDark }, []),
+      h("div", { class: "stop-text" }, [
+        h("span", { class: "stop-name", text: drag.title }, []),
+        h("span", { class: "stop-meta", text: drag.description }, []),
+      ]),
+    ]),
+  ];
+}
+
+/** One op: the day it landed on, and a key between the rows either side. */
+function commitDrag(drag) {
+  const unchanged = drag.targetDayId === drag.fromDayId && drag.afterStopId === undefined;
+  if (unchanged) { render(); return; }
+
+  optimistic(
+    () => {
+      const at = locateStop(drag.stopId);
+      if (!at) return () => {};
+      at.list.splice(at.index, 1);
+
+      const target = drag.targetDayId === null
+        ? state.trip.unplanned
+        : (state.trip.days.find((d) => d.id === drag.targetDayId) || {}).stops;
+      if (!target) { at.list.splice(at.index, 0, at.stop); return () => {}; }
+
+      const index = drag.afterStopId === undefined || drag.afterStopId === null
+        ? (drag.afterStopId === undefined ? target.length : 0)
+        : target.findIndex((s) => s.id === drag.afterStopId) + 1;
+      target.splice(index, 0, at.stop);
+
+      if (drag.targetDayId !== null) state.openDayId = drag.targetDayId;
+      return () => {
+        const back = target.indexOf(at.stop);
+        if (back !== -1) target.splice(back, 1);
+        at.list.splice(at.index, 0, at.stop);
+      };
+    },
+    () => post("/api/stops/" + drag.stopId + "/move",
+      drag.afterStopId === undefined
+        ? { dayId: drag.targetDayId }
+        : { dayId: drag.targetDayId, afterStopId: drag.afterStopId }),
+    "That did not move",
+  );
 }
 
 function stopActions(stop, done, showTimes) {

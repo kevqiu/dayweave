@@ -32,6 +32,7 @@ function iconSet(): Record<string, string> {
     pencil: icons.pencil({ size: 12, color: C.inkSoft }),
     kebab: icons.kebab({ size: 15 }),
     grip: icons.grip(),
+    gripDark: icons.grip({ color: C.inkSoft }),
     trash: icons.trash({ size: 15 }),
     layers: icons.layers({ size: 18, color: C.inkSoft }),
     locate: icons.locate({ size: 18, color: C.inkSoft }),

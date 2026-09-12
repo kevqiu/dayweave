@@ -112,9 +112,14 @@ export const pencil = (o: IconOptions = {}) =>
 export const kebab = ({ size = 15, color = "#6B645B" }: IconOptions = {}) =>
   `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="${color}"><circle cx="12" cy="5" r="1.5"></circle><circle cx="12" cy="12" r="1.5"></circle><circle cx="12" cy="19" r="1.5"></circle></svg>`;
 
-/** The drag handle on a stop row: two columns of three dots. */
+/**
+ * The drag handle on a stop row: two columns of three dots. The artboard dims
+ * it to 0.4 in the list and shows it at full strength on the card in the air.
+ */
 export const grip = ({ color = "#A59C90" }: IconOptions = {}) =>
-  `<svg width="11" height="15" viewBox="0 0 12 16" style="flex-shrink:0;opacity:0.4"><g fill="${color}"><circle cx="3.5" cy="3" r="1.3"></circle><circle cx="8.5" cy="3" r="1.3"></circle><circle cx="3.5" cy="8" r="1.3"></circle><circle cx="8.5" cy="8" r="1.3"></circle><circle cx="3.5" cy="13" r="1.3"></circle><circle cx="8.5" cy="13" r="1.3"></circle></g></svg>`;
+  `<svg width="11" height="15" viewBox="0 0 12 16" style="flex-shrink:0;opacity:${
+    color === "#A59C90" ? "0.4" : "1"
+  }"><g fill="${color}"><circle cx="3.5" cy="3" r="1.3"></circle><circle cx="8.5" cy="3" r="1.3"></circle><circle cx="3.5" cy="8" r="1.3"></circle><circle cx="8.5" cy="8" r="1.3"></circle><circle cx="3.5" cy="13" r="1.3"></circle><circle cx="8.5" cy="13" r="1.3"></circle></g></svg>`;
 
 export const trash = (o: IconOptions = {}) =>
   svg(

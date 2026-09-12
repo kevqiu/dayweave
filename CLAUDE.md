@@ -26,7 +26,7 @@ That is the map of what exists:
 | `KebabMenu.dc.html` | The stop's kebab (§4e) | yes |
 | `MoveToDay.dc.html` | Move to another date, with the §8 suggestion | yes |
 | `TripMenu.dc.html` | The one dropdown on the trip name (§4h) | yes, less Plan view |
-| `SheetFull.dc.html` | The sheet expanded, and drag-to-reorder | the sheet and its Filter, not the title or the drag |
+| `SheetFull.dc.html` | The sheet expanded, and drag-to-reorder | yes, less the title |
 | `AddNote.dc.html` | Only the button reading Add note. See below | n/a |
 | `SignIn.dc.html` | Sign in (§5) | no — needs Better Auth |
 | `Planner.dc.html`, `PlannerStop.dc.html`, `PlannerMobile.dc.html` | The day grid (§4f) | no |
@@ -129,6 +129,18 @@ To be planned bucket is `#94897A`, which is not on the ramp.
   than the same one getting taller. The two artboards disagree because they
   were drawn as separate screens; the app has one sheet with two heights. Do
   not add the title back.
+- **Dragging a stop** (§4e) leaves a dashed ghost in the slot it came from,
+  lifts a card that follows the finger at `rotate(-1.1deg) scale(1.015)`, and
+  draws a green thread where it would land labelled with the walk it adds.
+  A collapsed day header turns `#FCF6E6` with a dashed edge and says
+  `DROP HERE TO MOVE`. The drop writes one op: a day, and an order key between
+  the two rows it landed between.
+
+  **A drag's `pointermove` and `pointerup` listeners go on the `window`, never
+  on the handle.** Starting a drag re-renders, which replaces the handle and
+  throws away any pointer capture held on it — nothing moves and nothing
+  drops. This has now been the cause of two bugs, the sheet handle and this
+  one.
 - **Nothing is a placeholder.** Where the app does not know something, the
   artboards leave it out rather than filling it with a dash. Two consequences
   worth knowing: the map carries no place labels, because the artboards' own

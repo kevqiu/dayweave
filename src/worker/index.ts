@@ -503,7 +503,7 @@ app.post("/api/stops/:stopId/move", async (c) => {
   const stop = await getStop(c.env.DB, c.req.param("stopId"));
   if (!stop) return c.json({ error: "no such stop" }, 404);
 
-  const body = await c.req.json<{ dayId?: string | null }>();
+  const body = await c.req.json<{ dayId?: string | null; afterStopId?: string | null }>();
   const dayId = body.dayId ?? null;
 
   if (dayId !== null) {
@@ -513,8 +513,15 @@ app.post("/api/stops/:stopId/move", async (c) => {
     if (!day) return c.json({ error: "that day is not on this trip" }, 400);
   }
 
-  await moveStopToDay(c.env.DB, stop, dayId);
-  return c.json({ ok: true, dayId });
+  // "afterStopId" absent means the end of the day, which is what the Move to
+  // day sheet wants. A drag sends it, including null for "make it first".
+  const orderKey = await moveStopToDay(
+    c.env.DB,
+    stop,
+    dayId,
+    "afterStopId" in body ? (body.afterStopId ?? null) : undefined,
+  );
+  return c.json({ ok: true, dayId, orderKey });
 });
 
 app.post("/api/stops/:stopId/visited", async (c) => {

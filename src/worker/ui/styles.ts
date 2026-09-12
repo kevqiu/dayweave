@@ -258,7 +258,7 @@ button { font-family: ${SANS}; cursor: pointer; }
 .stop.selected { background: ${C.card}; border-color: ${C.borderWarm}; }
 .stop-row {
   display: flex; align-items: center; gap: 8px; height: 42px; padding: 0 10px 0 6px;
-  width: 100%; background: transparent; border: 0; text-align: left; font-family: ${SANS};
+  width: 100%; background: transparent; border: 1px solid transparent;
 }
 .stop-time { font-size: 11px; font-weight: 600; width: 36px; flex-shrink: 0; font-variant-numeric: tabular-nums; }
 .stop-text { display: flex; flex-direction: column; flex-grow: 1; min-width: 0; }
@@ -278,6 +278,50 @@ button { font-family: ${SANS}; cursor: pointer; }
 }
 .stop.done .stop-author { opacity: 0.45; }
 .stop-dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid; flex-shrink: 0; }
+
+/* ---- Dragging a stop (design/SheetFull.dc.html, PLAN.md section 4e) ---- */
+
+/* The handle is its own target, outside the row's tap area, so grabbing it
+   never reads as selecting the stop. 11x15 of ink in a 30px reach. */
+.grip {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 22px; height: 30px; margin: 0 -4px; background: none; border: 0; padding: 0;
+  touch-action: none; cursor: grab;
+}
+.grip:active { cursor: grabbing; }
+.stop-tap {
+  display: flex; align-items: center; gap: 8px; flex-grow: 1; min-width: 0; height: 42px;
+  background: transparent; border: 0; padding: 0; text-align: left; font-family: ${SANS};
+}
+
+/* The slot the row came from, held open while it is in the air. */
+.stop.ghost { opacity: 0.45; }
+.stop.ghost .stop-row {
+  border: 1px dashed #C7B98F; border-radius: 10px; background: transparent;
+}
+
+/* The row itself, in the air and following the finger. */
+.lifted {
+  position: absolute; z-index: 60; left: 9px; right: 9px; pointer-events: none;
+  display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 10px 0 7px;
+  border-radius: 12px; background: ${C.card}; border: 1px solid ${C.borderWarm};
+  box-shadow: 0 10px 22px rgba(84,68,44,0.20); transform: rotate(-1.1deg) scale(1.015);
+}
+.lifted .stop-name { font-weight: 600; }
+
+/* Where it would land: a green thread with the walk it would add. */
+.drop-line { display: flex; align-items: center; gap: 8px; padding: 0 8px; height: 14px; }
+.drop-line .dot { width: 7px; height: 7px; border-radius: 50%; background: ${C.today}; flex-shrink: 0; }
+.drop-line .thread { flex-grow: 1; height: 2px; border-radius: 2px; background: ${C.today}; }
+.drop-line .when {
+  font-size: 10px; font-weight: 700; color: ${C.todayInk}; letter-spacing: 0.04em; white-space: nowrap;
+}
+
+/* A collapsed day the stop can be dropped on to. */
+.day-head.droppable { background: #FCF6E6; border-bottom: 1px dashed #C7B98F; }
+.day-head .drop-here {
+  font-size: 10.5px; font-weight: 700; color: ${C.aheadInk}; letter-spacing: 0.04em; white-space: nowrap;
+}
 
 .stop-actions { padding: 0 7px 7px 36px; position: relative; }
 .stop-note { display: flex; gap: 6px; padding-bottom: 7px; }
