@@ -8,16 +8,20 @@ import {
   type PlaceDetails,
 } from "../lib/places.ts";
 import { haversineMetres, resolveBias, roundedCentre, type Bias } from "../lib/geo.ts";
+import { suggestDays, type CandidateDay } from "../lib/suggest.ts";
 import {
   addPlaceAsStop,
+  cityOfDay,
   citiesForTrip,
   createTrip,
   dateRangeLabel,
   dayLabel,
   getTrip,
   initialsFor,
+  getStop,
   listDays,
   listStops,
+  moveStopToDay,
   placesOnTrip,
   stopsForDay,
   toDayGeo,
@@ -437,6 +441,81 @@ async function placeNameFromUrl(raw: string): Promise<string | null> {
   }
   return null;
 }
+
+/**
+ * The days a stop could move to, ranked. PLAN.md section 8, drawn by
+ * `design/MoveToDay.dc.html`.
+ *
+ * Everything the sheet shows is computed here, sentences included, so the
+ * client never has to reason about distance or re-derive a reason.
+ */
+app.get("/api/stops/:stopId/move-options", async (c) => {
+  const stop = await getStop(c.env.DB, c.req.param("stopId"));
+  if (!stop) return c.json({ error: "no such stop" }, 404);
+
+  const [days, stops] = await Promise.all([
+    listDays(c.env.DB, stop.trip_id),
+    listStops(c.env.DB, stop.trip_id),
+  ]);
+
+  const candidates: CandidateDay[] = days.map((day) => ({
+    id: day.id,
+    date: day.date,
+    label: dayLabel(day.date),
+    placeLabel: day.place_label,
+    hue: day.hue,
+    city: day.place_label ?? cityOfDay(day.id, stops),
+    stops: stops
+      // The stop being moved is not one of its own neighbours.
+      .filter((s) => s.day_id === day.id && s.id !== stop.id)
+      .map((s) => ({
+        id: s.id,
+        name: s.place_name ?? s.title,
+        location: s.lat !== null && s.lng !== null ? { lat: s.lat, lng: s.lng } : null,
+      })),
+  }));
+
+  const suggestion = suggestDays(
+    {
+      id: stop.id,
+      name: stop.place_name ?? stop.title,
+      location: stop.lat !== null && stop.lng !== null ? { lat: stop.lat, lng: stop.lng } : null,
+      city: stop.city,
+      currentDayId: stop.day_id,
+    },
+    candidates,
+    todayIso(),
+  );
+
+  const current = days.find((d) => d.id === stop.day_id);
+  return c.json({
+    stop: {
+      id: stop.id,
+      name: stop.place_name ?? stop.title,
+      // "Hikiniku to Come · currently Fri Oct 2", as the artboard writes it.
+      currently: current ? dayLabel(current.date) : "To be planned",
+    },
+    ...suggestion,
+  });
+});
+
+app.post("/api/stops/:stopId/move", async (c) => {
+  const stop = await getStop(c.env.DB, c.req.param("stopId"));
+  if (!stop) return c.json({ error: "no such stop" }, 404);
+
+  const body = await c.req.json<{ dayId?: string | null }>();
+  const dayId = body.dayId ?? null;
+
+  if (dayId !== null) {
+    const day = await c.env.DB.prepare(`SELECT id FROM days WHERE id = ? AND trip_id = ?`)
+      .bind(dayId, stop.trip_id)
+      .first<{ id: string }>();
+    if (!day) return c.json({ error: "that day is not on this trip" }, 400);
+  }
+
+  await moveStopToDay(c.env.DB, stop, dayId);
+  return c.json({ ok: true, dayId });
+});
 
 app.post("/api/stops/:stopId/visited", async (c) => {
   const { userId } = identity(c);

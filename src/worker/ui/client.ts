@@ -7,7 +7,8 @@
  * screens match `design/*.dc.html` exactly; the framework underneath them is a
  * later decision and none of this markup is wasted when it arrives.
  *
- * Written without template literals so it can be embedded in one.
+ * Written without template literals, and without backticks anywhere at all —
+ * comments included — because the whole file is embedded in one.
  */
 export const CLIENT = String.raw`
 const $ = (id) => document.getElementById(id);
@@ -56,6 +57,10 @@ const state = {
   menuOpen: false,
   search: null,
   newTrip: null,
+  tripMenu: false,
+  move: null,
+  noteFor: null,
+  preview: null,
 };
 
 const frame = $("frame");
@@ -66,6 +71,9 @@ function render() {
   else if (state.screen === "newTrip") frame.append(screenNewTrip());
   else if (state.screen === "trip") frame.append(screenTrip());
   if (state.search) frame.append(sheetSearch());
+  if (state.tripMenu) frame.append(...tripMenu());
+  if (state.move) frame.append(...sheetMove());
+  if (state.noteFor) frame.append(...sheetNote());
 }
 
 /* ---------------------------------------------------------------- trips */
@@ -316,7 +324,10 @@ function screenTrip() {
   return h("div", { class: "screen" }, [
     h("div", { class: "trip-bar" }, [
       h("div", { class: "trip-bar-text" }, [
-        h("div", { style: "display:flex;align-items:center;gap:5px" }, [
+        h("button", {
+          style: "display:flex;align-items:center;gap:5px;background:none;border:0;padding:0;text-align:left;min-width:0",
+          onclick: () => { state.tripMenu = true; render(); },
+        }, [
           h("div", { class: "trip-bar-name", text: trip.trip.name }, []),
           icon("chevron"),
         ]),
@@ -556,7 +567,10 @@ function stopActions(stop, done, showTimes) {
         style: "position:absolute;right:7px;bottom:34px;width:180px;border-radius:11px;background:#FFFCF6;" +
           "border:1px solid #E4D9C5;box-shadow:0 6px 20px rgba(84,68,44,0.20);overflow:hidden;z-index:10",
       }, [
-        h("div", { style: "display:flex;align-items:center;gap:9px;height:40px;padding:0 12px" }, [
+        h("div", {
+          style: "display:flex;align-items:center;gap:9px;height:40px;padding:0 12px;cursor:pointer",
+          onclick: () => { state.menuOpen = false; openMove(stop.id); },
+        }, [
           icon("calendar"), h("span", { style: "font-size:13px;font-weight:500", text: "Move to date" }, []),
         ]),
         h("div", {
@@ -573,11 +587,195 @@ function stopActions(stop, done, showTimes) {
   return wrap;
 }
 
-async function editNote(stop) {
+function editNote(stop) {
   // The note is typed by a person and nothing ever generates one (section 4c).
-  const next = window.prompt("Note", stop.note || "");
-  if (next === null) return;
-  await post("/api/stops/" + stop.id + "/note", { note: next });
+  state.noteFor = { id: stop.id, name: stop.title, note: stop.note || "" };
+  render();
+  const field = $("note");
+  if (field) { field.focus(); field.setSelectionRange(field.value.length, field.value.length); }
+}
+
+/**
+ * The note editor.
+ *
+ * No artboard draws it: AddNote.dc.html is Main.dc.html with a stop that has
+ * no note selected, so all it specifies is the button reading "Add note"
+ * rather than "Edit note". This is written in the system's own language — the
+ * same sheet, the same underlined-field treatment as the trip name — rather
+ * than copied from anywhere.
+ */
+function sheetNote() {
+  const target = state.noteFor;
+  const close = () => { state.noteFor = null; render(); };
+
+  return [
+    h("div", { class: "scrim", onclick: close }, []),
+    h("div", { class: "sheet modal", style: "height:auto" }, [
+      h("div", { class: "grabber", onclick: close }, [h("i", {}, [])]),
+      h("div", { class: "modal-head" }, [
+        h("div", { class: "modal-title", text: target.note ? "Edit note" : "Add a note" }, []),
+        h("div", { class: "modal-sub", text: target.name }, []),
+      ]),
+      h("div", { class: "note-editor" }, [
+        h("textarea", {
+          id: "note",
+          placeholder: "Booked 13:15, they release the table if you are late",
+          text: target.note,
+        }, []),
+        h("div", { class: "note-actions" }, [
+          h("button", { class: "save", onclick: saveNote }, ["Save"]),
+          h("button", { class: "cancel", onclick: close }, ["Cancel"]),
+        ]),
+      ]),
+    ]),
+  ];
+}
+
+async function saveNote() {
+  const target = state.noteFor;
+  const field = $("note");
+  await post("/api/stops/" + target.id + "/note", { note: field ? field.value : "" });
+  state.noteFor = null;
+  await refreshTrip();
+}
+
+/* ------------------------------------------------------------- trip menu */
+
+/**
+ * The one dropdown in the app, hanging off the trip name (PLAN.md section 4h),
+ * drawn by design/TripMenu.dc.html.
+ *
+ * Plan view is the day grid the Planner artboards specify and it is not built
+ * yet, so the item is here and says so rather than being left out: the menu
+ * the artboard draws has three items.
+ */
+function tripMenu() {
+  const close = () => { state.tripMenu = false; render(); };
+  const item = (iconName, label, opts) =>
+    h("button", {
+      class: opts && opts.on ? "on" : "",
+      onclick: opts && opts.onclick ? opts.onclick : close,
+      disabled: opts && opts.disabled,
+      title: opts && opts.title,
+      style: opts && opts.disabled ? "opacity:0.45" : "",
+    }, [
+      icon(iconName),
+      h("span", { class: "label", text: label }, []),
+      opts && opts.on ? icon("checkGreen") : null,
+    ]);
+
+  return [
+    h("div", { class: "scrim light", onclick: close }, []),
+    h("div", { class: "trip-menu" }, [
+      item("pinInk", "Map view", { on: true }),
+      item("grid", "Plan view", { disabled: true, title: "The day grid is not built yet" }),
+      h("div", { class: "rule" }, []),
+      item("arrowLeft", "Back to trips", {
+        onclick: async () => {
+          state.tripMenu = false;
+          state.trips = (await api("/api/trips")).trips;
+          state.screen = "trips";
+          render();
+        },
+      }),
+    ]),
+  ];
+}
+
+/* ----------------------------------------------------------- move to day */
+
+async function openMove(stopId) {
+  state.move = await api("/api/stops/" + stopId + "/move-options");
+  state.preview = null;
+  render();
+}
+
+/**
+ * design/MoveToDay.dc.html. Every sentence on this sheet is computed on the
+ * server (PLAN.md section 8), so nothing here reasons about distance.
+ */
+function sheetMove() {
+  const move = state.move;
+  const close = () => { state.move = null; state.preview = null; render(); };
+
+  const list = h("div", { class: "pick-list" }, move.rest.map(pickRow));
+
+  return [
+    h("div", { class: "scrim", onclick: close }, []),
+    h("div", { class: "sheet modal", style: "max-height:92%" }, [
+      h("div", { class: "grabber", onclick: close }, [h("i", {}, [])]),
+      h("div", { class: "modal-head" }, [
+        h("div", { class: "modal-title", text: "Move to another date" }, []),
+        h("div", { class: "modal-sub", text: move.stop.name + " · currently " + move.stop.currently }, []),
+      ]),
+      move.best ? bestCard(move.best) : null,
+      h("div", { class: "pick-label", text: move.best ? "OR PICK A DAY" : "PICK A DAY" }, []),
+      list,
+    ]),
+  ];
+}
+
+function bestCard(best) {
+  const previewing = state.preview === best.dayId;
+  return h("div", { class: "best" }, [
+    h("div", { class: "best-tag" }, [icon("star"), h("span", { text: "BEST FIT" }, [])]),
+    h("div", { class: "best-day" }, [
+      h("span", { class: "dot", style: "background:" + best.hue }, []),
+      h("span", { class: "label", text: best.label.split(" · ")[0] }, []),
+      h("span", { class: "shape", text: best.shape }, []),
+    ]),
+    // The neighbours are named in bold, as the artboard writes them.
+    h("div", { class: "best-detail", html: emphasise(best) }, []),
+    h("div", { class: "best-actions" }, [
+      h("button", { class: "go", onclick: () => moveTo(best.dayId) }, ["Move here"]),
+      h("button", {
+        class: "preview",
+        "aria-pressed": previewing ? "true" : "false",
+        onclick: () => {
+          // Shows the day it would land on, on the map behind, without
+          // committing anything.
+          state.preview = previewing ? null : best.dayId;
+          if (state.preview) state.openDayId = state.preview;
+          render();
+        },
+      }, [previewing ? "Hide" : "Preview"]),
+    ]),
+  ]);
+}
+
+/** Bolds the two stop names inside the sentence the server built. */
+function emphasise(best) {
+  const escape = (text) => text.replace(/[&<>]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[ch]);
+  let html = escape(best.detail || "");
+  for (const name of [best.after, best.before]) {
+    if (!name) continue;
+    html = html.replace(escape(name), "<strong>" + escape(name) + "</strong>");
+  }
+  return html;
+}
+
+function pickRow(candidate) {
+  const choosable = candidate.kind !== "past" && candidate.kind !== "current";
+  return h("button", {
+    class: "pick " + candidate.kind,
+    disabled: !choosable,
+    onclick: choosable ? () => moveTo(candidate.dayId) : null,
+  }, [
+    h("span", { class: "dot", style: "background:" + candidate.hue }, []),
+    h("div", { class: "pick-text" }, [
+      h("span", { class: "pick-name", text: candidate.label }, []),
+      h("span", { class: "pick-why", text: candidate.reason }, []),
+    ]),
+    choosable ? icon("chevronRight") : null,
+  ]);
+}
+
+async function moveTo(dayId) {
+  await post("/api/stops/" + state.move.stop.id + "/move", { dayId });
+  state.move = null;
+  state.preview = null;
+  state.selectedStopId = null;
+  if (dayId) state.openDayId = dayId;
   await refreshTrip();
 }
 

@@ -337,6 +337,100 @@ button { font-family: ${SANS}; cursor: pointer; }
 .result-tag { font-size: 11px; font-weight: 600; color: ${C.grey}; flex-shrink: 0; }
 .result-hint { padding: 14px 16px; font-size: 11.5px; color: ${C.grey}; }
 
+/* ---- Move to day (design/MoveToDay.dc.html) ---- */
+.scrim { position: absolute; inset: 0; background: rgba(51,48,43,0.34); z-index: 40; }
+.scrim.light { background: rgba(51,48,43,0.22); }
+.sheet.modal {
+  z-index: 41; box-shadow: 0 -8px 30px rgba(60,48,30,0.30); padding: 8px 0 16px;
+  border-top: 0; max-height: 100%;
+}
+.modal-head { padding: 0 16px 11px; flex-shrink: 0; }
+.modal-title { font-family: ${SERIF}; font-size: 16.5px; font-weight: 500; }
+.modal-sub { font-size: 12.5px; color: #8C8479; margin-top: 3px; }
+
+.best {
+  margin: 0 12px 8px; border-radius: 13px; border: 1.5px solid #BFD4BB;
+  background: #F2F7F0; padding: 11px 12px; flex-shrink: 0;
+}
+.best-tag { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.best-tag span {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: ${C.todayInk};
+}
+.best-day { display: flex; align-items: baseline; gap: 8px; }
+.best-day .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; align-self: center; }
+.best-day .label { font-size: 15px; font-weight: 600; }
+.best-day .shape { font-size: 12px; color: #7A7268; }
+.best-detail { font-size: 12px; color: #5E7A5C; line-height: 1.5; margin-top: 8px; }
+.best-detail strong { font-weight: 600; }
+.best-actions { display: flex; gap: 8px; margin-top: 12px; }
+.best-actions .go {
+  flex-grow: 1; height: 40px; border-radius: 10px; border: none; background: ${C.todayInk};
+  color: #F6FBF5; font-size: 13.5px; font-weight: 600;
+}
+.best-actions .preview {
+  height: 40px; border-radius: 10px; border: 1px solid #C6D6C2; background: transparent;
+  color: ${C.todayInk}; font-size: 13px; font-weight: 600; padding: 0 14px;
+}
+.best-actions .preview[aria-pressed="true"] { background: #E4EEE1; }
+
+.pick-label {
+  padding: 4px 16px 6px; font-size: 10px; font-weight: 700;
+  letter-spacing: 0.1em; color: ${C.greyer}; flex-shrink: 0;
+}
+.pick-list { overflow-y: auto; }
+.pick {
+  display: flex; align-items: center; gap: 11px; height: 46px; padding: 0 16px;
+  border-top: 1px solid ${C.line}; width: 100%; background: transparent;
+  border-left: 0; border-right: 0; border-bottom: 0; text-align: left; font-family: ${SANS};
+}
+.pick .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.pick-text { display: flex; flex-direction: column; flex-grow: 1; min-width: 0; }
+.pick-name {
+  font-size: 13.5px; font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pick-why { font-size: 10.5px; color: ${C.meta}; }
+.pick.past .dot { opacity: 0.45; }
+.pick.past .pick-name { color: ${C.greyer}; }
+.pick.past .pick-why { color: #B5ACA0; }
+.pick.other-city .pick-why { color: #C08A6E; }
+
+/* ---- Trip menu (design/TripMenu.dc.html) ---- */
+.trip-menu {
+  position: absolute; left: 10px; top: 46px; width: 208px; border-radius: 12px;
+  background: ${C.card}; border: 1px solid ${C.borderWarm};
+  box-shadow: 0 10px 30px rgba(84,68,44,0.26); overflow: hidden; z-index: 41;
+}
+.trip-menu button {
+  display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 13px;
+  width: 100%; background: transparent; border: 0; text-align: left; font-family: ${SANS};
+  font-size: 13px; font-weight: 500; color: ${C.ink};
+}
+.trip-menu button.on { background: ${C.highlight}; font-weight: 600; }
+/* Only the label grows. The icon spans are flex items too, and letting them
+   stretch pushes the text off its left alignment. */
+.trip-menu button .label { flex-grow: 1; text-align: left; }
+.trip-menu .rule { height: 1px; background: ${C.sheetEdge}; }
+
+/* ---- Note editor ----
+   No artboard draws this. AddNote.dc.html only shows the button reading
+   "Add note" rather than "Edit note", so the editor itself is written in the
+   system's own language rather than copied from anywhere. */
+.note-editor { padding: 0 16px; flex-shrink: 0; }
+.note-editor textarea {
+  width: 100%; min-height: 96px; resize: none; border-radius: 10px;
+  border: 1.5px solid ${C.ink}; background: ${C.card}; padding: 10px 12px;
+  font-family: ${SANS}; font-size: 13.5px; line-height: 1.5; color: ${C.ink};
+  caret-color: ${C.accent}; outline: none;
+}
+.note-editor textarea::placeholder { color: ${C.faint}; }
+.note-actions { display: flex; gap: 8px; margin-top: 12px; }
+.note-actions button { height: 40px; border-radius: 10px; font-size: 13.5px; font-weight: 600; }
+.note-actions .save { flex-grow: 1; border: none; background: ${C.ink}; color: ${C.paper}; }
+.note-actions .cancel {
+  border: 1px solid ${C.border}; background: ${C.card}; color: ${C.inkSoft}; padding: 0 14px;
+}
+
 /* A quiet inline error, in the terracotta the palette already uses. */
 .err { padding: 10px 16px; font-size: 11.5px; color: ${C.link}; }
 `;

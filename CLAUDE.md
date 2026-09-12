@@ -16,20 +16,29 @@ component library.
 `design/canvas.json` places each artboard on a canvas and gives it a title.
 That is the map of what exists:
 
-| Artboard | The screen it specifies |
-| --- | --- |
-| `SignIn.dc.html` | Sign in (PLAN.md §5) |
-| `Trips.dc.html` | The trip list: invite banner, happening now, coming up, past |
-| `NewTrip.dc.html` | Starting a trip — name, then the date range (§4d) |
-| `EmptyTrip.dc.html` | A trip with no stops yet |
-| `Main.dc.html` | The phone home screen: map, bottom sheet, days, stops (§4c, §7) |
-| `PlaceSearch.dc.html` | Adding a place from inside the app (§4b) |
-| `AddNote.dc.html`, `KebabMenu.dc.html`, `MoveToDay.dc.html` | The stop's menus (§4e) |
-| `Planner.dc.html`, `PlannerStop.dc.html`, `PlannerMobile.dc.html` | The day grid (§4f) |
-| `SheetFull.dc.html`, `Offline.dc.html`, `Import.dc.html`, `Members.dc.html` | The other states (§4g) |
-| `Desktop.dc.html` | The wide layout |
-| `TripMenu.dc.html` | The one dropdown on the trip name (§4h) |
-| `DirectionA/B/C.dc.html` | Rejected directions. Reference only — do not build these |
+| Artboard | The screen it specifies | Built |
+| --- | --- | --- |
+| `Trips.dc.html` | The trip list: happening now, coming up, past | yes, less the invite banner |
+| `NewTrip.dc.html` | Starting a trip — name, then the date range (§4d) | yes |
+| `EmptyTrip.dc.html` | A trip with no stops yet | yes |
+| `Main.dc.html` | The phone home screen: map, bottom sheet, days, stops (§4c, §7) | yes |
+| `PlaceSearch.dc.html` | Adding a place from inside the app (§4b) | yes |
+| `KebabMenu.dc.html` | The stop's kebab (§4e) | yes |
+| `MoveToDay.dc.html` | Move to another date, with the §8 suggestion | yes |
+| `TripMenu.dc.html` | The one dropdown on the trip name (§4h) | yes, less Plan view |
+| `AddNote.dc.html` | Only the button reading Add note. See below | n/a |
+| `SignIn.dc.html` | Sign in (§5) | no — needs Better Auth |
+| `Planner.dc.html`, `PlannerStop.dc.html`, `PlannerMobile.dc.html` | The day grid (§4f) | no |
+| `SheetFull.dc.html`, `Offline.dc.html`, `Import.dc.html`, `Members.dc.html` | The other states (§4g) | no |
+| `Desktop.dc.html` | The wide layout | no |
+| `DirectionA/B/C.dc.html` | Rejected directions. Reference only — do not build these | n/a |
+
+**Several artboards are Main.dc.html with one state changed**, and diffing them
+against it is the fastest way to see what they actually specify:
+`AddNote` selects a stop with no note, so all it says is that the button reads
+*Add note* rather than *Edit note* — **it does not draw a note editor**, and
+the one in `sheetNote` is written in the system's own language instead.
+`KebabMenu` opens the kebab. `TripMenu` adds a real overlay.
 
 ### How to read one
 
@@ -95,14 +104,31 @@ To be planned bucket is `#94897A`, which is not on the ramp.
   the named bias anchor. A place already on the trip gets the `#F6EFE2` row,
   `Already on Sat Oct 3`, and no add button. A result outside the circle is
   dimmed to 0.65 and says `outside the day`.
+- **A result outside the bias circle has no add button.** The artboard draws
+  that row dimmed to 0.65 with no control at all, so the only way to a distant
+  place is *Search anywhere*, which drops the bias and makes it addable. That
+  is deliberate, not an omission.
+- **Move to day explains itself in words** (§8): a green BEST FIT card naming
+  the stops it would slot between, then every other day with the reason it is
+  not the answer — *already past*, *different city · 290 km away*, *travel day
+  · 8 km detour*. The sentences are built on the server so nothing in the
+  client reasons about distance.
 - **Nothing is a placeholder.** Where the app does not know something, the
-  artboards leave it out rather than filling it with a dash.
+  artboards leave it out rather than filling it with a dash. Two consequences
+  worth knowing: the map carries no place labels, because the artboards' own
+  (HAKATA BAY, OHORI PARK) would be a lie on any other trip; and the 36px time
+  column collapses when no stop on the day has a time.
 
 ## Where it is implemented
 
-- `src/worker/ui/` — the screens, one module per artboard, plain HTML and CSS
-  written to match. No framework yet; PLAN.md §2 describes a React app that
-  does not exist.
+- `src/worker/ui/` — `tokens.ts` the palette and the day ramp, `icons.ts` the
+  SVGs, `styles.ts` the stylesheet, `map.ts` the drawn map, `client.ts` the
+  browser app, `page.ts` the document. No framework yet; PLAN.md §2 describes
+  a React app that does not exist.
+
+  **`client.ts` is one big `String.raw` template, so it must contain no
+  backticks at all** — comments included. Use `"a" + b` rather than a template
+  literal, and write `design/Main.dc.html` in a comment without quoting it.
 - `src/worker/index.ts` — Hono routes.
 - `src/worker/store.ts` — D1 reads and writes.
 - `src/lib/` — pure, tested logic: Places client, bias circle, derived text,

@@ -130,6 +130,52 @@ export async function getTrip(db: D1Database, tripId: string): Promise<TripRow |
   return await db.prepare(`SELECT * FROM trips WHERE id = ?`).bind(tripId).first<TripRow>();
 }
 
+/** One stop, with the place joined on, for the routes that act on a single one. */
+export async function getStop(db: D1Database, stopId: string): Promise<(StopRow & { trip_id: string }) | null> {
+  return await db
+    .prepare(
+      `SELECT s.id, s.trip_id, s.day_id, s.place_id, s.title, s.note, s.start_time,
+              s.order_key, s.status, s.created_by,
+              p.name AS place_name, p.google_place_id, p.lat, p.lng, p.city,
+              p.category, p.maps_url
+         FROM stops s
+         LEFT JOIN places p ON p.id = s.place_id
+        WHERE s.id = ? AND s.deleted_at IS NULL`,
+    )
+    .bind(stopId)
+    .first<StopRow & { trip_id: string }>();
+}
+
+/**
+ * Moves a stop to another day, or to the To be planned bucket.
+ *
+ * The order key is recomputed against its new neighbours rather than carried
+ * over, because a key only means anything within one day's list.
+ */
+export async function moveStopToDay(
+  db: D1Database,
+  stop: StopRow & { trip_id: string },
+  dayId: string | null,
+): Promise<void> {
+  const siblings = await db
+    .prepare(
+      `SELECT order_key FROM stops
+        WHERE trip_id = ? AND deleted_at IS NULL AND day_id IS ? AND id != ?`,
+    )
+    .bind(stop.trip_id, dayId, stop.id)
+    .all<{ order_key: string }>();
+
+  await db
+    .prepare(`UPDATE stops SET day_id = ?, order_key = ?, updated_at = ? WHERE id = ?`)
+    .bind(dayId, orderKeyAppend((siblings.results ?? []).map((r) => r.order_key)), now(), stop.id)
+    .run();
+}
+
+/** The day's city, taken from whatever its stops say they are in. */
+export function cityOfDay(dayId: string, stops: readonly StopRow[]): string | null {
+  return stops.find((s) => s.day_id === dayId && s.city)?.city ?? null;
+}
+
 export async function listDays(db: D1Database, tripId: string): Promise<DayRow[]> {
   const { results } = await db
     .prepare(`SELECT * FROM days WHERE trip_id = ? ORDER BY date`)

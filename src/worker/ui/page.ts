@@ -41,6 +41,12 @@ function iconSet(): Record<string, string> {
     pinChip: icons.pin({ size: 12, color: "#8C8479" }),
     pinFaint: icons.pin({ size: 12, color: "#A59C90" }),
     linkGrey: icons.link({ size: 16, color: "#8C8479" }),
+    star: icons.star({ size: 15 }),
+    chevronRight: icons.chevronRight({ size: 14 }),
+    grid: icons.grid({ size: 16, color: C.inkSoft }),
+    arrowLeft: icons.arrowLeft({ size: 16, color: C.inkSoft }),
+    pinInk: icons.pinDot({ size: 16, color: C.ink }),
+    checkGreen: icons.check({ size: 14, color: C.todayInk }),
   };
 }
 

@@ -133,3 +133,35 @@ export const layers = (o: IconOptions = {}) =>
 
 export const locate = ({ size = 18, color = "#6B645B" }: IconOptions = {}) =>
   `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.9"><circle cx="12" cy="12" r="7"></circle><circle cx="12" cy="12" r="2" fill="${color}" stroke="none"></circle><path d="M12 1v3M12 20v3M1 12h3M20 12h3" stroke-linecap="round"></path></svg>`;
+
+/** MoveToDay: the star on the BEST FIT card. */
+export const star = (o: IconOptions = {}) =>
+  svg(
+    `<path d="M12 2l2.6 6.3 6.8.5-5.2 4.4 1.6 6.6L12 16.7 6.2 19.8l1.6-6.6L2.6 8.8l6.8-.5L12 2z"></path>`,
+    { width: 2.1, color: "#4E7A4B", ...o },
+    'stroke-linecap="round" stroke-linejoin="round"',
+  );
+
+/** The disclosure on a day someone can move a stop to. */
+export const chevronRight = (o: IconOptions = {}) =>
+  svg(
+    `<polyline points="9 6 15 12 9 18"></polyline>`,
+    { width: 2.4, color: "#A59C90", ...o },
+    'stroke-linecap="round" stroke-linejoin="round"',
+  );
+
+/** TripMenu: the day grid behind Plan view. */
+export const grid = (o: IconOptions = {}) =>
+  svg(
+    `<rect x="3" y="4" width="18" height="17" rx="2.5"></rect><path d="M8 2v4M16 2v4M3 10h18M9 10v11M15 10v11"></path>`,
+    { width: 1.9, ...o },
+    'stroke-linejoin="round"',
+  );
+
+/** TripMenu: back to the trip list. */
+export const arrowLeft = (o: IconOptions = {}) =>
+  svg(
+    `<path d="M19 12H5M11 18l-6-6 6-6"></path>`,
+    { ...o },
+    'stroke-linecap="round" stroke-linejoin="round"',
+  );
