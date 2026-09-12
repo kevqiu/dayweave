@@ -2,3 +2,5 @@ design/trip-map-wireframes.html
 node_modules/
 .alchemy/
 .dev.vars
+dist/
+.wrangler/

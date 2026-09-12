@@ -64,6 +64,14 @@ yvr.kocho.sh
 - **Better Auth on D1** for sign-in, sessions and the Google tokens Drive will need later. See §5.
 - **No Gmail and no Sheets integration in v1.** Sign-in asks for `openid email profile` only.
 
+**Alchemy version: pinned to `0.94.0`, not `latest`.** This matters more than a pin usually does.
+`npm install alchemy` resolves to `2.0.0-beta.77`, which is a different product: v2 is
+Infrastructure-as-Effects, built on the Effect library, and its own README calls it alpha with
+breaking changes expected. Adopting it would make Effect the paradigm for the entire codebase and
+tie an MVP to an alpha IaC tool. The 0.x line is what the ecosystem guides describe, has the
+`alchemy/cloudflare/vite` integration the frontend needs, and its resource names are the ones this
+document assumes. Revisit when v2 is stable.
+
 **Frontend**: React 19 + Vite + TanStack Router + MapLibre GL JS. Tailwind v4 with the palette as
 CSS variables; no component library, the UI is small and specific. Framer Motion only for the sheet.
 

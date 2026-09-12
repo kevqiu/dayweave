@@ -1,0 +1,22 @@
+{
+  "name": "yvr-kocho-sh",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "alchemy deploy",
+    "destroy": "alchemy destroy",
+    "dev": "alchemy dev",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "alchemy": "0.94.0",
+    "hono": "^4.9.10"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250927.0",
+    "@types/node": "^22.20.2",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}
