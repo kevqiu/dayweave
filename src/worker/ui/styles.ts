@@ -592,6 +592,287 @@ button { font-family: ${SANS}; cursor: pointer; }
   font-size: 11.5px; font-weight: 700; color: ${C.link};
 }
 
+
+/* ---- The Plan view, one day a screen (design/PlannerMobile.dc.html) ---- */
+.screen.plan { background: ${C.paper}; }
+/* Main.dc.html floats the bar over the map. Here it is the first row of a
+   column with nothing behind it, so it takes its own space. */
+.screen.plan .trip-bar { position: static; flex-shrink: 0; }
+/* The way into an empty stretch of the day, in the dashed language of the
+   free slot rather than the sheet's filled pill. */
+.clock-list .add-stop {
+  margin: 12px 0 16px; width: 100%; border-radius: 7px;
+  border: 1.2px dashed #E2D8C6; background: transparent; height: 26px;
+}
+
+.day-rail {
+  height: 46px; flex-shrink: 0; display: flex; align-items: center; gap: 6px;
+  padding: 0 12px; border-bottom: 1px solid ${C.sheetEdge};
+  overflow-x: auto; scrollbar-width: none;
+}
+.day-rail::-webkit-scrollbar { display: none; }
+.rail-pill {
+  height: 26px; border-radius: 999px; border: 1.2px solid ${C.borderWarm};
+  background: transparent; display: flex; align-items: center; gap: 5px;
+  padding: 0 9px; flex-shrink: 0; font-family: ${SANS}; font-size: 10px;
+  color: ${C.inkSoft};
+}
+.rail-pill.past { border-color: transparent; background: ${C.doneRing}; color: ${C.greyer}; }
+.rail-pill.on {
+  height: 30px; border-color: transparent; background: ${C.ink}; color: ${C.paper};
+  font-size: 11.5px; font-weight: 700; padding: 0 12px; gap: 6px;
+}
+.rail-hue { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+/* The day as a clock: the time down the side, the rows beside it, the gaps
+   drawn to scale. */
+.day-clock {
+  flex-grow: 1; overflow-y: auto; display: flex; padding: 10px 12px 0 0; min-height: 0;
+}
+.clock-gutter {
+  width: 44px; flex-shrink: 0; display: flex; flex-direction: column;
+  align-items: flex-end; padding-right: 8px;
+}
+.clock-time {
+  background: none; border: 0; padding: 0; width: 100%;
+  display: flex; align-items: flex-start; justify-content: flex-end;
+  font-family: ${SANS}; font-size: 9.5px; color: ${C.faint};
+  font-variant-numeric: tabular-nums;
+}
+.clock-time.unset { opacity: 0.55; }
+.clock-rule { width: 1.5px; background: ${C.sheetEdge}; flex-shrink: 0; margin-right: 11px; }
+.clock-list { flex-grow: 1; min-width: 0; display: flex; flex-direction: column; }
+
+.plan-row { display: flex; flex-direction: column; }
+.plan-row-top { display: flex; align-items: flex-start; gap: 7px; }
+.plan-row .grip { margin-top: 3px; opacity: 0.35; }
+.plan-name {
+  font-size: 12.5px; font-weight: 500; display: block;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.plan-row.done .plan-name { color: ${C.greyer}; font-weight: 400; text-decoration: line-through; }
+.plan-meta {
+  font-size: 9.5px; color: ${C.meta}; margin-top: 1px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.plan-meta:empty { display: none; }
+.plan-meta.note { color: #736C62; }
+.plan-author {
+  width: 15px; height: 15px; border-radius: 50%; color: #FFF9F0; font-size: 6.5px;
+  font-weight: 700; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.plan-row.done .plan-author { opacity: 0.45; }
+.plan-row.ghost { opacity: 0.45; }
+
+/* The gap the day is holding open, and the plus that fills it. */
+.free-slot {
+  margin-top: 9px; height: 22px; border-radius: 7px; border: 1.2px dashed #E2D8C6;
+  background: transparent; display: flex; align-items: center; justify-content: center;
+  gap: 6px; font-family: ${SANS}; font-size: 9.5px; color: ${C.faint};
+}
+
+/* The tray, which is why the Plan view is worth building on a phone. */
+.plan-tray {
+  flex-shrink: 0; border-top: 1px solid ${C.border}; background: ${C.highlight};
+  padding: 8px 12px 12px; max-height: 38%; display: flex; flex-direction: column;
+}
+.plan-tray.full { max-height: 72%; }
+.plan-tray .grabber { height: auto; padding-bottom: 8px; }
+.tray-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.tray-label { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: ${C.greyer}; }
+.tray-count { font-size: 10.5px; color: ${C.greyer}; font-variant-numeric: tabular-nums; }
+.tray-more {
+  background: none; border: 0; padding: 0; font-family: ${SANS};
+  font-size: 10.5px; font-weight: 600; color: ${C.link};
+}
+.tray-sep { width: 1px; height: 12px; background: #E0D5BF; }
+.round-btn.small { width: 22px; height: 22px; border-radius: 6px; }
+.tray-strip { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.tray-strip::-webkit-scrollbar { display: none; }
+.tray-list { display: flex; flex-direction: column; gap: 5px; overflow-y: auto; min-height: 0; }
+.tray-empty { font-size: 10.5px; color: ${C.faint}; line-height: 1.5; }
+.tray-card {
+  border-radius: 9px; border: 1px solid ${C.borderWarm}; background: ${C.card};
+  padding: 7px 9px; display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+}
+.tray-card .grip { opacity: 0.4; }
+.tray-card.ghost { opacity: 0.45; border-style: dashed; }
+.tray-name { font-size: 11px; font-weight: 600; white-space: nowrap; }
+.tray-meta { font-size: 9px; color: ${C.meta}; white-space: nowrap; }
+.tray-list .tray-name, .tray-list .tray-meta {
+  overflow: hidden; text-overflow: ellipsis; display: block;
+}
+.tray-put { background: none; border: 0; padding: 0 2px; display: flex; }
+
+/* No artboard draws a time editor; this is the note editor's shape. */
+.time-editor { padding: 4px 16px 18px; }
+.time-field {
+  width: 100%; height: 44px; border: 0; border-bottom: 1.5px solid ${C.ink};
+  background: transparent; font-family: ${SANS}; font-size: 17px; color: ${C.ink};
+  padding: 0; outline: none;
+}
+
+/* ---- The Planner at a desk (design/Planner.dc.html) ---- */
+#frame.wide { width: min(1440px, 100vw); height: min(900px, 100dvh); }
+.screen.desk { background: ${C.paper}; }
+
+.desk-bar {
+  height: 60px; flex-shrink: 0; display: flex; align-items: center; gap: 16px;
+  padding: 0 22px; border-bottom: 1px solid ${C.border};
+}
+.desk-name {
+  font-family: ${SERIF}; font-size: 21px; font-weight: 500; color: ${C.ink};
+  background: none; border: 0; padding: 0;
+}
+.segmented { display: flex; background: ${C.mapFill}; border-radius: 9px; padding: 3px; gap: 2px; }
+.segmented button {
+  font-family: ${SANS}; font-size: 12px; font-weight: 600; color: #8C8479;
+  padding: 5px 13px; border-radius: 7px; border: 0; background: none;
+}
+.segmented button.on { color: ${C.ink}; background: ${C.card}; box-shadow: 0 1px 2px rgba(80,66,44,0.10); }
+.segmented button:disabled { opacity: 0.45; }
+.desk-pager { display: flex; align-items: center; gap: 4px; }
+.sq-btn {
+  width: 30px; height: 30px; border-radius: 8px; border: 1px solid ${C.border};
+  background: ${C.card}; display: flex; align-items: center; justify-content: center; padding: 0;
+}
+.sq-btn:disabled { opacity: 0.4; }
+.desk-range {
+  font-size: 11px; color: ${C.grey}; font-variant-numeric: tabular-nums;
+  min-width: 92px; text-align: center;
+}
+.desk-share {
+  height: 35px; border-radius: 10px; border: none; background: ${C.ink}; color: ${C.paper};
+  font-family: ${SANS}; font-size: 12.5px; font-weight: 600; padding: 0 14px;
+}
+
+.grid-main { flex-grow: 1; display: flex; min-height: 0; }
+.grid-days { flex-grow: 1; display: flex; flex-direction: column; min-width: 0; }
+.grid-head { height: 58px; flex-shrink: 0; display: flex; border-bottom: 1px solid ${C.border}; }
+.grid-gutter-head { width: 56px; flex-shrink: 0; border-right: 1px solid ${C.sheetEdge}; }
+.gcol-head {
+  flex: 1 1 0; min-width: 0; border-right: 1px solid ${C.sheetEdge}; padding: 8px 10px;
+}
+.gcol-head.past { opacity: 0.5; }
+.gcol-head.today { background: ${C.highlight}; }
+.gcol-top { display: flex; align-items: baseline; gap: 6px; }
+.gcol-hue { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.gcol-label { font-size: 12.5px; font-weight: 600; }
+.gcol-head.today .gcol-label { font-weight: 700; }
+.gcol-sub {
+  font-size: 10.5px; color: ${C.grey}; margin-top: 3px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.gcol-sub.nothing { color: #C08A6E; }
+
+/* 10px of air so the 08:00 label, which the artboard hangs at -6px, is not
+   sliced in half by the top of the scroller. */
+.grid-scroll { flex-grow: 1; overflow-y: auto; min-height: 0; padding-top: 10px; }
+.grid-inner { display: flex; position: relative; }
+.grid-gutter { width: 56px; flex-shrink: 0; border-right: 1px solid ${C.sheetEdge}; position: relative; z-index: 2; }
+.hour-label { position: absolute; right: 9px; font-size: 10px; color: ${C.faint}; }
+.band-label {
+  position: absolute; right: 9px; font-size: 8.5px; font-weight: 700;
+  letter-spacing: 0.07em; color: ${C.faint};
+}
+.grid-lines { position: absolute; left: 56px; right: 0; top: 0; bottom: 0; pointer-events: none; }
+.grid-lines i { position: absolute; left: 0; right: 0; height: 1px; background: ${C.line}; }
+.grid-lines i.band-rule { background: ${C.sheetEdge}; }
+
+.gcol { flex: 1 1 0; min-width: 0; border-right: 1px solid ${C.sheetEdge}; position: relative; }
+.gcol.past { opacity: 0.45; }
+.gcol.today { background: #FBF5E9; }
+.now-line { position: absolute; left: 0; right: 0; height: 1.5px; background: ${C.accent}; z-index: 3; }
+.now-dot {
+  position: absolute; left: -3px; width: 8px; height: 8px; border-radius: 50%;
+  background: #3F6B4A; z-index: 3;
+}
+
+.gcard {
+  position: absolute; left: 5px; right: 5px; border-radius: 8px; padding: 6px 8px;
+  overflow: hidden; display: flex; align-items: flex-start; gap: 6px;
+  background: #FBF2DC; border: 1px solid #E6D5A8;
+}
+.gcard.done { background: ${C.doneRing}; border-color: #DFD6C7; }
+.gcard.now { background: #E9F1E6; border-color: #C6DBC2; }
+.gcard.untimed { background: transparent; border: 1.5px dashed #DFD3BE; }
+.gcard.selected {
+  border: 1.5px solid ${C.ink}; box-shadow: 0 4px 14px rgba(84,68,44,0.20);
+  z-index: 8; overflow: visible;
+}
+.gcard.ghost { opacity: 0.4; border-style: dashed; }
+.gcard .grip { opacity: 0.45; margin-top: 1px; }
+.gcard-text { min-width: 0; flex-grow: 1; }
+.gcard-top { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.gcard-title {
+  font-size: 11.5px; font-weight: 600; line-height: 1.25; color: #6B5426;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; min-width: 0;
+}
+.gcard.done .gcard-title { color: #8C8479; text-decoration: line-through; }
+.gcard.now .gcard-title { color: #35502F; }
+.gcard.untimed .gcard-title { color: ${C.inkSoft}; }
+.gcard-author {
+  width: 15px; height: 15px; border-radius: 50%; color: #FFF9F0; font-size: 6.5px;
+  font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.gcard.done .gcard-author { opacity: 0.45; }
+.gcard-sub {
+  display: block; font-size: 9.5px; margin-top: 2px; color: #97803F;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.gcard.done .gcard-sub { color: ${C.greyer}; }
+.gcard.now .gcard-sub { color: #6C8A66; }
+.gcard.untimed .gcard-sub { color: ${C.meta}; }
+
+/* design/PlannerStop.dc.html: the three edits, and nothing else. */
+.gpop {
+  position: absolute; left: calc(100% + 7px); top: -8px; width: 194px;
+  border-radius: 11px; background: ${C.card}; border: 1px solid ${C.borderWarm};
+  box-shadow: 0 10px 28px rgba(84,68,44,0.24); overflow: hidden; z-index: 30;
+  cursor: default;
+}
+.gpop-head { padding: 10px 13px 8px; border-bottom: 1px solid ${C.line}; }
+.gpop-title { font-size: 12.5px; font-weight: 700; }
+.gpop-sub { font-size: 10px; color: ${C.meta}; margin-top: 2px; }
+.gpop-item {
+  display: flex; align-items: center; gap: 9px; height: 42px; padding: 0 13px;
+  width: 100%; background: none; border: 0; border-top: 1px solid ${C.line};
+  font-family: ${SANS}; font-size: 13px; font-weight: 500; color: ${C.ink};
+}
+.gpop-item:first-of-type { border-top: 0; }
+.gpop-item.danger { color: #A06B52; }
+.gcol.flip .gpop { left: auto; right: calc(100% + 7px); }
+
+/* The bar a dragged card would land on, and the hour it would land at. */
+.grid-drop { position: absolute; height: 3px; border-radius: 2px; background: ${C.today}; z-index: 61; }
+.grid-drop span {
+  position: absolute; left: 0; top: -16px; font-size: 9.5px; font-weight: 700;
+  color: ${C.todayInk}; letter-spacing: 0.04em; white-space: nowrap;
+}
+
+.tray-side {
+  width: 252px; flex-shrink: 0; border-left: 1px solid ${C.border};
+  display: flex; flex-direction: column; min-height: 0;
+}
+.tray-side-head {
+  padding: 13px 15px 11px; border-bottom: 1px solid ${C.sheetEdge};
+  display: flex; align-items: center; gap: 8px;
+}
+.tray-side-list {
+  flex-grow: 1; overflow-y: auto; padding: 8px; display: flex;
+  flex-direction: column; gap: 5px;
+}
+.tray-side-list .tray-card { padding: 8px 9px; gap: 7px; }
+.tray-side-list .tray-name { font-size: 11.5px; }
+.tray-side-list .tray-meta { font-size: 9.5px; }
+.tray-side-foot { padding: 8px 10px 10px; border-top: 1px solid ${C.sheetEdge}; }
+.add-place {
+  width: 100%; height: 36px; border-radius: 10px; border: 1.5px dashed #DFD3BE;
+  background: transparent; color: ${C.grey}; font-family: ${SANS}; font-size: 12px;
+  font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+
 /* A quiet inline error, in the terracotta the palette already uses. */
 .err { padding: 10px 16px; font-size: 11.5px; color: ${C.link}; }
 `;

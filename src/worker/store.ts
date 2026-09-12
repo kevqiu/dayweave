@@ -312,6 +312,8 @@ export async function addPlaceAsStop(
     details: PlaceDetails;
     source: "search" | "link" | "my_map";
     userId: string;
+    /** `14:30` when the Plan view added it into a gap. */
+    startTime?: string | null;
   },
 ): Promise<{ stopId: string; placeId: string; deduped: boolean }> {
   const existing = await db
@@ -382,8 +384,9 @@ export async function addPlaceAsStop(
   const stopId = crypto.randomUUID();
   await db
     .prepare(
-      `INSERT INTO stops (id, trip_id, day_id, place_id, title, order_key, created_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO stops (id, trip_id, day_id, place_id, title, start_time, order_key,
+                          created_by, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       stopId,
@@ -391,6 +394,7 @@ export async function addPlaceAsStop(
       input.dayId,
       placeId,
       d.name,
+      input.startTime ?? null,
       orderKeyAppend((siblings.results ?? []).map((r) => r.order_key)),
       input.userId,
       now(),
@@ -490,10 +494,15 @@ export function initialsFor(userId: string): string {
  */
 export function stopsForDay(stops: readonly StopRow[], dayId: string | null): StopView[] {
   const ordered = stops.filter((s) => s.day_id === dayId);
+  // To be planned is a bucket, not a route. Two things sitting in it next to
+  // each other are not one after the other, so the walk between them would be
+  // a measurement of nothing; the line says where the place is instead, which
+  // is what design/Planner.dc.html writes on a tray card: `Fukuoka · shopping`.
+  const isRoute = dayId !== null;
 
   return ordered.map((stop, i) => {
     const location = stop.lat !== null && stop.lng !== null ? { lat: stop.lat, lng: stop.lng } : null;
-    const before = ordered[i - 1];
+    const before = isRoute ? ordered[i - 1] : undefined;
     const previous = before
       ? {
           category: before.category,
@@ -507,7 +516,9 @@ export function stopsForDay(stops: readonly StopRow[], dayId: string | null): St
     return {
       id: stop.id,
       title: stop.place_name ?? stop.title,
-      description: describeStop({ category: stop.category, location }, previous),
+      description: isRoute
+        ? describeStop({ category: stop.category, location }, previous)
+        : [stop.city, stop.category].filter(Boolean).join(" · "),
       note: stop.note,
       time: stop.start_time ?? "",
       status: stop.status,

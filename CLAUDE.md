@@ -25,11 +25,11 @@ That is the map of what exists:
 | `PlaceSearch.dc.html` | Adding a place from inside the app (§4b) | yes |
 | `KebabMenu.dc.html` | The stop's kebab (§4e) | yes |
 | `MoveToDay.dc.html` | Move to another date, with the §8 suggestion | yes |
-| `TripMenu.dc.html` | The one dropdown on the trip name (§4h) | yes, less Plan view |
+| `TripMenu.dc.html` | The one dropdown on the trip name (§4h) | yes |
 | `SheetFull.dc.html` | The sheet expanded, and drag-to-reorder | yes, less the title |
 | `AddNote.dc.html` | Only the button reading Add note. See below | n/a |
 | `SignIn.dc.html` | Sign in (§5) | no — needs Better Auth |
-| `Planner.dc.html`, `PlannerStop.dc.html`, `PlannerMobile.dc.html` | The day grid (§4f) | no |
+| `Planner.dc.html`, `PlannerStop.dc.html`, `PlannerMobile.dc.html` | The day grid (§4f) | yes, less the travel and lodging rows |
 | `Offline.dc.html`, `Import.dc.html`, `Members.dc.html` | The other states (§4g) | no |
 | `Desktop.dc.html` | The wide layout | no |
 | `DirectionA/B/C.dc.html` | Rejected directions. Reference only — do not build these | n/a |
@@ -191,6 +191,55 @@ To be planned bucket is `#94897A`, which is not on the ramp.
   throws away any pointer capture held on it — nothing moves and nothing
   drops. This has now been the cause of two bugs, the sheet handle and this
   one.
+- **The Plan view is one view at two densities, not two screens.** PLAN.md §4f:
+  a seven-column grid cannot work at 375px, so the phone draws the day as a
+  clock and the desk draws the week as a grid. Both read the same trip payload
+  and write the same ops, and crossing 1100px re-renders from one into the
+  other. `#frame` grows to `1440 x 900` while the grid is showing and shrinks
+  back on the way out; every other screen stays the 375px phone.
+
+  **Everything the two densities measure lives in `src/lib/plan.ts`**, where it
+  is tested: the row heights, the free slots, the hours a column covers, where
+  a card sits and what time a drop lands on. The browser needs the same
+  arithmetic and there is no bundler between them, so
+  `src/worker/ui/plan-client.ts` carries it again as a script — and
+  `plan-client.test.ts` runs that script and checks it agrees with
+  `src/lib/plan.ts` on a table of inputs, so the copy cannot drift quietly.
+
+  Four things the artboards do not settle, decided here:
+
+  - **A row's height answers to the gap after it.** `PlannerMobile.dc.html`
+    draws five rows at 46/62/46/74/46 against times that no single rule
+    reproduces — the 62 in particular answers to nothing else on the page.
+    What it does say is that the row with the largest following gap is the one
+    carrying the dashed slot. So every row is 46, and a row grows by the slot
+    when the gap after it is 75 minutes or more. A visited stop never grows
+    one: that gap is in the past, and the plus on the slot is an invitation to
+    plan.
+  - **Untimed stops wait in a band under the hours.** Every card on
+    `Planner.dc.html` has a time and most stops on a real trip have none
+    (PLAN.md §11). Giving them one nobody chose is exactly the placeholder this
+    file forbids, so they sit in a `NO TIME` band at the foot of their column,
+    dashed, and drag up on to the hours to get the time they land on. Dragging
+    one back down clears it.
+  - **A time is set on the time.** PLAN.md §4e puts editing a time on the time
+    itself rather than in a menu, so the clock gutter is the control on a
+    phone — a faint plus where a stop has no time yet — and the Planner's
+    popover carries it as *Set a time* / *Edit time*, which is what the
+    artboard's *Edit* can actually do: the name comes from the place and the
+    note has its own item. No artboard draws the editor itself; it is the note
+    editor's sheet with a time field.
+  - **The travel and lodging rows are not built.** `Planner.dc.html` rules two
+    strips under the grid for flights, trains and hotels. `travel_legs` and
+    `lodging` are tables with no API and no way to put anything in them, so
+    drawing the rows would be furniture with nothing behind it. The same goes
+    for the add-a-day rails either side of the grid.
+
+  **What is being dragged decides how the drop is read.** A sheet stacks its
+  days, so the finger's y says which one it is over. The Planner's columns sit
+  side by side and share every y, so there the x is the whole answer — and a
+  hit test that only checked y quietly dropped everything on Monday.
+
 - **Nothing is a placeholder.** Where the app does not know something, the
   artboards leave it out rather than filling it with a dash. Two consequences
   worth knowing: the map carries no place labels, because the artboards' own
@@ -210,7 +259,7 @@ To be planned bucket is `#94897A`, which is not on the ramp.
 - `src/worker/index.ts` — Hono routes.
 - `src/worker/store.ts` — D1 reads and writes.
 - `src/lib/` — pure, tested logic: Places client, bias circle, derived text,
-  order keys, KML.
+  order keys, the Plan view's geometry, KML.
 
 ## The map
 

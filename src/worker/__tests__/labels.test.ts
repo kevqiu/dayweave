@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dateRangeLabel, dayLabel, initialsFor, navigateUrl } from "../store.ts";
+import { dateRangeLabel, dayLabel, initialsFor, navigateUrl, stopsForDay } from "../store.ts";
 import { dayHue } from "../ui/tokens.ts";
 
 describe("dayLabel", () => {
@@ -80,5 +80,45 @@ describe("navigateUrl", () => {
 
   it("is null for a stop with no pin, so the button has nowhere wrong to go", () => {
     expect(navigateUrl(null, "ChIJ...")).toBeNull();
+  });
+});
+
+describe("the To be planned bucket", () => {
+  const place = (id: string, city: string, category: string) => ({
+    id,
+    day_id: null,
+    place_id: id,
+    title: id,
+    note: "",
+    start_time: null,
+    order_key: id,
+    status: "planned",
+    created_by: "u1",
+    place_name: id,
+    google_place_id: null,
+    lat: 33.59 + Number(id),
+    lng: 130.4,
+    city,
+    category,
+    maps_url: null,
+  });
+
+  it("says where a waiting place is, not how far it is from the last one", () => {
+    // Two things sitting in the bucket are not one after the other, so a walk
+    // between them would measure nothing. design/Planner.dc.html writes the
+    // tray card as `Fukuoka · shopping`.
+    const rows = stopsForDay(
+      [place("1", "Fukuoka", "shopping"), place("2", "Kagoshima", "garden")],
+      null,
+    );
+    expect(rows.map((r) => r.description)).toEqual([
+      "Fukuoka · shopping",
+      "Kagoshima · garden",
+    ]);
+  });
+
+  it("leaves out the half it does not know", () => {
+    const row = stopsForDay([{ ...place("1", "Fukuoka", "shopping"), city: null }], null);
+    expect(row[0]?.description).toBe("shopping");
   });
 });

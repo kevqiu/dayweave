@@ -9,6 +9,7 @@ import {
 } from "../lib/places.ts";
 import { haversineMetres, resolveBias, roundedCentre, type Bias } from "../lib/geo.ts";
 import { suggestDays, type CandidateDay } from "../lib/suggest.ts";
+import { formatClock, minutesOf } from "../lib/plan.ts";
 import {
   addPlaceAsStop,
   cityOfDay,
@@ -380,8 +381,15 @@ app.post("/api/trips/:tripId/stops", async (c) => {
   if (setCookie) c.header("set-cookie", setCookie);
 
   const tripId = c.req.param("tripId");
-  const body = await c.req.json<{ placeId?: string; dayId?: string | null; sessionToken?: string }>();
+  const body = await c.req.json<{
+    placeId?: string;
+    dayId?: string | null;
+    sessionToken?: string;
+    startTime?: string | null;
+  }>();
   if (!body.placeId) return c.json({ error: "which place?" }, 400);
+  const startTime = cleanTime(body.startTime);
+  if (startTime === false) return c.json({ error: "that is not a time" }, 400);
 
   const trip = await getTrip(c.env.DB, tripId);
   if (!trip) return c.json({ error: "no such trip" }, 404);
@@ -411,6 +419,7 @@ app.post("/api/trips/:tripId/stops", async (c) => {
     details,
     source: "search",
     userId,
+    startTime,
   });
   return c.json({ ...result, place: details }, 201);
 });
@@ -537,8 +546,16 @@ app.post("/api/stops/:stopId/move", async (c) => {
   const stop = await getStop(c.env.DB, c.req.param("stopId"));
   if (!stop) return c.json({ error: "no such stop" }, 404);
 
-  const body = await c.req.json<{ dayId?: string | null; afterStopId?: string | null }>();
+  const body = await c.req.json<{
+    dayId?: string | null;
+    afterStopId?: string | null;
+    startTime?: string | null;
+  }>();
   const dayId = body.dayId ?? null;
+  // A drop on the Planner's grid is one op: the day, the key between its new
+  // neighbours, and the time of the row it landed on (PLAN.md section 4e).
+  const startTime = "startTime" in body ? cleanTime(body.startTime) : undefined;
+  if (startTime === false) return c.json({ error: "that is not a time" }, 400);
 
   if (dayId !== null) {
     const day = await c.env.DB.prepare(`SELECT id FROM days WHERE id = ? AND trip_id = ?`)
@@ -555,7 +572,15 @@ app.post("/api/stops/:stopId/move", async (c) => {
     dayId,
     "afterStopId" in body ? (body.afterStopId ?? null) : undefined,
   );
-  return c.json({ ok: true, dayId, orderKey });
+  if (startTime !== undefined) {
+    await c.env.DB.prepare(
+      `UPDATE stops SET start_time = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
+    )
+      .bind(startTime, Date.now(), stop.id)
+      .run();
+  }
+
+  return c.json({ ok: true, dayId, orderKey, startTime: startTime ?? null });
 });
 
 app.post("/api/stops/:stopId/visited", async (c) => {
@@ -588,6 +613,34 @@ app.post("/api/stops/:stopId/note", async (c) => {
     .run();
   return c.json({ ok: true });
 });
+
+/**
+ * The time on a stop.
+ *
+ * PLAN.md section 4e puts editing a time on the time itself rather than in a
+ * menu, so this is what both the phone's time gutter and the Planner's card
+ * write to. An empty string clears it, and a stop without one is the normal
+ * case (section 11) rather than an error.
+ */
+app.post("/api/stops/:stopId/time", async (c) => {
+  const body = await c.req.json<{ time?: string | null }>();
+  const time = cleanTime(body.time);
+  if (time === false) return c.json({ error: "that is not a time" }, 400);
+
+  await c.env.DB.prepare(
+    `UPDATE stops SET start_time = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
+  )
+    .bind(time, Date.now(), c.req.param("stopId"))
+    .run();
+  return c.json({ ok: true, time });
+});
+
+/** `09:05`, or null for cleared. `false` means it was neither. */
+function cleanTime(raw: string | null | undefined): string | null | false {
+  if (raw === undefined || raw === null || raw.trim() === "") return null;
+  const at = minutesOf(raw);
+  return at === null ? false : formatClock(at);
+}
 
 app.post("/api/stops/:stopId/delete", async (c) => {
   // Soft, so someone else's offline edit stays undoable (PLAN.md section 9).

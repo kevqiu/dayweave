@@ -2,6 +2,7 @@ import { CLIENT } from "./client.ts";
 import * as icons from "./icons.ts";
 import { cardMap, mapBackground } from "./map.ts";
 import { lookPinIcon, mapStyle, pinIcon } from "./gmap.ts";
+import { PLAN_CLIENT } from "./plan-client.ts";
 import { styles } from "./styles.ts";
 import { COLOR as C, FONTS_HREF } from "./tokens.ts";
 
@@ -22,6 +23,9 @@ function iconSet(): Record<string, string> {
     close: icons.close({ size: 17, color: C.inkSoft }),
     plus: icons.plus({ size: 15, color: C.inkSoft }),
     plusGrey: icons.plus({ size: 14, color: C.grey, width: 2.6 }),
+    // The plus on a free slot and in the Plan view's time gutter, both 11px
+    // in design/PlannerMobile.dc.html.
+    plusTiny: icons.plus({ size: 11, color: C.faint, width: 2.6 }),
     chevron: icons.chevron({ size: 13 }),
     chevronSmall: icons.chevron({ size: 11 }),
     calendar: icons.calendar({ size: 15, color: C.inkSoft }),
@@ -87,6 +91,8 @@ window.__PIN__ = ${JSON.stringify({
 })};
 window.__LOOK_PIN__ = ${JSON.stringify(lookPinIcon())};
 </script>
+<!-- The Plan view's arithmetic, checked against src/lib/plan.ts by a test. -->
+<script>${PLAN_CLIENT}</script>
 <script type="module">
 ${CLIENT}
 </script>

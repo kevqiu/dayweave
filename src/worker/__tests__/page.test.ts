@@ -19,6 +19,16 @@ describe("the embedded client script", () => {
   });
 });
 
+describe("the Plan view's browser script", () => {
+  it("is served before the client that reads it", () => {
+    const html = page();
+    // The script hands the arithmetic over as w.__PLAN__; the client reads it
+    // as window.__PLAN__, and has to find it already there.
+    expect(html).toContain("w.__PLAN__ =");
+    expect(html.indexOf("w.__PLAN__ =")).toBeLessThan(html.indexOf("const PLAN = window.__PLAN__"));
+  });
+});
+
 describe("page", () => {
   it("serves the client, the icons and the drawn map", () => {
     const html = page();
