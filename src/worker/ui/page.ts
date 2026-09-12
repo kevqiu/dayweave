@@ -1,7 +1,7 @@
 import { CLIENT } from "./client.ts";
 import * as icons from "./icons.ts";
 import { cardMap, mapBackground } from "./map.ts";
-import { mapStyle, pinIcon } from "./gmap.ts";
+import { lookPinIcon, mapStyle, pinIcon } from "./gmap.ts";
 import { styles } from "./styles.ts";
 import { COLOR as C, FONTS_HREF } from "./tokens.ts";
 
@@ -85,6 +85,7 @@ window.__PIN__ = ${JSON.stringify({
   ahead: { plain: pinIcon(C.ahead, false), selected: pinIcon(C.ahead, true) },
   done: { plain: pinIcon(C.done, false), selected: pinIcon(C.done, true) },
 })};
+window.__LOOK_PIN__ = ${JSON.stringify(lookPinIcon())};
 </script>
 <script type="module">
 ${CLIENT}

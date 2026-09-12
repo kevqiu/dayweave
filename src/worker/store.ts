@@ -436,8 +436,33 @@ export interface StopView {
   author: string;
   authorColor: string;
   city: string | null;
-  mapsUrl: string | null;
+  /** Where Navigate goes. Built rather than stored — see navigateUrl. */
+  navigateUrl: string | null;
   location: LatLng | null;
+}
+
+/**
+ * The link behind Navigate.
+ *
+ * Not `places.maps_url`: Google's own `googleMapsUri` opens a place page that
+ * lands zoomed out, which is useless when you are standing on a street trying
+ * to walk somewhere. This is the documented Maps URL for directions, which
+ * opens the app on the destination with walking directions ready. The place id
+ * rides along so Google resolves the exact place rather than the nearest thing
+ * to a coordinate.
+ */
+export function navigateUrl(
+  location: LatLng | null,
+  googlePlaceId: string | null,
+): string | null {
+  if (!location) return null;
+  const params = new URLSearchParams({
+    api: "1",
+    destination: `${location.lat},${location.lng}`,
+    travelmode: "walking",
+  });
+  if (googlePlaceId) params.set("destination_place_id", googlePlaceId);
+  return `https://www.google.com/maps/dir/?${params}`;
 }
 
 /**
@@ -489,7 +514,7 @@ export function stopsForDay(stops: readonly StopRow[], dayId: string | null): St
       author: initialsFor(stop.created_by),
       authorColor: avatarColor(stop.created_by),
       city: stop.city,
-      mapsUrl: stop.maps_url,
+      navigateUrl: navigateUrl(location, stop.google_place_id),
       location,
     };
   });

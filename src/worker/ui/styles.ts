@@ -355,6 +355,39 @@ button { font-family: ${SANS}; cursor: pointer; }
 .empty-actions .secondary { border: 1px solid ${C.border}; background: ${C.card}; color: ${C.inkSoft}; }
 
 /* ---- Place search (design/PlaceSearch.dc.html) ---- */
+
+/* The artboard has no top bar on this screen: the map header runs to the top
+   of the frame and the sheet sits over its lower 28px. */
+.screen.searching .trip-bar { display: none; }
+.screen.searching .map { top: 0; }
+
+/* The bias circle, dashed in the terracotta the accent already uses. */
+.bias-circle {
+  position: absolute; border-radius: 50%; border: 1.5px dashed ${C.accent};
+  background: rgba(196,130,106,0.06); transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+/* The result being looked at. Bigger than a trip pin, and the only
+   terracotta thing on the map. */
+.result-pin {
+  position: absolute; width: 22px; height: 22px; border-radius: 50%;
+  background: ${C.accent}; border: 3px solid ${C.card};
+  box-shadow: 0 2px 8px rgba(70,58,40,0.25);
+  transform: translate(-50%, -50%); pointer-events: none;
+}
+/* A stop already on the trip, behind the circle. */
+.trip-pin {
+  position: absolute; width: 15px; height: 15px; border-radius: 50%;
+  background: ${C.today}; border: 2.5px solid ${C.card};
+  transform: translate(-50%, -50%); pointer-events: none;
+}
+.pin-halo {
+  position: absolute; width: 34px; height: 34px; border-radius: 50%;
+  background: rgba(111,154,107,0.20); transform: translate(-50%, -50%); pointer-events: none;
+}
+
+.result.looking { background: ${C.highlight}; }
+
 .search-head { padding: 6px 13px 8px; flex-shrink: 0; }
 .search-field {
   height: 40px; border-radius: 10px; border: 1.5px solid ${C.ink}; background: ${C.card};
@@ -397,6 +430,10 @@ button { font-family: ${SANS}; cursor: pointer; }
 }
 .result-tile.yellow { background: ${C.yellowTile}; }
 .result-tile.grey { background: ${C.greyTile}; }
+.result-tap {
+  display: flex; align-items: center; gap: 11px; flex-grow: 1; min-width: 0;
+  background: transparent; border: 0; padding: 0; text-align: left; font-family: ${SANS};
+}
 .result-text { display: flex; flex-direction: column; gap: 2px; flex-grow: 1; min-width: 0; }
 .result-name {
   font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;

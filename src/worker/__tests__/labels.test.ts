@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dateRangeLabel, dayLabel, initialsFor } from "../store.ts";
+import { dateRangeLabel, dayLabel, initialsFor, navigateUrl } from "../store.ts";
 import { dayHue } from "../ui/tokens.ts";
 
 describe("dayLabel", () => {
@@ -60,5 +60,25 @@ describe("initialsFor", () => {
 
   it("tells two people apart", () => {
     expect(initialsFor("dev_aaa")).not.toBe(initialsFor("dev_bbb"));
+  });
+});
+
+describe("navigateUrl", () => {
+  const KUSHIDA = { lat: 33.5932, lng: 130.4106 };
+
+  it("opens walking directions to the exact place, not a place page", () => {
+    const url = navigateUrl(KUSHIDA, "ChIJV2pTquqRQTURpI1FhH5siaE");
+    expect(url).toContain("https://www.google.com/maps/dir/");
+    expect(url).toContain("destination=33.5932%2C130.4106");
+    expect(url).toContain("destination_place_id=ChIJV2pTquqRQTURpI1FhH5siaE");
+    expect(url).toContain("travelmode=walking");
+  });
+
+  it("still works for a place with no Google id", () => {
+    expect(navigateUrl(KUSHIDA, null)).not.toContain("destination_place_id");
+  });
+
+  it("is null for a stop with no pin, so the button has nowhere wrong to go", () => {
+    expect(navigateUrl(null, "ChIJ...")).toBeNull();
   });
 });

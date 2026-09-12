@@ -81,8 +81,39 @@ function render() {
   // The lifted card is created by the render that starts a drag, so it has to
   // be put under the finger before the first paint rather than on the next move.
   if (state.drag) paintDrag();
+  if (state.search) paintSearchMap();
   if (state.screen === "trip") paintMap();
 }
+
+/* -------------------------------------------------------------- history */
+
+/**
+ * Back has to mean back.
+ *
+ * Every screen and every sheet pushes an entry, so the phone's back gesture
+ * closes the search, then the stop, then the trip, in the order they were
+ * opened — rather than leaving the app from whatever was on screen. A layer
+ * closed by tapping its own control goes through the same path: the control
+ * asks the browser to go back, and the listener below is the only thing that
+ * actually closes anything. One source of truth, so the two can never drift.
+ */
+const backStack = [];
+
+function openLayer(close) {
+  backStack.push(close);
+  history.pushState({ depth: backStack.length }, "");
+}
+
+/** What every X, scrim and Cancel calls. */
+function closeLayer() {
+  if (backStack.length) history.back();
+}
+
+window.addEventListener("popstate", () => {
+  const close = backStack.pop();
+  // Nothing of ours left: this is the trip list, and back leaves the app.
+  if (close) close();
+});
 
 /* ---------------------------------------------------------------- trips */
 
@@ -178,6 +209,7 @@ function tripRow(trip, past) {
 /* ------------------------------------------------------------- new trip */
 
 function openNewTrip() {
+  openLayer(() => { state.newTrip = null; showTrips(); });
   const start = new Date();
   state.newTrip = { name: "", start: null, end: null, month: new Date(start.getFullYear(), start.getMonth(), 1) };
   state.screen = "newTrip";
@@ -198,7 +230,7 @@ function screenNewTrip() {
 
   return h("div", { class: "screen" }, [
     h("div", { class: "top-bar" }, [
-      h("button", { class: "icon-btn", onclick: () => { state.screen = "trips"; render(); } }, [icon("close")]),
+      h("button", { class: "icon-btn", onclick: closeLayer }, [icon("close")]),
       h("div", { class: "top-bar-title", text: "New trip" }, []),
     ]),
     h("div", { style: "padding:0 18px 12px;flex-shrink:0" }, [
@@ -291,12 +323,34 @@ async function createTrip() {
     startDate: draft.start,
     endDate: draft.end || draft.start,
   });
+  // The New trip screen is finished with, so the trip takes its place in the
+  // history rather than sitting on top of it.
+  backStack.pop();
+  history.replaceState({ depth: backStack.length }, "");
   await openTrip(trip.trip.id);
 }
 
 /* ------------------------------------------------------------------ trip */
 
+/**
+ * Back to the trip list. The list is re-read, because whatever was just done
+ * inside a trip is exactly what its card is meant to show — a new trip, a
+ * city that has appeared under the name, a count that has moved.
+ */
+function showTrips() {
+  state.screen = "trips";
+  state.trip = null;
+  render();
+  api("/api/trips").then((data) => {
+    if (state.screen !== "trips") return;
+    state.trips = data.trips;
+    state.me = data.me;
+    render();
+  }).catch(() => {});
+}
+
 async function openTrip(tripId) {
+  openLayer(showTrips);
   state.trip = await api("/api/trips/" + tripId);
   const today = todayIso();
   const todayDay = state.trip.days.find((d) => d.date === today);
@@ -329,12 +383,16 @@ function screenTrip() {
   const openDay = trip.days.find((d) => d.id === state.openDayId);
   const full = state.sheetFull;
 
-  return h("div", { class: "screen" }, [
+  return h("div", { class: "screen" + (state.search ? " searching" : "") }, [
     h("div", { class: "trip-bar" }, [
       h("div", { class: "trip-bar-text" }, [
         h("button", {
           style: "display:flex;align-items:center;gap:5px;background:none;border:0;padding:0;text-align:left;min-width:0",
-          onclick: () => { state.tripMenu = true; render(); },
+          onclick: () => {
+            openLayer(() => { state.tripMenu = false; render(); });
+            state.tripMenu = true;
+            render();
+          },
         }, [
           h("div", { class: "trip-bar-name", text: trip.trip.name }, []),
           icon("chevron"),
@@ -350,8 +408,9 @@ function screenTrip() {
       mapsKey()
         ? h("div", { id: "gmap", style: "position:absolute;inset:0" }, [])
         : h("div", { style: "position:absolute;inset:0", html: window.__MAP__ }, []),
-      ...(mapsKey() ? [] : mapPins(openDay)),
-      hasStops ? mapLegend() : emptyMapChip(),
+      ...(mapsKey() || state.search ? [] : mapPins(openDay)),
+      ...searchMapLayer(),
+      state.search ? null : hasStops ? mapLegend() : emptyMapChip(),
       h("div", { class: "map-controls" }, [
         h("button", {}, [icon("layers")]),
         h("button", {}, [icon("locate")]),
@@ -472,6 +531,148 @@ function mapLegend() {
   ]);
 }
 
+/* ------------------------------------------------------- the search map */
+
+/**
+ * What the map shows while a search is open, from design/PlaceSearch.dc.html:
+ * the stops already on the trip as small green pins, the bias circle dashed in
+ * terracotta, and the result being looked at as one bigger terracotta pin.
+ *
+ * On the drawn map the circle is given a fixed drawn radius and every point is
+ * placed against it, so a result inside the circle looks inside it and one
+ * outside looks outside. That is the whole meaning the circle carries.
+ */
+/** Sized to the band the sheet leaves, so the whole circle is on screen. */
+function drawnCircleRadius() {
+  return Math.max(28, Math.min(62, visibleMapHeight() / 2 - 16));
+}
+
+function searchMapLayer() {
+  const s = state.search;
+  if (!s || mapsKey()) return [];
+
+  const out = [];
+
+  if (s.bias) out.push(h("div", { class: "bias-circle" }, []));
+
+  for (const pin of s.pins || []) {
+    out.push(h("div", {
+      class: "trip-pin",
+      "data-lat": String(pin.lat),
+      "data-lng": String(pin.lng),
+    }, []));
+  }
+
+  const looking = s.rows.find((r) => r.placeId === s.lookingAt);
+  if (looking && looking.location) {
+    for (const cls of ["pin-halo", "result-pin"]) {
+      out.push(h("div", {
+        class: cls,
+        "data-lat": String(looking.location.lat),
+        "data-lng": String(looking.location.lng),
+      }, []));
+    }
+  }
+  return out;
+}
+
+/**
+ * Positions the search map layer.
+ *
+ * It runs after the frame is assembled, not while it is being built: the sheet
+ * that decides how much map is visible does not exist yet during the build,
+ * and measuring then put the circle behind it.
+ */
+function paintSearchMap() {
+  const s = state.search;
+  if (!s || mapsKey()) return;
+
+  const centre = { x: 50, y: 52 };
+  const radius = drawnCircleRadius();
+  const middle = middleOfMap(centre);
+
+  const circle = document.querySelector(".bias-circle");
+  if (circle) {
+    circle.style.left = centre.x + "%";
+    circle.style.top = middle + "px";
+    circle.style.width = radius * 2 + "px";
+    circle.style.height = radius * 2 + "px";
+  }
+
+  for (const el of document.querySelectorAll("[data-lat]")) {
+    const point = { lat: Number(el.dataset.lat), lng: Number(el.dataset.lng) };
+    const at = s.bias
+      ? againstCircle(s.bias, point, centre)
+      // No circle means no scale, so the place being looked at simply sits in
+      // the middle, which is what centring on it means.
+      : (el.classList.contains("trip-pin") ? null : { x: centre.x, y: middle });
+
+    if (!at) { el.hidden = true; continue; }
+    el.hidden = false;
+    el.style.left = at.x + "%";
+    el.style.top = at.y + "px";
+  }
+}
+
+/**
+ * Places a point relative to the bias circle. Returns a percentage across and
+ * a pixel offset down, because the map strip is short and a percentage down it
+ * would put everything on top of everything else.
+ */
+/**
+ * The map runs the whole height of the frame, but the search sheet covers all
+ * but the top ~138px of it. Placing anything against the map's own height puts
+ * it behind the sheet, which is where the circle was going.
+ */
+function visibleMapHeight() {
+  const host = document.querySelector(".map");
+  if (!host) return 138;
+  const map = host.getBoundingClientRect();
+  // The search sheet, not the day sheet underneath it. Querying ".sheet" gets
+  // whichever is first in the DOM, which is the wrong one while searching and
+  // put the circle behind it.
+  const sheet = $("search-sheet") || document.querySelector(".sheet");
+  if (!sheet) return map.height;
+  return Math.max(60, sheet.getBoundingClientRect().top - map.top);
+}
+
+function middleOfMap(centre) {
+  return (centre.y / 100) * visibleMapHeight();
+}
+
+function againstCircle(bias, point, centre) {
+  const host = document.querySelector(".map");
+  const width = host ? host.getBoundingClientRect().width : 375;
+  const middle = middleOfMap(centre);
+
+  if (!bias || !point) return null;
+
+  const metresPerDegLat = 111320;
+  const metresPerDegLng = 111320 * Math.cos((bias.center.lat * Math.PI) / 180);
+  const east = (point.lng - bias.center.lng) * metresPerDegLng;
+  const north = (point.lat - bias.center.lat) * metresPerDegLat;
+
+  // The circle is the bias radius, so the scale follows from it. Anything far
+  // outside is pulled to the edge rather than off the map entirely.
+  const scale = drawnCircleRadius() / bias.radius;
+  let dx = east * scale;
+  let dy = -north * scale;
+  const reach = Math.hypot(dx, dy);
+  const limit = Math.min(width / 2 - 14, visibleMapHeight() / 2 - 14);
+  if (reach > limit) { dx = (dx / reach) * limit; dy = (dy / reach) * limit; }
+
+  return { x: centre.x + (dx / width) * 100, y: middle + dy };
+}
+
+/** Tapping a row looks at it: the row highlights and the map goes to it. */
+function lookAt(row) {
+  const s = state.search;
+  s.lookingAt = s.lookingAt === row.placeId ? null : row.placeId;
+  render();
+
+  if (mapsKey() && s.lookingAt) centreOnResult(row);
+}
+
 /* ------------------------------------------------------------------- map */
 
 const mapsKey = () => window.__MAPS_KEY__ || "";
@@ -576,6 +777,34 @@ async function paintMap() {
   const covered = sheet ? sheet.getBoundingClientRect().height : 0;
   gmap.fitBounds(bounds, { top: 60, right: 40, bottom: covered + 20, left: 40 });
   if (stops.length === 1) gmap.setZoom(15);
+}
+
+/**
+ * Centres the real map on a search result and marks it with the terracotta pin
+ * the artboard draws. The pin is separate from the trip's own markers, because
+ * the place is not on the trip yet.
+ */
+let lookMarker = null;
+
+async function centreOnResult(row) {
+  const maps = await loadMaps();
+  if (!maps || !gmap || !row.location) return;
+
+  if (lookMarker) lookMarker.setMap(null);
+  lookMarker = new maps.Marker({
+    position: row.location,
+    map: gmap,
+    title: row.name,
+    icon: { url: window.__LOOK_PIN__ },
+    zIndex: 3,
+  });
+
+  gmap.panTo(row.location);
+  gmap.setZoom(16);
+}
+
+function clearLookMarker() {
+  if (lookMarker) { lookMarker.setMap(null); lookMarker = null; }
 }
 
 /**
@@ -997,7 +1226,7 @@ function stopActions(stop, done, showTimes) {
     h("div", { class: "action-row" }, [
       h("a", {
         class: "action dark",
-        href: stop.mapsUrl || "#",
+        href: stop.navigateUrl || "#",
         target: "_blank",
         rel: "noreferrer",
       }, [icon("navigateLight"), "Navigate"]),
@@ -1062,6 +1291,7 @@ function stopActions(stop, done, showTimes) {
 
 function editNote(stop) {
   // The note is typed by a person and nothing ever generates one (section 4c).
+  openLayer(() => { state.noteFor = null; render(); });
   state.noteFor = { id: stop.id, name: stop.title, note: stop.note || "" };
   render();
   const field = $("note");
@@ -1079,7 +1309,7 @@ function editNote(stop) {
  */
 function sheetNote() {
   const target = state.noteFor;
-  const close = () => { state.noteFor = null; render(); };
+  const close = closeLayer;
 
   return [
     h("div", { class: "scrim", onclick: close }, []),
@@ -1122,8 +1352,7 @@ function saveNote() {
   const previous = stop ? stop.note : "";
   if (stop) stop.note = next;
 
-  state.noteFor = null;
-  render();
+  closeLayer();
 
   post("/api/stops/" + target.id + "/note", { note: next }).catch((error) => {
     const current = findStop(target.id);
@@ -1187,7 +1416,7 @@ function optimistic(apply, request, whatFailed) {
  * the artboard draws has three items.
  */
 function tripMenu() {
-  const close = () => { state.tripMenu = false; render(); };
+  const close = closeLayer;
   const item = (iconName, label, opts) =>
     h("button", {
       class: opts && opts.on ? "on" : "",
@@ -1208,11 +1437,11 @@ function tripMenu() {
       item("grid", "Plan view", { disabled: true, title: "The day grid is not built yet" }),
       h("div", { class: "rule" }, []),
       item("arrowLeft", "Back to trips", {
-        onclick: async () => {
-          state.tripMenu = false;
-          state.trips = (await api("/api/trips")).trips;
-          state.screen = "trips";
-          render();
+        onclick: () => {
+          // Close the menu, then the trip: two entries, so back and this
+          // button leave the history in the same place. showTrips re-reads.
+          closeLayer();
+          setTimeout(closeLayer, 0);
         },
       }),
     ]),
@@ -1222,6 +1451,7 @@ function tripMenu() {
 /* ----------------------------------------------------------- move to day */
 
 async function openMove(stopId) {
+  openLayer(() => { state.move = null; state.preview = null; render(); });
   state.move = await api("/api/stops/" + stopId + "/move-options");
   state.preview = null;
   render();
@@ -1233,7 +1463,7 @@ async function openMove(stopId) {
  */
 function sheetMove() {
   const move = state.move;
-  const close = () => { state.move = null; state.preview = null; render(); };
+  const close = closeLayer;
 
   const list = h("div", { class: "pick-list" }, move.rest.map(pickRow));
 
@@ -1307,13 +1537,36 @@ function pickRow(candidate) {
   ]);
 }
 
-async function moveTo(dayId) {
-  await post("/api/stops/" + state.move.stop.id + "/move", { dayId });
-  state.move = null;
-  state.preview = null;
+function moveTo(dayId) {
+  const stopId = state.move.stop.id;
   state.selectedStopId = null;
-  if (dayId) state.openDayId = dayId;
-  await refreshTrip();
+  closeLayer();
+
+  optimistic(
+    () => {
+      const at = locateStop(stopId);
+      if (!at) return () => {};
+      at.list.splice(at.index, 1);
+
+      const target = dayId === null
+        ? state.trip.unplanned
+        : (state.trip.days.find((d) => d.id === dayId) || {}).stops;
+      if (!target) { at.list.splice(at.index, 0, at.stop); return () => {}; }
+
+      // The sheet offers the end of a day, which is what the endpoint does
+      // when it is not told a neighbour.
+      target.push(at.stop);
+      if (dayId) state.openDayId = dayId;
+
+      return () => {
+        const back = target.indexOf(at.stop);
+        if (back !== -1) target.splice(back, 1);
+        at.list.splice(at.index, 0, at.stop);
+      };
+    },
+    () => post("/api/stops/" + stopId + "/move", { dayId }),
+    "That did not move",
+  );
 }
 
 /* ---------------------------------------------------------------- search */
@@ -1322,16 +1575,18 @@ const DEBOUNCE_MS = 250;
 const MIN_CHARS = 3;
 
 function openSearch(dayId) {
-  state.search = { dayId: dayId === "unplanned" ? null : dayId, query: "", rows: [], bias: null, anywhere: false, note: null, busy: false };
+  openLayer(() => { state.search = null; clearLookMarker(); render(); });
+  state.search = {
+    dayId: dayId === "unplanned" ? null : dayId,
+    query: "", rows: [], pins: [], bias: null, anywhere: false,
+    note: null, busy: false, lookingAt: null,
+  };
   render();
   const field = $("q");
   if (field) field.focus();
 }
 
-function closeSearch() {
-  state.search = null;
-  render();
-}
+const closeSearch = closeLayer;
 
 let debounceTimer = null;
 let searchTicket = 0;
@@ -1342,7 +1597,7 @@ function sheetSearch() {
   const results = h("div", { class: "results", id: "results" }, []);
   renderResults(results);
 
-  return h("div", { class: "sheet", style: "height:529px" }, [
+  return h("div", { class: "sheet", id: "search-sheet", style: "height:529px" }, [
     h("div", { class: "grabber", onclick: closeSearch }, [h("i", {}, [])]),
     h("div", { class: "search-head" }, [
       h("div", { class: "search-field" }, [
@@ -1406,6 +1661,9 @@ async function runSearch(query) {
     if (ticket !== searchTicket) return;
     s.rows = data.results;
     s.bias = data.bias;
+    s.pins = data.pins || [];
+    // A new set of results is a new set of places; nothing is being looked at.
+    if (!s.rows.some((r) => r.placeId === s.lookingAt)) s.lookingAt = null;
     s.note = data.results.length ? null : "Nothing found for that.";
   } catch (error) {
     if (ticket !== searchTicket) return;
@@ -1453,35 +1711,77 @@ function resultRow(row) {
     ]);
   }
 
-  if (row.outside) {
-    return h("div", { class: "result far" }, [
-      h("div", { class: "result-tile grey" }, [icon("bowlGrey")]),
+  const looking = state.search.lookingAt === row.placeId;
+
+  // A result beyond the circle is dimmed and says how far, and is added the
+  // same way as any other. The bias ranks results; it has never restricted
+  // them, and the UI must not restrict them either (PLAN.md section 4b).
+  return h("div", {
+    class: "result" + (row.outside ? " far" : "") + (looking ? " looking" : ""),
+  }, [
+    // The row itself looks at the place; only the button adds it.
+    h("button", {
+      class: "result-tap",
+      onclick: () => lookAt(row),
+      title: "Show on the map",
+    }, [
+      h("div", { class: "result-tile" + (row.outside ? " grey" : "") }, [
+        icon(row.outside ? "bowlGrey" : "bowl"),
+      ]),
       h("div", { class: "result-text" }, [
         h("span", { class: "result-name", text: row.name }, []),
         h("span", { class: "result-meta", text: row.meta }, []),
       ]),
-    ]);
-  }
-
-  return h("div", { class: "result" }, [
-    h("div", { class: "result-tile" }, [icon("bowl")]),
-    h("div", { class: "result-text" }, [
-      h("span", { class: "result-name", text: row.name }, []),
-      h("span", { class: "result-meta", text: row.meta }, []),
     ]),
-    h("button", { class: "result-add", title: "Add to the trip", onclick: () => addPlace(row.placeId) }, [
+    h("button", { class: "result-add", title: "Add to the trip", onclick: () => addPlace(row) }, [
       icon("plus"),
     ]),
   ]);
 }
 
-async function addPlace(placeId) {
+/**
+ * Adds a place optimistically.
+ *
+ * The search row already carries everything a stop needs to be drawn — a name,
+ * a category, a coordinate — so the stop appears on the day and the row turns
+ * to "On trip" straight away. The walking time on it is left to the re-read,
+ * because that depends on the neighbour it lands next to and the server is
+ * what works it out.
+ */
+function addPlace(row) {
   const s = state.search;
-  await post("/api/trips/" + state.trip.trip.id + "/stops", { placeId, dayId: s.dayId });
-  state.trip = await api("/api/trips/" + state.trip.trip.id);
-  // The search stays open, and the place it just added now reads "On trip".
-  if (s.query.trim().length >= MIN_CHARS) await runSearch(s.query.trim());
-  else render();
+  const day = state.trip.days.find((d) => d.id === s.dayId);
+  const list = day ? day.stops : state.trip.unplanned;
+
+  optimistic(
+    () => {
+      const provisional = {
+        id: "pending_" + row.placeId,
+        title: row.name,
+        description: row.category || "",
+        note: "",
+        time: "",
+        status: "planned",
+        author: state.me ? state.me.initials : "",
+        authorColor: state.me ? state.me.color : "#C4826A",
+        city: null,
+        navigateUrl: null,
+        location: row.location,
+      };
+      list.push(provisional);
+      row.onTrip = true;
+      row.onTripDay = day ? day.label : "To be planned";
+
+      return () => {
+        const at = list.indexOf(provisional);
+        if (at !== -1) list.splice(at, 1);
+        row.onTrip = false;
+        row.onTripDay = null;
+      };
+    },
+    () => post("/api/trips/" + state.trip.trip.id + "/stops", { placeId: row.placeId, dayId: s.dayId }),
+    "That place did not save",
+  );
 }
 
 async function pasteLink() {

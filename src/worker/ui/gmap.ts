@@ -58,3 +58,11 @@ export function pinIcon(fill: string, selected: boolean): string {
     `stroke="${ring}" stroke-width="2.5"/></svg>`;
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
+
+/** The result being looked at: the one terracotta pin the artboard draws. */
+export function lookPinIcon(): string {
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34">` +
+    `<circle cx="17" cy="17" r="11" fill="${C.accent}" stroke="${C.card}" stroke-width="3"/></svg>`;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}

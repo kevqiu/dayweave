@@ -105,10 +105,19 @@ To be planned bucket is `#94897A`, which is not on the ramp.
   the named bias anchor. A place already on the trip gets the `#F6EFE2` row,
   `Already on Sat Oct 3`, and no add button. A result outside the circle is
   dimmed to 0.65 and says `outside the day`.
-- **A result outside the bias circle has no add button.** The artboard draws
-  that row dimmed to 0.65 with no control at all, so the only way to a distant
-  place is *Search anywhere*, which drops the bias and makes it addable. That
-  is deliberate, not an omission.
+- **The bias never gates anything — it ranks.** A result outside the circle is
+  dimmed to 0.65 and says how far, and is added by the same button as any
+  other. `PlaceSearch.dc.html` happens to draw its far row without a control,
+  and an earlier pass read that as a prohibition and wrote it down here as
+  deliberate. It was wrong: PLAN.md §4b picks `locationBias` over
+  `locationRestriction` precisely so a Hakone teahouse stays findable from
+  Fukuoka, and a UI that refuses to add one has reimposed the restriction the
+  API call was chosen to avoid.
+- **"Outside the day" is only said when the circle came from the open day** —
+  its own stops or its lodging. When the circle fell back to a neighbouring day
+  or the viewport (§4b's third and fourth cases), the open day has no location
+  of its own, so nothing can be outside it and the row says only how far away
+  it is.
 - **Move to day explains itself in words** (§8): a green BEST FIT card naming
   the stops it would slot between, then every other day with the reason it is
   not the answer — *already past*, *different city · 290 km away*, *travel day
@@ -133,7 +142,12 @@ To be planned bucket is `#94897A`, which is not on the ramp.
   lifts a card that follows the finger at `rotate(-1.1deg) scale(1.015)`, and
   draws a green thread where it would land labelled with the walk it adds.
   A collapsed day header turns `#FCF6E6` with a dashed edge and says
-  `DROP HERE TO MOVE`. The drop writes one op: a day, and an order key between
+  `DROP HERE TO MOVE`.
+- **The search view has no top bar.** `PlaceSearch.dc.html` runs the map to the
+  top of the frame with the sheet over its lower 28px. The map there shows the
+  trip's stops as small green pins, the bias circle dashed in terracotta, and
+  the result being looked at as one bigger terracotta pin. Tapping a row looks
+  at it; only the `+` adds it. The drop writes one op: a day, and an order key between
   the two rows it landed between.
 
   **A drag's `pointermove` and `pointerup` listeners go on the `window`, never
@@ -183,6 +197,22 @@ If the Maps script does not load within 8 seconds the drawn map comes back.
 That timeout is not decoration: on a network that drops the connection
 silently the script tag fires no event at all, and without it the map hangs
 forever. This is an app for basements.
+
+## Back means back
+
+Every screen and every sheet pushes a history entry, so the phone's back
+gesture closes the search, then the stop, then the trip, in the order they were
+opened. A layer closed by its own X or scrim calls `closeLayer()`, which asks
+the browser to go back; the `popstate` listener is the only thing that actually
+closes anything. One source of truth, so the two can never drift.
+
+## Painting after the render, not during it
+
+Three things measure the DOM: the lifted drag card, the search map layer, and
+the Google map's fit. All three run **after** `render()` has assembled the
+frame, never while it is being built — the element they measure against does
+not exist yet during the build. The search circle was positioned against a
+667px map instead of the 138px the sheet leaves, and landed behind the sheet.
 
 ## Writes are optimistic
 

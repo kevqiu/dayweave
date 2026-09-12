@@ -240,16 +240,34 @@ app.get("/api/trips/:tripId/place-search", async (c) => {
   const onTrip = await placesOnTrip(c.env.DB, tripId);
   const anchor = bias?.anchor ?? null;
 
+  /**
+   * "Outside the day" only means something when the circle came from the day
+   * you are planning. When it fell back to a neighbouring day or the viewport
+   * (PLAN.md section 4b), the open day has no location of its own yet, so
+   * nothing can be outside it and saying so would be a lie.
+   *
+   * Either way it never gates anything. Bias ranks; it does not restrict.
+   */
+  const ownDay = bias !== null && (bias.source === "day-stops" || bias.source === "lodging");
+
   return c.json({
     bias: bias ? { ...bias, label: biasLabel(bias, days, stops) } : null,
+    // The stops already on the trip, so the search view can draw them as the
+    // green pins the artboard puts behind the circle.
+    pins: stops
+      .filter((s) => s.lat !== null && s.lng !== null)
+      .map((s) => ({ lat: s.lat as number, lng: s.lng as number })),
     results: places.map((place) => {
       const metres = anchor ? haversineMetres(anchor.location, { lat: place.lat, lng: place.lng }) : null;
-      const outside = bias !== null && metres !== null && metres > bias.radius;
+      const outside = ownDay && metres !== null && metres > (bias as Bias).radius;
       return {
         placeId: place.googlePlaceId,
         name: place.name,
         category: place.category,
         rating: place.rating,
+        // The row needs a coordinate to put a pin on the map when it is
+        // tapped, and to stand a stop up optimistically when it is added.
+        location: { lat: place.lat, lng: place.lng },
         distanceMetres: metres,
         onTrip: onTrip.has(place.googlePlaceId),
         onTripDay: onTrip.get(place.googlePlaceId) ?? null,
