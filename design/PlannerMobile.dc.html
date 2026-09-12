@@ -16,11 +16,17 @@
 </helmet>
 <div style="position: relative; width: 375px; height: 667px; overflow: hidden; background: #FBF6EE; color: #33302B; display: flex; flex-direction: column;">
 
-  <div style="height: 46px; flex-shrink: 0; display: flex; align-items: center; gap: 9px; padding: 0 12px; border-bottom: 1px solid #E9DFCE;">
-    <div style="font-family: Newsreader, Georgia, serif; font-size: 17px; font-weight: 500; flex-grow: 1;">Japan, autumn</div>
-    <div style="display: flex; background: #F0E9DC; border-radius: 8px; padding: 2px; gap: 2px;">
-      <span style="font-size: 10.5px; font-weight: 600; color: #8C8479; padding: 4px 9px; border-radius: 6px;">Map</span>
-      <span style="font-size: 10.5px; font-weight: 600; color: #33302B; background: #FFFCF6; padding: 4px 9px; border-radius: 6px;">Plan</span>
+  <div style="height: 50px; flex-shrink: 0; display: flex; align-items: center; gap: 9px; padding: 0 12px; border-bottom: 1px solid #E9DFCE;">
+    <div style="display: flex; flex-direction: column; gap: 1px; flex-grow: 1; min-width: 0;">
+      <div style="display: flex; align-items: center; gap: 5px;">
+        <div style="font-family: Newsreader, Georgia, serif; font-size: 17px; font-weight: 500;">Japan, autumn</div>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#A59C90" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </div>
+      <div style="font-size: 10.5px; color: #8C8479;">Plan view · day 3 of 11</div>
+    </div>
+    <div style="display: flex;">
+      <div style="width: 24px; height: 24px; border-radius: 50%; background: #C4826A; color: #FFF9F0; font-size: 9.5px; font-weight: 600; display: flex; align-items: center; justify-content: center; border: 2px solid #FBF6EE;">KQ</div>
+      <div style="width: 24px; height: 24px; border-radius: 50%; background: #6E8CA8; color: #FFF9F0; font-size: 9.5px; font-weight: 600; display: flex; align-items: center; justify-content: center; border: 2px solid #FBF6EE; margin-left: -8px;">MT</div>
     </div>
   </div>
 
@@ -100,13 +106,32 @@
   </div>
 
   <!-- the tray you pull up to drag things in -->
-  <div style="flex-shrink: 0; border-top: 1px solid #E9DFCE; background: #F6EFE2; padding: 9px 12px 14px;">
+  <div style="flex-shrink: 0; border-top: 1px solid #E9DFCE; background: #F6EFE2; padding: 8px 12px 12px;">
     <div style="display: flex; justify-content: center; padding-bottom: 8px;"><div style="width: 34px; height: 4px; border-radius: 3px; background: #DCD1BD;"></div></div>
-    <div style="display: flex; align-items: center; gap: 8px;">
+    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
       <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: #A8A093;">TO BE PLANNED</span>
       <span style="font-size: 10.5px; color: #A8A093;">14</span>
       <span style="flex-grow: 1;"></span>
-      <span style="font-size: 10.5px; font-weight: 600; color: #A8663C;">pull up to drag one in</span>
+      <span style="font-size: 10.5px; font-weight: 600; color: #A8663C;">pull up for all</span>
+    </div>
+    <div style="display: flex; gap: 6px; overflow: hidden;">
+      <div style="border-radius: 9px; border: 1px solid #E4D9C5; background: #FFFCF6; padding: 7px 9px; display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+        <svg width="9" height="13" viewBox="0 0 12 16" style="flex-shrink: 0; opacity: 0.4;"><g fill="#A59C90"><circle cx="3.5" cy="3" r="1.3"></circle><circle cx="8.5" cy="3" r="1.3"></circle><circle cx="3.5" cy="8" r="1.3"></circle><circle cx="8.5" cy="8" r="1.3"></circle><circle cx="3.5" cy="13" r="1.3"></circle><circle cx="8.5" cy="13" r="1.3"></circle></g></svg>
+        <div>
+          <div style="font-size: 11px; font-weight: 600; white-space: nowrap;">Tenjin Underground</div>
+          <div style="font-size: 9px; color: #A0978A; white-space: nowrap;">Fukuoka · 1.4 km</div>
+        </div>
+      </div>
+      <div style="border-radius: 9px; border: 1px solid #E4D9C5; background: #FFFCF6; padding: 7px 9px; display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+        <svg width="9" height="13" viewBox="0 0 12 16" style="flex-shrink: 0; opacity: 0.4;"><g fill="#A59C90"><circle cx="3.5" cy="3" r="1.3"></circle><circle cx="8.5" cy="3" r="1.3"></circle><circle cx="3.5" cy="8" r="1.3"></circle><circle cx="8.5" cy="8" r="1.3"></circle><circle cx="3.5" cy="13" r="1.3"></circle><circle cx="8.5" cy="13" r="1.3"></circle></g></svg>
+        <div>
+          <div style="font-size: 11px; font-weight: 600; white-space: nowrap;">Yatai stalls</div>
+          <div style="font-size: 9px; color: #A0978A; white-space: nowrap;">Fukuoka · 800 m</div>
+        </div>
+      </div>
+      <div style="border-radius: 9px; border: 1px dashed #DFD3BE; padding: 7px 11px; display: flex; align-items: center; flex-shrink: 0;">
+        <span style="font-size: 10.5px; color: #B5ACA0; white-space: nowrap;">12 more</span>
+      </div>
     </div>
   </div>
 

@@ -77,8 +77,26 @@
       "y": 0
     },
     {
-      "file": "SheetFull.dc.html",
+      "file": "TripMenu.dc.html",
+      "w": 375,
+      "h": 667,
+      "title": "Trip menu",
+      "page": "page-1",
       "x": 2800,
+      "y": 0
+    },
+    {
+      "file": "PlannerMobile.dc.html",
+      "w": 375,
+      "h": 667,
+      "title": "Plan view on a phone",
+      "page": "page-1",
+      "x": 3270,
+      "y": 0
+    },
+    {
+      "file": "SheetFull.dc.html",
+      "x": 3740,
       "y": 0,
       "w": 375,
       "h": 667,
@@ -87,7 +105,7 @@
     },
     {
       "file": "MoveToDay.dc.html",
-      "x": 3270,
+      "x": 4210,
       "y": 0,
       "w": 375,
       "h": 667,
@@ -96,7 +114,7 @@
     },
     {
       "file": "PlaceSearch.dc.html",
-      "x": 3740,
+      "x": 4680,
       "y": 0,
       "w": 375,
       "h": 667,
@@ -109,12 +127,12 @@
       "h": 667,
       "title": "Today \u00b7 no connection",
       "page": "page-1",
-      "x": 4210,
+      "x": 5150,
       "y": 0
     },
     {
       "file": "Members.dc.html",
-      "x": 4680,
+      "x": 5620,
       "y": 0,
       "w": 375,
       "h": 667,
@@ -123,7 +141,7 @@
     },
     {
       "file": "Import.dc.html",
-      "x": 5150,
+      "x": 6090,
       "y": 0,
       "w": 375,
       "h": 667,
@@ -147,15 +165,6 @@
       "h": 900,
       "title": "Planner \u00b7 a stop selected, two drags in flight",
       "page": "page-1"
-    },
-    {
-      "file": "PlannerMobile.dc.html",
-      "w": 375,
-      "h": 667,
-      "title": "Plan on a phone (post-MVP)",
-      "page": "page-1",
-      "x": 1560,
-      "y": 800
     },
     {
       "file": "Desktop.dc.html",
@@ -208,16 +217,16 @@
       "page": "page-1",
       "x": -490,
       "y": -250,
-      "w": 1400,
-      "text": "THE WAY IN\n\nSign in \u00b7 Trips \u00b7 New trip \u00b7 a brand new trip, which is the first thing anyone actually sees and had no design until now \u00b7 Today once it has stops.\n\nEvery phone artboard is 375 x 667: a small phone with the browser's own chrome already taken off. Not 390 x 844, which is a viewport almost nobody has."
+      "w": 1850,
+      "text": "THE WAY IN\n\nSign in \u00b7 Trips \u00b7 New trip \u00b7 a brand new trip \u00b7 Today once it has stops.\n\nThere is no hamburger and no kebab in the nav. The chevron beside the trip name is the only menu: Map view, Plan view, then Back to trips. Its artboard is eighth along.\n\nEvery phone artboard is 375 x 667: a small phone with the browser's own chrome already taken off."
     },
     {
       "id": "note-states",
       "page": "page-1",
-      "x": 1420,
+      "x": 5160,
       "y": -250,
       "w": 1400,
-      "text": "STATES THAT WERE MISSING\n\nEmpty trip: no pins, no stops, and two ways out - find a place, or bring in a My Map. Everything else on this canvas assumed a full trip.\n\nNo connection: the app keeps working. A strip says so and counts what is waiting, a change made offline carries a clock, and something added offline is dashed until it is shared. PLAN.md calls offline a requirement and nothing had drawn it."
+      "text": "STATES THAT WERE MISSING\n\nEmpty trip: no pins, no stops, and two ways out. Everything else on this canvas assumed a full trip.\n\nNo connection: the app keeps working. A strip says so and counts what is waiting, a change made offline carries a clock, and something added offline is dashed until it is shared. Last writer still wins on reconnect, with nothing shown - decided, not overlooked."
     },
     {
       "id": "note-planner",
@@ -238,10 +247,10 @@
     {
       "id": "note-mobileplan",
       "page": "page-1",
-      "x": 1560,
-      "y": 700,
-      "w": 700,
-      "text": "PLAN ON A PHONE \u00b7 NOT IN V1\n\nThe answer to your question, drawn so you can judge it. A seven-column grid cannot work at 375px, so this is one day per screen with the time running down and the gaps drawn to scale. It is Direction C from the other page, which earns its place here.\n\nMy read: Today plus the full list already covers planning on a phone, and this is the thing to build only if that turns out false. See PLAN.md section 4f."
+      "x": 3280,
+      "y": -250,
+      "w": 1400,
+      "text": "PLAN VIEW ON A PHONE \u00b7 IN V1\n\nA seven-column grid cannot work at 375px, so this is one day per screen with the time running down and the gaps drawn to scale. Days swipe on the pill rail.\n\nThe tray along the bottom is the real reason it earns its place: To be planned has no good home anywhere else on a phone, and here it sits under the day you are filling, ready to drag up."
     }
   ],
   "launch": {

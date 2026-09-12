@@ -197,6 +197,25 @@
     </div>
   </div>
 
+  <!-- trip dropdown -->
+  <div style="position: absolute; inset: 0; background: rgba(51,48,43,0.22); z-index: 40;"></div>
+  <div style="position: absolute; left: 10px; top: 46px; width: 208px; border-radius: 12px; background: #FFFCF6; border: 1px solid #E4D9C5; box-shadow: 0 10px 30px rgba(84,68,44,0.26); overflow: hidden; z-index: 41;">
+    <div style="display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 13px; background: #F6EFE2; cursor: pointer;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#33302B" stroke-width="1.9" stroke-linejoin="round"><path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11z"></path><circle cx="12" cy="10" r="2.4"></circle></svg>
+      <span style="font-size: 13px; font-weight: 600; flex-grow: 1;">Map view</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4E7A4B" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 13px; cursor: pointer;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B645B" stroke-width="1.9" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2.5"></rect><path d="M8 2v4M16 2v4M3 10h18M9 10v11M15 10v11"></path></svg>
+      <span style="font-size: 13px; font-weight: 500; flex-grow: 1;">Plan view</span>
+    </div>
+    <div style="height: 1px; background: #EFE6D6;"></div>
+    <div style="display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 13px; cursor: pointer;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B645B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"></path></svg>
+      <span style="font-size: 13px; font-weight: 500; flex-grow: 1;">Back to trips</span>
+    </div>
+  </div>
+
 </div>
 </x-dc>
 
@@ -234,7 +253,7 @@ class Component extends DCLogic {
   renderVals() {
     var self = this;
     var openDay = this.state.openDay === undefined ? 'd2' : this.state.openDay;
-    var selected = this.state.selected === undefined ? 'n22' : this.state.selected;
+    var selected = this.state.selected === undefined ? 'n21' : this.state.selected;
     var visited = this.state.visited || { n11: true, n12: true, n21: true };
     var menuOpen = this.state.menuOpen === undefined ? false : this.state.menuOpen;
     var full = this.state.full === undefined ? false : this.state.full;

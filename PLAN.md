@@ -272,18 +272,16 @@ Both write the same op: a `day_id` change, an `order_key` between its new neighb
 
 ## 4f. Planning on a phone
 
-**Not in v1, and the reason is not laziness.** Today plus the full list already covers it: the list
-does drag-reorder and move-to-date, and the accordion lets you look at any day. What it cannot do is
-show two days at once, or show the *shape* of a day — the gaps, the over-packed afternoon, the three
-hours doing nothing before dinner.
+**In v1.** A seven-column grid cannot work at 375 px at any density, so the phone Plan view is one
+day per screen: the time running down the side, the gaps drawn to scale, days swiped on a pill rail.
+It is Direction C from the explorations page, which earns its place after all.
 
-**If that turns out to matter, the answer is not a small Planner.** Seven columns at 375 px is
-unusable at any density. It is one day per screen with the time running down the side and the gaps
-drawn to scale, days swiped between on a pill rail. That is Direction C from the explorations page,
-which earns its place after all, and it is drawn as `PlannerMobile` so the decision can be made by
-looking rather than arguing.
+**The tray along the bottom is why it is worth building.** *To be planned* has no good home anywhere
+else on a phone: the Today sheet is a day at a time, and the full list buries it under eleven days.
+Here it sits directly under the day you are filling, ready to drag up. That is a job nothing else in
+the app does.
 
-Ship without it. Watch whether anyone opens the Planner on a phone, or asks why they cannot.
+The desktop Planner stays the grid. They are the same view at two densities, not two features.
 
 ---
 
@@ -308,9 +306,32 @@ ramen shop; nothing showed what that looks like. It now does, and the rules it s
 - Collaborator avatars dim, since we cannot know who is looking.
 - The map still draws, from cached tiles, and says `saved map` rather than pretending to be live.
 
-Still undrawn, and worth doing before build: what you see on **reconnect** when someone else changed
-something you also changed. Section 6 says last writer wins per field, which is fine as a rule and
-invisible as an experience.
+**On reconnect, last writer wins and nothing is shown.** This is a decision, not an omission. A
+conflict UI for two friends editing a trip is a lot of machinery for a case that will happen rarely
+and matter less than it sounds: the loser sees the winner's value arrive live, which on a shared
+trip usually reads as "oh, Mika changed it" rather than as data loss. The op log in section 6 keeps
+the history if we ever want to surface it.
+
+---
+
+## 4h. Getting around
+
+**One menu, and it is the chevron beside the trip name.** No hamburger, no kebab in the nav bar. A
+second menu next to the first is how an app ends up with two half-answers to "where is that thing".
+
+```
+Map view      ← default, ticked when current
+Plan view
+──────────
+Back to trips
+```
+
+The same nav runs on every screen inside a trip, so the trip name is always both the title and the
+way out.
+
+**This leaves People and Sources with no route from inside a trip**, which is a real gap rather than
+an oversight. The honest options are a second section under another divider, or reaching them from
+the trip card on the Trips screen. Open question 5.
 
 ---
 
@@ -555,7 +576,9 @@ what makes dragging onto a day a single field update and keeps drag-back-off fre
 | Spreadsheet | **Replaced** by the Planner grid. No import, no export in v1 | §4 |
 | Place search | **Places API (New)**, `locationBias` circle centred on the open day | §4b |
 | Stop text | Description derived, note typed. Bookings are notes, not imports | §4c |
-| Mobile planner | **Post-MVP.** If it happens it is one day per screen, not a grid | §4f |
+| Mobile planner | **In v1.** One day per screen, with the To be planned tray | §4f |
+| Navigation | One dropdown on the trip name. No hamburger, no kebab | §4h |
+| Conflicts | Last writer wins, silently. Deliberate for v1 | §4g |
 | Stop actions | Navigate, Visited, note on the phone. Edit, note, delete in the Planner | §4e |
 | Trip name | Typed and required. Cities under it are derived, and hidden when empty | §4d |
 | Auth | **Better Auth** on D1, Google only, no roles, invites never expire | §5 |
@@ -573,8 +596,8 @@ what makes dragging onto a day a single field update and keeps drag-back-off fre
    It changes the Planner's column widths and forces horizontal paging, not the schema.
 3. **Times** — many stops will have none. End of the day, or hold a position in the order anyway?
 4. **Visited** — per person or per trip? If Mika eats the ramen and you do not, is it visited?
-5. **Reconnect conflicts.** When your offline edit loses to someone else's, what do you see? Nothing
-   designed. The rule exists, the experience does not.
+5. **People and Sources have no route from inside a trip** now that the nav is one menu with three
+   items. Add a second section to the dropdown, or reach them from the trip card on Trips?
 6. **Tap targets, and this one now matters.** The action buttons are 30 px tall after the density
    pass. Apple and Google both put the floor at 44-48 px. The row they sit in gives them some
    padding, but 30 is under the line however it is measured, and it is the first thing to check on a
