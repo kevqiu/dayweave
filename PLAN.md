@@ -195,36 +195,27 @@ honest state and keeps the compact list compact.
 
 ---
 
-## 4d. Starting a trip, and what it gets called
+## 4d. Starting a trip
 
-**Dates are the only required thing.** The create screen is a date-range calendar, a starting city
-and a name, and the last two are both optional. Nobody knows what to call a trip before they have
-planned it, and asking is a blank-page problem at the worst possible moment.
+**Two fields: a name and the dates.** Nothing else. No starting city, no explanation text, no second
+step. The name comes first and is required, because a trip people are sharing needs something to be
+called, and "October trip" is not a thing anyone says.
 
-**The name derives from where you go**, and updates as cities appear:
+**The cities are derived, the name is not.** This is the split that matters: `trips.name` is typed
+by a person and is the only name the app ever shows. The line under it on a trip card is a separate,
+computed thing — the cities the trip's stops are actually in, in day order, as
+`Fukuoka, Kagoshima, Hakone`.
 
-| Cities with stops | Name |
-|---|---|
-| none yet, but a starting city was picked | that city — `Fukuoka` |
-| none at all | the month — `October trip` |
-| one | that city — `Lisbon` |
-| two | both — `Lisbon and Porto` |
-| three or more, one country | the country — `Japan` |
-| three or more, several countries | first and last — `Japan to Korea` |
+**With no stops yet, that line is simply absent.** A brand new trip shows its dates and nothing else,
+which is honest: we do not know where it goes, so we say nothing rather than guessing. Portugal on
+the Trips artboard is that state.
 
-A custom name always wins. `trips.name` is nullable and `trips.derived_name` is recomputed whenever
-a stop's city changes; the UI reads `name ?? derived_name`. So "bachelor party" survives adding
-Kagoshima, and a blank name quietly becomes `Japan` once the trip is actually a Japan trip.
+An earlier draft had the name itself derive from the cities. That was clever and wrong: a name that
+changes under you is unsettling on a trip three people are sharing, and it made the schema carry two
+name columns to keep a typed name safe. One typed name and one derived subtitle is simpler and never
+surprises anyone.
 
-Two details that decide whether this feels clever or creepy:
-
-- **The derived name never silently overwrites a typed one.** They are different columns, so renaming
-  is always reversible: clear the field and the derived name comes back.
-- **A name change is visible.** It lands as an op like any other edit, so collaborators see "now
-  called Japan" rather than finding the trip renamed under them.
-
-The city itself comes from reverse-geocoding each place once at import, stored on `places`, not
-recomputed per render.
+The city on each place is reverse-geocoded once at import and stored, not recomputed per render.
 
 ### Changing the dates later
 
@@ -408,9 +399,9 @@ verification     id, identifier, value, expires_at
                  -- account.scope is how we know whether Drive was ever granted (§5)
 
 -- ours
-trips            id, name, derived_name, slug, start_date, end_date, timezone, owner_id, cover_color
-                 -- name is NULLABLE and wins when set. derived_name is recomputed from the
-                 --   cities that have stops (section 4d). the UI reads name ?? derived_name
+trips            id, name, slug, start_date, end_date, timezone, owner_id, cover_color
+                 -- name is required and typed by a person. the cities under it on a trip card
+                 --   are derived from places.city at read time, and absent when there are none
 trip_members     trip_id, user_id, joined_at
                  -- membership IS the permission. no role column in v1
 trip_invites     id, trip_id, email, token_hash, invited_by, accepted_at, revoked_at
@@ -423,8 +414,8 @@ days             id, trip_id, date, label, place_label, hue
 
 places           id, trip_id, google_place_id, name, name_local, lat, lng,
                  address, city, country_code, category, maps_url, source, refreshed_at
-                 -- city and country_code are reverse-geocoded once at import, and are what
-                 --   derived_name is computed from
+                 -- city and country_code are reverse-geocoded once at import. city is what
+                 --   the subtitle on a trip card is built from
                  -- the geographic thing, deduped per trip by google_place_id
                  -- source: my_map | search | link
                  -- refreshed_at drives the Places content refresh. KML pins never need it
@@ -471,7 +462,7 @@ what makes dragging onto a day a single field update and keeps drag-back-off fre
 | Spreadsheet | **Replaced** by the Planner grid. No import, no export in v1 | §4 |
 | Place search | **Places API (New)**, `locationBias` circle centred on the open day | §4b |
 | Stop text | Description derived, note typed. Bookings are notes, not imports | §4c |
-| Trip name | Dates only at creation. Name derives from the cities, custom name wins | §4d |
+| Trip name | Typed and required. Cities under it are derived, and hidden when empty | §4d |
 | Auth | **Better Auth** on D1, Google only, no roles, invites never expire | §5 |
 | Drive | Plumbed but unused in v1. `drive.file`, asked incrementally | §5 |
 | Flights | **Out of v1.** Hand-entered in the Planner travel row | §5b |

@@ -155,7 +155,7 @@
       "x": -490,
       "y": -240,
       "w": 1450,
-      "text": "THE WAY IN\n\nSign in, then Trips, then New trip, then the trip opens on Today.\n\nNew trip asks for dates and nothing else that matters. A starting city and a name are both optional. Leave the name blank and the trip is called Fukuoka until stops appear in a second and third city, at which point it becomes Japan. Naming rules are in PLAN.md section 4d.\n\nThe G mark on the sign-in button is a PLACEHOLDER for the asset Google ships."
+      "text": "THE WAY IN\n\nSign in, then Trips, then New trip, then the trip opens on Today.\n\nNew trip asks two things: a name and the dates. Nothing else.\n\nOn the Trips cards the line under the name lists the cities the trip's stops are in, worked out from the places themselves. A trip with nothing in it yet shows only its dates, which is what Portugal looks like here.\n\nThe G mark on the sign-in button is a PLACEHOLDER for the asset Google ships."
     },
     {
       "id": "note-places",
