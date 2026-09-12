@@ -1,0 +1,67 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Architects+Daughter&family=Figtree:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; font-family: "Architects Daughter", "Comic Sans MS", cursive; background: #FAF8F4; }
+    a { color: #A8663C; } a:hover { color: #8A5230; }
+    * { box-sizing: border-box; }
+    .lbl { font-family: Figtree, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: #9A9184; }
+    .box { border: 1.6px solid #8E877D; border-radius: 6px; }
+    .dash { border: 1.6px dashed #B3ABA0; border-radius: 6px; }
+    .ln { height: 7px; border-radius: 4px; background: #D8D2C7; }
+  </style>
+</helmet>
+<div style="width: 320px; height: 640px; background: #FAF8F4; padding: 18px 16px; color: #4A443C; display: flex; flex-direction: column; gap: 10px;">
+  <div>
+    <div class="lbl">DIRECTION C</div>
+    <div style="font-size: 20px; margin-top: 2px;">Time spine</div>
+    <div style="font-family: Figtree, sans-serif; font-size: 11px; color: #8C8479; line-height: 1.5; margin-top: 4px;">The list is a clock. Stops hang off a time axis with the gaps between them drawn to scale.</div>
+  </div>
+
+  <div class="box" style="flex-grow: 1; background: #FFFFFF; display: flex; flex-direction: column; overflow: hidden;">
+    <div style="height: 34px; border-bottom: 1.6px solid #8E877D; display: flex; align-items: center; padding: 0 10px; gap: 7px;">
+      <span class="ln" style="width: 70px;"></span><span style="flex-grow: 1;"></span>
+      <span style="width: 16px; height: 16px; border-radius: 50%; background: #D8D2C7;"></span>
+    </div>
+
+    <div style="height: 190px; background: #F1EEE7; border-bottom: 1.6px solid #8E877D; position: relative;">
+      <svg width="100%" height="190" viewBox="0 0 288 190"><g stroke="#DCD6CA" stroke-width="6" fill="none" stroke-linecap="round"><path d="M-10 62 C 80 54, 130 106, 200 100 C 250 96, 270 126, 300 122"></path><path d="M92 -10 C 98 62, 78 126, 100 190"></path></g></svg>
+      <div style="position: absolute; left: 66px; top: 48px; width: 18px; height: 18px; border-radius: 50%; background: #7FA87F; border: 2.5px solid #FFF;"></div>
+      <div style="position: absolute; left: 150px; top: 84px; width: 18px; height: 18px; border-radius: 50%; background: #7FA87F; border: 2.5px solid #FFF;"></div>
+      <div style="position: absolute; left: 196px; top: 136px; width: 18px; height: 18px; border-radius: 50%; background: #7FA87F; border: 2.5px solid #FFF;"></div>
+    </div>
+
+    <div style="flex-grow: 1; padding: 10px 10px 10px 0; display: flex; position: relative;">
+      <div style="width: 46px; flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; padding-right: 9px; font-family: Figtree, sans-serif; font-size: 9.5px; color: #A59C90; gap: 0;">
+        <span style="height: 38px;">10:00</span>
+        <span style="height: 52px;">12:30</span>
+        <span style="height: 30px;">13:15</span>
+        <span style="height: 44px;">16:00</span>
+      </div>
+      <div style="width: 1.6px; background: #C9C2B6; flex-shrink: 0; margin-right: 12px;"></div>
+      <div style="flex-grow: 1; display: flex; flex-direction: column; padding-right: 10px;">
+        <div style="height: 38px;"><div style="display: flex; align-items: center; gap: 8px;"><span class="ln" style="flex-grow: 1; background: #B9B2A8;"></span><span style="width: 9px; height: 9px; border-radius: 50%; background: #B9B2A8;"></span></div></div>
+        <div style="height: 52px;"><div style="display: flex; align-items: center; gap: 8px;"><span class="ln" style="flex-grow: 1; background: #8E877D;"></span><span style="width: 9px; height: 9px; border-radius: 50%; background: #7FA87F;"></span></div>
+          <div style="font-family: Figtree, sans-serif; font-size: 9px; color: #A59C90; margin-top: 6px;">12 min walk</div></div>
+        <div style="height: 30px;"><div style="display: flex; align-items: center; gap: 8px;"><span class="ln" style="flex-grow: 1;"></span><span style="width: 9px; height: 9px; border-radius: 50%; background: #7FA87F;"></span></div></div>
+        <div style="height: 44px;"><div style="display: flex; align-items: center; gap: 8px;"><span class="ln" style="flex-grow: 1;"></span><span style="width: 9px; height: 9px; border-radius: 50%; background: #E0B355;"></span></div></div>
+      </div>
+      <div style="position: absolute; left: 58px; right: 10px; bottom: 8px; height: 22px; border-radius: 6px; border: 1.4px dashed #C9C2B6; display: flex; align-items: center; justify-content: center; font-family: Figtree, sans-serif; font-size: 9.5px; color: #A59C90;">3 h free before dinner</div>
+    </div>
+  </div>
+
+  <div style="font-family: Figtree, sans-serif; font-size: 10.5px; line-height: 1.55; color: #6B645B;">
+    <strong style="color: #4E7A4B;">Good:</strong> shows pacing, travel time and dead gaps. The best view for actually planning a day.<br>
+    <strong style="color: #A06B52;">Cost:</strong> tall and sparse. Needs times on every stop, and your sheet leaves many blank.
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

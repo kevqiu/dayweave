@@ -1,0 +1,323 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Figtree:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; font-family: Figtree, "Helvetica Neue", sans-serif; background: #F3EDE2; -webkit-font-smoothing: antialiased; }
+    a { color: #A8663C; } a:hover { color: #8A5230; }
+    * { box-sizing: border-box; }
+    .sheet-scroll::-webkit-scrollbar { width: 0; }
+  </style>
+</helmet>
+
+<div style="position: relative; width: 390px; height: 844px; overflow: hidden; background: #FBF6EE; color: #33302B;">
+
+  <!-- ============ TOP BAR ============ -->
+  <div style="position: absolute; top: 0; left: 0; right: 0; height: 60px; z-index: 30; display: flex; align-items: center; gap: 10px; padding: 0 14px; background: #FBF6EE; border-bottom: 1px solid #E9DFCE;">
+    <div style="display: flex; flex-direction: column; gap: 1px; flex-grow: 1; min-width: 0;">
+      <div style="display: flex; align-items: center; gap: 5px;">
+        <div style="font-family: Newsreader, Georgia, serif; font-size: 19px; font-weight: 500; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Japan, autumn</div>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#A59C90" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </div>
+      <div style="font-size: 11.5px; color: #8C8479; letter-spacing: 0.01em;">Sep 30 – Oct 10 · day 3 of 11</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: -6px;">
+      <div style="display: flex;">
+        <div style="width: 27px; height: 27px; border-radius: 50%; background: #C4826A; color: #FFF9F0; font-size: 10.5px; font-weight: 600; display: flex; align-items: center; justify-content: center; border: 2px solid #FBF6EE;">KQ</div>
+        <div style="width: 27px; height: 27px; border-radius: 50%; background: #6E8CA8; color: #FFF9F0; font-size: 10.5px; font-weight: 600; display: flex; align-items: center; justify-content: center; border: 2px solid #FBF6EE; margin-left: -9px;">MT</div>
+        <div style="width: 27px; height: 27px; border-radius: 50%; background: #EFE7DA; color: #8C8479; font-size: 10.5px; font-weight: 600; display: flex; align-items: center; justify-content: center; border: 2px solid #FBF6EE; margin-left: -9px;">+2</div>
+      </div>
+    </div>
+    <button style="width: 34px; height: 34px; border-radius: 10px; border: 1px solid #E9DFCE; background: #FFFCF6; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6B645B" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1.2" fill="#6B645B"></circle><circle cx="12" cy="12" r="1.2" fill="#6B645B"></circle><circle cx="12" cy="19" r="1.2" fill="#6B645B"></circle></svg>
+    </button>
+  </div>
+
+  <!-- ============ MAP ============ -->
+  <div style="position: absolute; top: 60px; left: 0; right: 0; bottom: 0; background: #EFE8DB;">
+    <svg width="390" height="520" viewBox="0 0 390 520" style="display: block;">
+      <rect x="0" y="0" width="390" height="520" fill="#F0E9DC"></rect>
+      <path d="M0 392 C 70 372, 128 412, 196 400 C 268 388, 318 424, 390 404 L390 520 L0 520 Z" fill="#D9E4E3"></path>
+      <path d="M244 44 C 296 40, 336 70, 340 116 C 344 164, 300 188, 258 178 C 216 168, 204 112, 244 44 Z" fill="#E2E9D7"></path>
+      <path d="M28 200 C 62 190, 92 208, 90 236 C 88 262, 54 274, 32 258 C 12 244, 8 212, 28 200 Z" fill="#E2E9D7"></path>
+      <g stroke="#E7DFD0" stroke-width="1" fill="none">
+        <path d="M0 90 H390 M0 150 H390 M0 250 H390 M0 316 H390 M64 0 V392 M140 0 V392 M226 0 V392 M312 0 V392"></path>
+      </g>
+      <g stroke="#FCF9F2" stroke-linecap="round" fill="none">
+        <path d="M-10 120 C 90 112, 150 178, 240 172 C 316 167, 350 210, 400 204" stroke-width="9"></path>
+        <path d="M108 -10 C 116 86, 92 190, 120 268 C 146 340, 128 400, 140 530" stroke-width="9"></path>
+        <path d="M272 -10 C 268 90, 292 170, 272 250 C 254 322, 270 366, 262 430" stroke-width="7"></path>
+        <path d="M-10 300 C 80 292, 176 322, 268 306 C 330 296, 356 312, 400 306" stroke-width="6"></path>
+        <path d="M40 40 C 120 60, 180 44, 236 76" stroke-width="3.5"></path>
+        <path d="M60 218 C 130 230, 190 214, 250 236" stroke-width="3.5"></path>
+        <path d="M150 356 C 210 344, 250 366, 320 352" stroke-width="3.5"></path>
+      </g>
+      <g fill="#7C9491" opacity="0.5" font-family="Figtree, sans-serif" font-size="9.5" letter-spacing="0.06em">
+        <text x="36" y="470">HAKATA BAY</text>
+      </g>
+      <g fill="#9A9184" font-family="Figtree, sans-serif" font-size="9.5" letter-spacing="0.05em">
+        <text x="264" y="120">OHORI PARK</text>
+        <text x="148" y="296">NAKASU</text>
+      </g>
+      <!-- today's soft route thread -->
+      <path d="M118 214 C 160 186, 214 200, 252 168 C 288 138, 296 262, 236 288 C 190 308, 172 336, 196 356" fill="none" stroke="#6F9A6B" stroke-width="2" stroke-dasharray="1 6" stroke-linecap="round" opacity="0.55"></path>
+    </svg>
+
+    <!-- pins -->
+    <sc-for list="{{pins}}" as="p" hint-placeholder-count="7">
+      <div style="position: absolute; left: {{p.x}}px; top: {{p.y}}px; opacity: {{p.op}}; transform: translate(-50%, -100%);">
+        <div style="width: {{p.size}}px; height: {{p.size}}px; border-radius: 50%; background: {{p.fill}}; border: 2.5px solid {{p.ring}}; box-shadow: 0 2px 6px rgba(70,58,40,0.22); display: flex; align-items: center; justify-content: center; color: {{p.label_color}}; font-size: 10.5px; font-weight: 700;">{{p.label}}</div>
+      </div>
+    </sc-for>
+
+    <!-- cluster bubble -->
+    <div style="position: absolute; left: 312px; top: 356px; transform: translate(-50%, -50%); width: 40px; height: 40px; border-radius: 50%; background: rgba(224,179,85,0.28); display: flex; align-items: center; justify-content: center;">
+      <div style="width: 27px; height: 27px; border-radius: 50%; background: #E9C87E; border: 2px solid #FFFCF6; display: flex; align-items: center; justify-content: center; font-size: 11.5px; font-weight: 700; color: #6B5426;">4</div>
+    </div>
+
+    <!-- map controls -->
+    <div style="position: absolute; right: 12px; top: 14px; display: flex; flex-direction: column; gap: 8px;">
+      <button style="width: 38px; height: 38px; border-radius: 11px; border: 1px solid #E4D9C5; background: #FFFCF6; box-shadow: 0 1px 3px rgba(80,66,44,0.10); display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6B645B" stroke-width="1.9" stroke-linejoin="round"><polygon points="12 2 22 8.5 12 15 2 8.5 12 2"></polygon><polyline points="2 15.5 12 22 22 15.5"></polyline></svg>
+      </button>
+      <button style="width: 38px; height: 38px; border-radius: 11px; border: 1px solid #E4D9C5; background: #FFFCF6; box-shadow: 0 1px 3px rgba(80,66,44,0.10); display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6B645B" stroke-width="1.9"><circle cx="12" cy="12" r="7"></circle><circle cx="12" cy="12" r="2" fill="#6B645B" stroke="none"></circle><path d="M12 1v3M12 20v3M1 12h3M20 12h3" stroke-linecap="round"></path></svg>
+      </button>
+    </div>
+
+    <!-- legend -->
+    <div style="position: absolute; left: 12px; top: 14px; display: flex; align-items: center; gap: 9px; background: rgba(255,252,246,0.94); border: 1px solid #E4D9C5; border-radius: 999px; padding: 6px 12px 6px 10px; box-shadow: 0 1px 3px rgba(80,66,44,0.08);">
+      <span style="display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: #4E7A4B;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #6F9A6B; display: inline-block;"></span>today</span>
+      <span style="display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: #96752F;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #E0B355; display: inline-block;"></span>ahead</span>
+      <span style="display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: #9A9184;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #BDB4A7; display: inline-block;"></span>done</span>
+    </div>
+  </div>
+
+  <!-- ============ BOTTOM SHEET ============ -->
+  <div style="position: absolute; left: 0; right: 0; bottom: 0; height: {{sheet_h}}px; background: #FBF6EE; border-radius: 20px 20px 0 0; box-shadow: 0 -6px 24px rgba(84,68,44,0.16); display: flex; flex-direction: column; z-index: 20; border-top: 1px solid #EFE6D6;">
+
+    <div onClick="{{toggle_sheet}}" style="padding: 9px 0 5px; display: flex; justify-content: center; cursor: grab; flex-shrink: 0;">
+      <div style="width: 38px; height: 4px; border-radius: 3px; background: #DCD1BD;"></div>
+    </div>
+
+    <div class="sheet-scroll" style="flex-grow: 1; overflow-y: auto; padding: 2px 0 20px;">
+      <sc-for list="{{days}}" as="day" hint-placeholder-count="4">
+        <div style="border-bottom: 1px solid {{day.divider}};">
+
+          <!-- day header -->
+          <div onClick="{{day.toggle}}" style="display: flex; align-items: center; gap: 10px; padding: 0 16px; height: 46px; cursor: pointer; background: {{day.head_bg}};">
+            <span style="width: 9px; height: 9px; border-radius: 50%; background: {{day.hue}}; flex-shrink: 0; opacity: {{day.hue_op}};"></span>
+            <div style="display: flex; flex-direction: column; gap: 0px; flex-grow: 1; min-width: 0;">
+              <div style="display: flex; align-items: baseline; gap: 7px;">
+                <span style="font-size: 13.5px; font-weight: {{day.weight}}; color: {{day.title_color}};">{{day.label}}</span>
+                <sc-if value="{{day.is_today}}" hint-placeholder-val="{{true}}">
+                  <span style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.07em; color: #4E7A4B; background: #E4EEE1; border-radius: 4px; padding: 2px 5px;">TODAY</span>
+                </sc-if>
+              </div>
+              <span style="font-size: 11px; color: {{day.sub_color}};">{{day.place}}</span>
+            </div>
+            <span style="font-size: 11px; color: {{day.sub_color}}; font-variant-numeric: tabular-nums;">{{day.progress}}</span>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#A59C90" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="transform: rotate({{day.caret}}deg);"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </div>
+
+          <!-- day body -->
+          <sc-if value="{{day.open}}" hint-placeholder-val="{{true}}">
+            <div style="padding: 0 0 8px;">
+              <sc-for list="{{day.nodes}}" as="n" hint-placeholder-count="5">
+                <div style="margin: 0 10px 4px; border-radius: 12px; background: {{n.row_bg}}; border: 1px solid {{n.row_border}};">
+
+                  <!-- compact row -->
+                  <div onClick="{{n.select}}" style="display: flex; align-items: center; gap: 10px; height: 50px; padding: 0 12px 0 8px; cursor: pointer;">
+                    <svg width="12" height="16" viewBox="0 0 12 16" style="flex-shrink: 0; opacity: 0.42;"><g fill="#A59C90"><circle cx="3.5" cy="3" r="1.3"></circle><circle cx="8.5" cy="3" r="1.3"></circle><circle cx="3.5" cy="8" r="1.3"></circle><circle cx="8.5" cy="8" r="1.3"></circle><circle cx="3.5" cy="13" r="1.3"></circle><circle cx="8.5" cy="13" r="1.3"></circle></g></svg>
+                    <span style="font-size: 11.5px; font-weight: 600; color: {{n.time_color}}; width: 38px; flex-shrink: 0; font-variant-numeric: tabular-nums;">{{n.time}}</span>
+                    <div style="display: flex; flex-direction: column; gap: 1px; flex-grow: 1; min-width: 0;">
+                      <span style="font-size: 13.5px; font-weight: 500; color: {{n.name_color}}; text-decoration: {{n.strike}}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{n.name}}</span>
+                      <span style="font-size: 10.5px; color: #A0978A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{n.meta}}</span>
+                    </div>
+                    <span style="width: 11px; height: 11px; border-radius: 50%; background: {{n.dot_fill}}; border: 2px solid {{n.dot_ring}}; flex-shrink: 0;"></span>
+                  </div>
+
+                  <!-- expanded actions -->
+                  <sc-if value="{{n.selected}}" hint-placeholder-val="{{true}}">
+                    <div style="padding: 0 12px 12px 42px; display: flex; flex-direction: column; gap: 10px;">
+                      <div style="font-size: 11.5px; color: #837B70; line-height: 1.45;">{{n.note}}</div>
+                      <div style="display: flex; gap: 7px;">
+                        <button style="flex-grow: 1; height: 38px; border-radius: 10px; border: none; background: #33302B; color: #FBF6EE; font-family: Figtree, sans-serif; font-size: 12.5px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FBF6EE" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"></polygon></svg>
+                          Navigate
+                        </button>
+                        <button onClick="{{n.visit}}" style="flex-grow: 1; height: 38px; border-radius: 10px; border: 1px solid {{n.visit_border}}; background: {{n.visit_bg}}; color: {{n.visit_fg}}; font-family: Figtree, sans-serif; font-size: 12.5px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="{{n.visit_fg}}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                          {{n.visit_label}}
+                        </button>
+                        <button style="width: 38px; height: 38px; border-radius: 10px; border: 1px solid #E9DFCE; background: #FFFCF6; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;">
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#B08070" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13"></path></svg>
+                        </button>
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 7px;">
+                        <button style="height: 30px; border-radius: 999px; border: 1px solid #E9DFCE; background: #FFFCF6; color: #6B645B; font-family: Figtree, sans-serif; font-size: 11.5px; font-weight: 600; padding: 0 11px; display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6B645B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2.5"></rect><path d="M8 2v4M16 2v4M3 10h18"></path></svg>
+                          Move to day
+                        </button>
+                        <span style="font-size: 10.5px; color: #A8A093;">{{n.added_by}}</span>
+                      </div>
+                    </div>
+                  </sc-if>
+
+                </div>
+              </sc-for>
+
+              <button style="margin: 4px 10px 0; width: calc(100% - 20px); height: 38px; border-radius: 10px; border: 1.5px dashed #DFD3BE; background: transparent; color: #9A9184; font-family: Figtree, sans-serif; font-size: 12.5px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9A9184" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+                Add a stop
+              </button>
+            </div>
+          </sc-if>
+
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  data() {
+    return [
+      { id: 'd1', label: 'Wed Oct 1', place: 'Fukuoka', hue: '#C4826A', state: 'past',
+        nodes: [
+          { id: 'n11', time: '15:00', name: 'Fly to Fukuoka', meta: 'flight · NH 3151', x: 60, y: 90, note: 'From Haneda. Auto-imported from Gmail.', by: 'added by Gmail import' },
+          { id: 'n12', time: '19:30', name: 'Uoden Hakata Seafood', meta: 'izakaya · 4 min walk', x: 140, y: 150, note: 'Reservation under Kevin, 2 people.', by: 'added by Kevin' }
+        ] },
+      { id: 'd2', label: 'Fri Oct 2', place: 'Fukuoka', hue: '#B98F4E', state: 'today',
+        nodes: [
+          { id: 'n21', time: '10:00', name: 'Kanetora Rich Soup Ramen', meta: 'ramen · opens 10:00', x: 118, y: 214, note: 'Tonkotsu, small counter. Cash only, queue before 11.', by: 'added by Kevin' },
+          { id: 'n22', time: '12:30', name: 'Ohori Park', meta: 'park · 12 min walk', x: 252, y: 168, note: 'Loop the pond, teahouse on the east side.', by: 'added by Mika' },
+          { id: 'n23', time: '13:15', name: 'Hikiniku to Come', meta: 'hamburg steak · booked', x: 296, y: 262, note: 'Timed entry at 13:15. Do not be late, they release the table.', by: 'added by Kevin' },
+          { id: 'n24', time: '16:00', name: 'Canal City Hakata', meta: 'shopping · 8 min walk', x: 236, y: 288, note: '', by: 'added by Mika' },
+          { id: 'n25', time: '19:30', name: 'Sushi Zaisho', meta: 'sushi · reservation', x: 196, y: 356, note: 'Omakase, 8 seats. Arrive 10 minutes early.', by: 'added by Kevin' }
+        ] },
+      { id: 'd3', label: 'Sat Oct 3', place: 'Fukuoka', hue: '#8E9A57', state: 'future',
+        nodes: [
+          { id: 'n31', time: '10:30', name: 'Menya Ishii', meta: 'ramen', x: 90, y: 260, note: '', by: 'added by Kevin' },
+          { id: 'n32', time: '11:30', name: 'Ainoshima ferry', meta: 'ferry departs 11:30', x: 300, y: 120, note: 'Cat island. Ferry back at 13:50, there is no later one.', by: 'added by Kevin' },
+          { id: 'n33', time: '19:00', name: 'Yakiniku at the night market', meta: 'street food', x: 180, y: 330, note: '', by: 'added by Mika' }
+        ] },
+      { id: 'd4', label: 'Sun Oct 4', place: 'Fukuoka to Kagoshima', hue: '#6E9A78', state: 'future',
+        nodes: [
+          { id: 'n41', time: '10:00', name: 'Ramen at Hakata Station', meta: 'ramen · before train', x: 150, y: 300, note: '', by: 'added by Kevin' },
+          { id: 'n42', time: '11:00', name: 'Shinkansen to Kagoshima', meta: 'train · 1h 20m', x: 160, y: 320, note: '', by: 'added by Gmail import' }
+        ] }
+    ];
+  }
+
+  renderVals() {
+    var self = this;
+    var openDay = this.state.openDay === undefined ? 'd2' : this.state.openDay;
+    var selected = this.state.selected === undefined ? 'n21' : this.state.selected;
+    var visited = this.state.visited || { n11: true, n12: true, n21: true };
+    var full = this.state.full === undefined ? false : this.state.full;
+    var raw = this.data();
+
+    var statusOf = function (day, node) {
+      if (visited[node.id]) return 'done';
+      if (day.state === 'past') return 'done';
+      if (day.state === 'today') return 'now';
+      return 'ahead';
+    };
+    var FILL = { done: '#BDB4A7', now: '#6F9A6B', ahead: '#E0B355' };
+
+    var days = raw.map(function (d) {
+      var isOpen = d.id === openDay;
+      var doneCount = d.nodes.filter(function (n) { return statusOf(d, n) === 'done'; }).length;
+      return {
+        label: d.label,
+        place: d.place,
+        hue: d.hue,
+        hue_op: isOpen ? 1 : 0.45,
+        open: isOpen,
+        is_today: d.state === 'today',
+        caret: isOpen ? 0 : -90,
+        weight: isOpen ? 700 : 500,
+        title_color: d.state === 'past' ? '#A8A093' : (isOpen ? '#33302B' : '#6B645B'),
+        sub_color: '#A8A093',
+        head_bg: isOpen ? '#F6EFE2' : 'transparent',
+        divider: isOpen ? '#EFE6D6' : '#F1E9DA',
+        progress: doneCount + '/' + d.nodes.length,
+        toggle: function () { self.setState({ openDay: isOpen ? null : d.id, selected: null }); },
+        nodes: d.nodes.map(function (n) {
+          var st = statusOf(d, n);
+          var isSel = n.id === selected;
+          var isDone = st === 'done';
+          return {
+            time: n.time,
+            name: n.name,
+            meta: n.meta,
+            note: n.note ? n.note : 'No notes yet. Tap to add one.',
+            added_by: n.by,
+            selected: isSel,
+            strike: isDone ? 'line-through' : 'none',
+            name_color: isDone ? '#A8A093' : '#33302B',
+            time_color: isDone ? '#BDB4A7' : (st === 'now' ? '#4E7A4B' : '#96752F'),
+            dot_fill: FILL[st],
+            dot_ring: isDone ? '#EFE9DF' : (st === 'now' ? '#E4EEE1' : '#F8EECF'),
+            row_bg: isSel ? '#FFFCF6' : 'transparent',
+            row_border: isSel ? '#E4D9C5' : 'transparent',
+            visit_label: isDone ? 'Visited' : 'Visited',
+            visit_bg: isDone ? '#E4EEE1' : '#FFFCF6',
+            visit_border: isDone ? '#BFD4BB' : '#E9DFCE',
+            visit_fg: isDone ? '#4E7A4B' : '#6B645B',
+            select: function () { self.setState({ selected: isSel ? null : n.id }); },
+            visit: function () {
+              var nv = Object.assign({}, visited);
+              nv[n.id] = !nv[n.id];
+              self.setState({ visited: nv });
+            }
+          };
+        })
+      };
+    });
+
+    var pins = [];
+    raw.forEach(function (d) {
+      var isOpen = d.id === openDay;
+      d.nodes.forEach(function (n) {
+        if (!isOpen) return;
+        var st = statusOf(d, n);
+        pins.push({
+          x: n.x, y: n.y,
+          fill: FILL[st],
+          ring: n.id === selected ? '#33302B' : '#FFFCF6',
+          op: 1,
+          size: n.id === selected ? 26 : 20,
+          label: '',
+          label_color: '#FFFCF6'
+        });
+      });
+    });
+    raw.forEach(function (d) {
+      if (d.id === openDay) return;
+      d.nodes.slice(0, 2).forEach(function (n) {
+        pins.push({ x: n.x + 14, y: n.y + 26, fill: '#D6CCBC', ring: '#F4EDE1', op: 0.55, size: 12, label: '', label_color: '#FFFCF6' });
+      });
+    });
+
+    return {
+      days: days,
+      pins: pins,
+      sheet_h: full ? 784 : 372,
+      toggle_sheet: function () { self.setState({ full: !full }); }
+    };
+  }
+}
+</script>
+</body>
+</html>

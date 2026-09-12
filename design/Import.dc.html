@@ -1,0 +1,113 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Figtree:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; font-family: Figtree, "Helvetica Neue", sans-serif; background: #FBF6EE; }
+    a { color: #A8663C; } a:hover { color: #8A5230; }
+    * { box-sizing: border-box; }
+  </style>
+</helmet>
+
+<div style="position: relative; width: 390px; height: 844px; overflow: hidden; background: #FBF6EE; color: #33302B;">
+
+  <div style="display: flex; align-items: center; gap: 12px; height: 60px; padding: 0 14px; border-bottom: 1px solid #E9DFCE;">
+    <button style="width: 34px; height: 34px; border-radius: 10px; border: 1px solid #E9DFCE; background: #FFFCF6; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6B645B" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 6 9 12 15 18"></polyline></svg>
+    </button>
+    <div style="font-family: Newsreader, Georgia, serif; font-size: 19px; font-weight: 500;">Sources</div>
+  </div>
+
+  <div style="padding: 16px 14px; display: flex; flex-direction: column; gap: 12px;">
+
+    <div style="font-size: 12.5px; color: #8C8479; line-height: 1.5;">Bring the trip in from where you already keep it. Everything lands on the same map.</div>
+
+    <!-- Google Maps list -->
+    <div style="border-radius: 14px; border: 1px solid #E4D9C5; background: #FFFCF6; padding: 14px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="width: 34px; height: 34px; border-radius: 10px; background: #F0E9DC; display: flex; align-items: center; justify-content: center;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6B645B" stroke-width="1.9" stroke-linejoin="round"><path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11z"></path><circle cx="12" cy="10" r="2.6"></circle></svg>
+        </div>
+        <div style="display: flex; flex-direction: column; flex-grow: 1;">
+          <span style="font-size: 14px; font-weight: 600;">Google Maps list</span>
+          <span style="font-size: 11px; color: #9A9184;">Japan 2025 · 46 saved places</span>
+        </div>
+        <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.07em; color: #4E7A4B; background: #E4EEE1; border-radius: 5px; padding: 3px 6px;">SYNCED</span>
+      </div>
+      <div style="margin-top: 11px; display: flex; align-items: center; gap: 8px; border-radius: 9px; background: #F6EFE2; padding: 9px 11px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9A9184" stroke-width="2" stroke-linecap="round"><path d="M9.5 14.5l5-5M8 16H6.5a4.5 4.5 0 0 1 0-9H8M16 8h1.5a4.5 4.5 0 0 1 0 9H16"></path></svg>
+        <span style="font-size: 11px; color: #8C8479; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">maps.app.goo.gl/xR4tN9qLmW2</span>
+      </div>
+      <div style="font-size: 11px; color: #9A9184; margin-top: 9px; line-height: 1.5;">Pulled 12 minutes ago. Re-reads the shared list every hour and adds anything new to <strong style="font-weight: 600;">Unscheduled</strong>.</div>
+      <div style="display: flex; gap: 7px; margin-top: 11px;">
+        <button style="flex-grow: 1; height: 36px; border-radius: 10px; border: 1px solid #E9DFCE; background: #FBF6EE; color: #6B645B; font-family: Figtree, sans-serif; font-size: 12.5px; font-weight: 600; cursor: pointer;">Sync now</button>
+        <button style="flex-grow: 1; height: 36px; border-radius: 10px; border: 1px solid #E9DFCE; background: #FBF6EE; color: #6B645B; font-family: Figtree, sans-serif; font-size: 12.5px; font-weight: 600; cursor: pointer;">Replace link</button>
+      </div>
+    </div>
+
+    <!-- Spreadsheet -->
+    <div style="border-radius: 14px; border: 1px solid #E4D9C5; background: #FFFCF6; padding: 14px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="width: 34px; height: 34px; border-radius: 10px; background: #F0E9DC; display: flex; align-items: center; justify-content: center;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6B645B" stroke-width="1.9" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M3 9.5h18M9 9.5V20M15 9.5V20"></path></svg>
+        </div>
+        <div style="display: flex; flex-direction: column; flex-grow: 1;">
+          <span style="font-size: 14px; font-weight: 600;">Itinerary spreadsheet</span>
+          <span style="font-size: 11px; color: #9A9184;">Google Sheets · "Japan Oct" tab</span>
+        </div>
+        <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.07em; color: #96752F; background: #F8EECF; border-radius: 5px; padding: 3px 6px;">3 NEW</span>
+      </div>
+      <div style="font-size: 11px; color: #9A9184; margin-top: 10px; line-height: 1.5;">Reads the day columns and the time rows, then assigns each stop to a day. Changes in the sheet show up here within a minute.</div>
+      <div style="display: flex; gap: 7px; margin-top: 11px;">
+        <button style="flex-grow: 1; height: 36px; border-radius: 10px; border: none; background: #33302B; color: #FBF6EE; font-family: Figtree, sans-serif; font-size: 12.5px; font-weight: 600; cursor: pointer;">Review 3 changes</button>
+        <button style="height: 36px; border-radius: 10px; border: 1px solid #E9DFCE; background: #FBF6EE; color: #6B645B; font-family: Figtree, sans-serif; font-size: 12.5px; font-weight: 600; padding: 0 13px; cursor: pointer;">Settings</button>
+      </div>
+    </div>
+
+    <!-- Gmail -->
+    <div style="border-radius: 14px; border: 1px solid #E4D9C5; background: #FFFCF6; padding: 14px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="width: 34px; height: 34px; border-radius: 10px; background: #F0E9DC; display: flex; align-items: center; justify-content: center;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6B645B" stroke-width="1.9" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2"></rect><path d="M3 6.5l9 6.5 9-6.5"></path></svg>
+        </div>
+        <div style="display: flex; flex-direction: column; flex-grow: 1;">
+          <span style="font-size: 14px; font-weight: 600;">Flights &amp; hotels from Gmail</span>
+          <span style="font-size: 11px; color: #9A9184;">kevin@ · read-only, confirmations only</span>
+        </div>
+        <span style="font-size: 10px; font-weight: 700; letter-spacing: 0.07em; color: #4E7A4B; background: #E4EEE1; border-radius: 5px; padding: 3px 6px;">ON</span>
+      </div>
+      <div style="margin-top: 11px; display: flex; flex-direction: column; gap: 7px;">
+        <div style="display: flex; align-items: center; gap: 9px; border-radius: 9px; background: #F6EFE2; padding: 9px 11px;">
+          <span style="width: 7px; height: 7px; border-radius: 50%; background: #BDB4A7;"></span>
+          <span style="font-size: 11.5px; flex-grow: 1;">YVR to HND · Sep 30</span>
+          <span style="font-size: 10.5px; color: #9A9184;">added</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 9px; border-radius: 9px; background: #F6EFE2; padding: 9px 11px;">
+          <span style="width: 7px; height: 7px; border-radius: 50%; background: #E0B355;"></span>
+          <span style="font-size: 11.5px; flex-grow: 1;">HND to YVR · Oct 10</span>
+          <span style="font-size: 10.5px; color: #9A9184;">added</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 9px; border-radius: 9px; background: #FCF6E6; border: 1px dashed #DCC58A; padding: 9px 11px;">
+          <span style="width: 7px; height: 7px; border-radius: 50%; background: #C08A6E;"></span>
+          <span style="font-size: 11.5px; flex-grow: 1;">Hakone ryokan · Oct 6</span>
+          <span style="font-size: 10.5px; font-weight: 600; color: #96752F;">confirm</span>
+        </div>
+      </div>
+    </div>
+
+    <button style="height: 46px; border-radius: 12px; border: 1.5px dashed #DFD3BE; background: transparent; color: #9A9184; font-family: Figtree, sans-serif; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 7px; cursor: pointer;">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9A9184" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+      Add another source
+    </button>
+
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

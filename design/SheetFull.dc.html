@@ -1,0 +1,142 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Figtree:wght@400;500;600;700&display=swap">
+  <style>
+    body { margin: 0; font-family: Figtree, "Helvetica Neue", sans-serif; background: #FBF6EE; }
+    a { color: #A8663C; } a:hover { color: #8A5230; }
+    * { box-sizing: border-box; }
+  </style>
+</helmet>
+
+<div style="position: relative; width: 390px; height: 844px; overflow: hidden; background: #FBF6EE; color: #33302B;">
+
+  <div style="height: 26px; background: #EFE8DB;"></div>
+
+  <div style="position: absolute; top: 26px; left: 0; right: 0; bottom: 0; background: #FBF6EE; border-radius: 20px 20px 0 0; box-shadow: 0 -6px 24px rgba(84,68,44,0.16); display: flex; flex-direction: column;">
+
+    <div style="padding: 9px 0 6px; display: flex; justify-content: center; cursor: grab;">
+      <div style="width: 38px; height: 4px; border-radius: 3px; background: #C9BDA6;"></div>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 10px; padding: 2px 16px 12px;">
+      <div style="font-family: Newsreader, Georgia, serif; font-size: 20px; font-weight: 500; flex-grow: 1;">All stops</div>
+      <div style="display: flex; gap: 6px;">
+        <button style="height: 30px; border-radius: 999px; border: 1px solid #E9DFCE; background: #FFFCF6; color: #6B645B; font-family: Figtree, sans-serif; font-size: 11.5px; font-weight: 600; padding: 0 11px; cursor: pointer;">Filter</button>
+        <button style="height: 30px; border-radius: 999px; border: 1px solid #33302B; background: #33302B; color: #FBF6EE; font-family: Figtree, sans-serif; font-size: 11.5px; font-weight: 600; padding: 0 11px; cursor: pointer;">Done rearranging</button>
+      </div>
+    </div>
+
+    <div style="flex-grow: 1; overflow: hidden; padding-bottom: 16px;">
+
+      <!-- DAY: today, open -->
+      <div style="display: flex; align-items: center; gap: 10px; padding: 0 16px; height: 40px; background: #F6EFE2; border-top: 1px solid #EFE6D6; border-bottom: 1px solid #EFE6D6;">
+        <span style="width: 9px; height: 9px; border-radius: 50%; background: #B98F4E;"></span>
+        <span style="font-size: 13.5px; font-weight: 700;">Fri Oct 2</span>
+        <span style="font-size: 9.5px; font-weight: 700; letter-spacing: 0.07em; color: #4E7A4B; background: #E4EEE1; border-radius: 4px; padding: 2px 5px;">TODAY</span>
+        <span style="flex-grow: 1;"></span>
+        <span style="font-size: 11px; color: #A8A093;">Fukuoka · 1/5</span>
+      </div>
+
+      <div style="padding: 8px 10px 2px; display: flex; flex-direction: column; gap: 4px;">
+
+        <div style="display: flex; align-items: center; gap: 10px; height: 50px; padding: 0 12px 0 8px; opacity: 0.6;">
+          <svg width="12" height="16" viewBox="0 0 12 16" style="opacity: 0.42;"><g fill="#A59C90"><circle cx="3.5" cy="3" r="1.3"></circle><circle cx="8.5" cy="3" r="1.3"></circle><circle cx="3.5" cy="8" r="1.3"></circle><circle cx="8.5" cy="8" r="1.3"></circle><circle cx="3.5" cy="13" r="1.3"></circle><circle cx="8.5" cy="13" r="1.3"></circle></g></svg>
+          <span style="font-size: 11.5px; font-weight: 600; color: #BDB4A7; width: 38px;">10:00</span>
+          <div style="display: flex; flex-direction: column; gap: 1px; flex-grow: 1;">
+            <span style="font-size: 13.5px; font-weight: 500; color: #A8A093; text-decoration: line-through;">Kanetora Rich Soup Ramen</span>
+            <span style="font-size: 10.5px; color: #A0978A;">ramen · visited 10:24</span>
+          </div>
+          <span style="width: 11px; height: 11px; border-radius: 50%; background: #BDB4A7; border: 2px solid #EFE9DF;"></span>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 10px; height: 50px; padding: 0 12px 0 8px;">
+          <svg width="12" height="16" viewBox="0 0 12 16" style="opacity: 0.42;"><g fill="#A59C90"><circle cx="3.5" cy="3" r="1.3"></circle><circle cx="8.5" cy="3" r="1.3"></circle><circle cx="3.5" cy="8" r="1.3"></circle><circle cx="8.5" cy="8" r="1.3"></circle><circle cx="3.5" cy="13" r="1.3"></circle><circle cx="8.5" cy="13" r="1.3"></circle></g></svg>
+          <span style="font-size: 11.5px; font-weight: 600; color: #4E7A4B; width: 38px;">12:30</span>
+          <div style="display: flex; flex-direction: column; gap: 1px; flex-grow: 1;">
+            <span style="font-size: 13.5px; font-weight: 500;">Ohori Park</span>
+            <span style="font-size: 10.5px; color: #A0978A;">park · 12 min walk</span>
+          </div>
+          <span style="width: 11px; height: 11px; border-radius: 50%; background: #6F9A6B; border: 2px solid #E4EEE1;"></span>
+        </div>
+
+        <!-- drop indicator -->
+        <div style="display: flex; align-items: center; gap: 8px; padding: 0 8px; height: 14px;">
+          <span style="width: 7px; height: 7px; border-radius: 50%; background: #6F9A6B;"></span>
+          <span style="flex-grow: 1; height: 2px; border-radius: 2px; background: #6F9A6B;"></span>
+          <span style="font-size: 10px; font-weight: 700; color: #4E7A4B; letter-spacing: 0.04em;">13:00 · 6 min walk</span>
+        </div>
+
+        <!-- lifted card -->
+        <div style="display: flex; align-items: center; gap: 10px; height: 54px; padding: 0 12px 0 8px; border-radius: 12px; background: #FFFCF6; border: 1px solid #E4D9C5; box-shadow: 0 10px 22px rgba(84,68,44,0.20); transform: rotate(-1.1deg) scale(1.015);">
+          <svg width="12" height="16" viewBox="0 0 12 16"><g fill="#6B645B"><circle cx="3.5" cy="3" r="1.3"></circle><circle cx="8.5" cy="3" r="1.3"></circle><circle cx="3.5" cy="8" r="1.3"></circle><circle cx="8.5" cy="8" r="1.3"></circle><circle cx="3.5" cy="13" r="1.3"></circle><circle cx="8.5" cy="13" r="1.3"></circle></g></svg>
+          <span style="font-size: 11.5px; font-weight: 600; color: #96752F; width: 38px;">—:—</span>
+          <div style="display: flex; flex-direction: column; gap: 1px; flex-grow: 1;">
+            <span style="font-size: 13.5px; font-weight: 600;">Hikiniku to Come</span>
+            <span style="font-size: 10.5px; color: #A0978A;">hamburg steak · booked 13:15</span>
+          </div>
+          <span style="width: 11px; height: 11px; border-radius: 50%; background: #E0B355; border: 2px solid #F8EECF;"></span>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 10px; height: 50px; padding: 0 12px 0 8px;">
+          <svg width="12" height="16" viewBox="0 0 12 16" style="opacity: 0.42;"><g fill="#A59C90"><circle cx="3.5" cy="3" r="1.3"></circle><circle cx="8.5" cy="3" r="1.3"></circle><circle cx="3.5" cy="8" r="1.3"></circle><circle cx="8.5" cy="8" r="1.3"></circle><circle cx="3.5" cy="13" r="1.3"></circle><circle cx="8.5" cy="13" r="1.3"></circle></g></svg>
+          <span style="font-size: 11.5px; font-weight: 600; color: #4E7A4B; width: 38px;">16:00</span>
+          <div style="display: flex; flex-direction: column; gap: 1px; flex-grow: 1;">
+            <span style="font-size: 13.5px; font-weight: 500;">Canal City Hakata</span>
+            <span style="font-size: 10.5px; color: #A0978A;">shopping · edited by Mika just now</span>
+          </div>
+          <span style="width: 11px; height: 11px; border-radius: 50%; background: #6F9A6B; border: 2px solid #E4EEE1;"></span>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 10px; height: 50px; padding: 0 12px 0 8px;">
+          <svg width="12" height="16" viewBox="0 0 12 16" style="opacity: 0.42;"><g fill="#A59C90"><circle cx="3.5" cy="3" r="1.3"></circle><circle cx="8.5" cy="3" r="1.3"></circle><circle cx="3.5" cy="8" r="1.3"></circle><circle cx="8.5" cy="8" r="1.3"></circle><circle cx="3.5" cy="13" r="1.3"></circle><circle cx="8.5" cy="13" r="1.3"></circle></g></svg>
+          <span style="font-size: 11.5px; font-weight: 600; color: #4E7A4B; width: 38px;">19:30</span>
+          <div style="display: flex; flex-direction: column; gap: 1px; flex-grow: 1;">
+            <span style="font-size: 13.5px; font-weight: 500;">Sushi Zaisho</span>
+            <span style="font-size: 10.5px; color: #A0978A;">sushi · reservation</span>
+          </div>
+          <span style="width: 11px; height: 11px; border-radius: 50%; background: #6F9A6B; border: 2px solid #E4EEE1;"></span>
+        </div>
+      </div>
+
+      <!-- DAY: next, collapsed but droppable -->
+      <div style="margin-top: 10px; display: flex; align-items: center; gap: 10px; padding: 0 16px; height: 40px; border-top: 1px solid #EFE6D6; border-bottom: 1px dashed #C7B98F; background: #FCF6E6;">
+        <span style="width: 9px; height: 9px; border-radius: 50%; background: #8E9A57; opacity: 0.45;"></span>
+        <span style="font-size: 13.5px; font-weight: 500; color: #6B645B;">Sat Oct 3</span>
+        <span style="flex-grow: 1;"></span>
+        <span style="font-size: 10.5px; font-weight: 700; color: #96752F; letter-spacing: 0.04em;">DROP HERE TO MOVE</span>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 10px; padding: 0 16px; height: 40px; border-bottom: 1px solid #F1E9DA;">
+        <span style="width: 9px; height: 9px; border-radius: 50%; background: #6E9A78; opacity: 0.45;"></span>
+        <span style="font-size: 13.5px; font-weight: 500; color: #6B645B;">Sun Oct 4</span>
+        <span style="flex-grow: 1;"></span>
+        <span style="font-size: 11px; color: #A8A093;">Fukuoka to Kagoshima · 0/2</span>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 10px; padding: 0 16px; height: 40px; border-bottom: 1px solid #F1E9DA;">
+        <span style="width: 9px; height: 9px; border-radius: 50%; background: #5E9694; opacity: 0.45;"></span>
+        <span style="font-size: 13.5px; font-weight: 500; color: #6B645B;">Mon Oct 5</span>
+        <span style="flex-grow: 1;"></span>
+        <span style="font-size: 11px; color: #A8A093;">Kagoshima · 0/3</span>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 10px; padding: 0 16px; height: 40px; border-bottom: 1px solid #F1E9DA;">
+        <span style="width: 9px; height: 9px; border-radius: 50%; background: #9A9184; opacity: 0.45;"></span>
+        <span style="font-size: 13.5px; font-weight: 500; color: #6B645B;">Unscheduled</span>
+        <span style="flex-grow: 1;"></span>
+        <span style="font-size: 11px; color: #A8A093;">14 saved places</span>
+      </div>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
