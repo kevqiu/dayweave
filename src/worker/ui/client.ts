@@ -643,7 +643,16 @@ function stopActions(stop, done, showTimes) {
       }, [icon("navigateLight"), "Navigate"]),
       h("button", {
         class: done ? "action on" : "action",
-        onclick: async () => { await post("/api/stops/" + stop.id + "/visited", { visited: !done }); await refreshTrip(); },
+        onclick: () => optimistic(
+          () => {
+            const target = findStop(stop.id);
+            const previous = target ? target.status : null;
+            if (target) target.status = done ? "planned" : "visited";
+            return () => { if (target && previous !== null) target.status = previous; };
+          },
+          () => post("/api/stops/" + stop.id + "/visited", { visited: !done }),
+          done ? "That did not un-tick" : "That did not tick off",
+        ),
       }, [h("span", { style: "display:flex", html: done ? ICONS.checkOn : ICONS.check }, []), "Visited"]),
       h("button", {
         class: "action",
@@ -669,7 +678,17 @@ function stopActions(stop, done, showTimes) {
         ]),
         h("div", {
           style: "display:flex;align-items:center;gap:9px;height:40px;padding:0 12px;border-top:1px solid #F1E9DA;cursor:pointer",
-          onclick: async () => { await post("/api/stops/" + stop.id + "/delete", {}); state.menuOpen = false; await refreshTrip(); },
+          onclick: () => optimistic(
+            () => {
+              const at = locateStop(stop.id);
+              if (at) at.list.splice(at.index, 1);
+              state.menuOpen = false;
+              state.selectedStopId = null;
+              return () => { if (at) at.list.splice(at.index, 0, at.stop); };
+            },
+            () => post("/api/stops/" + stop.id + "/delete", {}),
+            "That did not come off the list",
+          ),
         }, [
           icon("trash"),
           h("span", { style: "font-size:13px;font-weight:500;color:#A06B52", text: "Remove from list" }, []),
@@ -762,6 +781,39 @@ function findStop(stopId) {
     if (hit) return hit;
   }
   return state.trip.unplanned.find((s) => s.id === stopId) || null;
+}
+
+/** The list a stop sits in, and where in it, so a failed write can put it back. */
+function locateStop(stopId) {
+  if (!state.trip) return null;
+  const lists = state.trip.days.map((d) => d.stops).concat([state.trip.unplanned]);
+  for (const list of lists) {
+    const index = list.findIndex((s) => s.id === stopId);
+    if (index !== -1) return { list, index, stop: list[index] };
+  }
+  return null;
+}
+
+/**
+ * Applies an edit to the screen, sends it, and puts the screen back if the
+ * send fails. Every edit in the app goes through here.
+ *
+ * apply() changes local state and returns a function that undoes it. On
+ * success the trip is re-read quietly, because the server owns the derived
+ * lines — removing a stop changes the walking time on the one after it, and
+ * that cannot be recomputed here.
+ */
+function optimistic(apply, request, whatFailed) {
+  const undo = apply();
+  render();
+
+  request()
+    .then(() => refreshTrip())
+    .catch((error) => {
+      undo();
+      state.error = whatFailed + ": " + error.message;
+      render();
+    });
 }
 
 /* ------------------------------------------------------------- trip menu */
