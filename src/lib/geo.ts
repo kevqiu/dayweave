@@ -45,24 +45,46 @@ export function centroid(points: readonly LatLng[]): LatLng | null {
 /** Where a bias circle came from, so the UI can say "near Kagoshima" honestly. */
 export type BiasSource = "day-stops" | "lodging" | "nearest-day" | "viewport";
 
+/**
+ * A place the distances on the search rows are measured from, so a row can
+ * read "450 m from Ohori Park" rather than from an unnamed centroid.
+ *
+ * It is the last stop on whichever day the circle came from, because that is
+ * where you would be walking on from. Null when the circle has no named point
+ * behind it, and the rows then show no distance at all.
+ */
+export interface BiasAnchor {
+  name: string;
+  location: LatLng;
+}
+
 export interface Bias {
   center: LatLng;
   /** Metres. The Places API caps this at 50 000. */
   radius: number;
   source: BiasSource;
+  anchor: BiasAnchor | null;
+  /** The day the circle came from, so the chip can name it. Null for a viewport. */
+  dayId: string | null;
 }
 
 /** PLAN.md section 4b: the open day's stops win, at 3 km. */
 const DAY_RADIUS_M = 3_000;
 const MAX_RADIUS_M = 50_000;
 
+/** A stop as the bias resolver sees it: somewhere on the map, with a name. */
+export interface NamedPoint extends LatLng {
+  name: string;
+}
+
 export interface DayGeo {
   id: string;
   /** ISO date, used only to order days when looking either side. */
   date: string;
-  stops: LatLng[];
+  /** In the order they are planned, so the last one is the anchor. */
+  stops: NamedPoint[];
   /** That day's lodging, when it has one. */
-  lodging?: LatLng | null;
+  lodging?: NamedPoint | null;
 }
 
 export interface BiasInput {
@@ -91,16 +113,39 @@ export function resolveBias(input: BiasInput): Bias | null {
 
   if (open) {
     const fromStops = centroid(open.stops);
-    if (fromStops) return { center: fromStops, radius: DAY_RADIUS_M, source: "day-stops" };
+    if (fromStops) {
+      return {
+        center: fromStops,
+        radius: DAY_RADIUS_M,
+        source: "day-stops",
+        anchor: lastOf(open.stops),
+        dayId: open.id,
+      };
+    }
 
     if (open.lodging) {
-      return { center: open.lodging, radius: DAY_RADIUS_M, source: "lodging" };
+      const { name, ...point } = open.lodging;
+      return {
+        center: point,
+        radius: DAY_RADIUS_M,
+        source: "lodging",
+        anchor: { name, location: point },
+        dayId: open.id,
+      };
     }
 
     const neighbour = nearestDayWithStops(days, open);
     if (neighbour) {
       const center = centroid(neighbour.stops);
-      if (center) return { center, radius: DAY_RADIUS_M, source: "nearest-day" };
+      if (center) {
+        return {
+          center,
+          radius: DAY_RADIUS_M,
+          source: "nearest-day",
+          anchor: lastOf(neighbour.stops),
+          dayId: neighbour.id,
+        };
+      }
     }
   }
 
@@ -109,10 +154,19 @@ export function resolveBias(input: BiasInput): Bias | null {
       center: input.viewport.center,
       radius: Math.min(MAX_RADIUS_M, Math.max(1, Math.round(input.viewport.radius))),
       source: "viewport",
+      // A viewport is a rectangle someone dragged, not a place with a name.
+      anchor: null,
+      dayId: null,
     };
   }
 
   return null;
+}
+
+function lastOf(stops: readonly NamedPoint[]): BiasAnchor | null {
+  const last = stops[stops.length - 1];
+  if (!last) return null;
+  return { name: last.name, location: { lat: last.lat, lng: last.lng } };
 }
 
 /**

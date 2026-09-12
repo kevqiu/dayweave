@@ -4,6 +4,8 @@ import { centroid, haversineMetres, resolveBias, roundedCentre } from "../geo.ts
 const HAKATA = { lat: 33.5904, lng: 130.4017 };
 const KAGOSHIMA = { lat: 31.5966, lng: 130.5571 };
 
+const named = (p: { lat: number; lng: number }, name: string) => ({ ...p, name });
+
 describe("haversineMetres", () => {
   it("measures a known gap", () => {
     // Hakata to Kagoshima is about 222 km.
@@ -28,8 +30,8 @@ describe("centroid", () => {
 
 describe("resolveBias", () => {
   const days = [
-    { id: "mon", date: "2026-10-05", stops: [HAKATA] },
-    { id: "tue", date: "2026-10-06", stops: [], lodging: KAGOSHIMA },
+    { id: "mon", date: "2026-10-05", stops: [named(HAKATA, "Canal City")] },
+    { id: "tue", date: "2026-10-06", stops: [], lodging: named(KAGOSHIMA, "The ryokan") },
     { id: "wed", date: "2026-10-07", stops: [] },
   ];
 
@@ -44,6 +46,7 @@ describe("resolveBias", () => {
     const bias = resolveBias({ dayId: "tue", days });
     expect(bias?.source).toBe("lodging");
     expect(bias?.center).toEqual(KAGOSHIMA);
+    expect(bias?.anchor?.name).toBe("The ryokan");
   });
 
   it("reaches for the nearest day with stops for an empty day in a new city", () => {
@@ -56,18 +59,35 @@ describe("resolveBias", () => {
     const bias = resolveBias({
       dayId: "b",
       days: [
-        { id: "a", date: "2026-10-05", stops: [HAKATA] },
+        { id: "a", date: "2026-10-05", stops: [named(HAKATA, "Canal City")] },
         { id: "b", date: "2026-10-06", stops: [] },
-        { id: "c", date: "2026-10-07", stops: [KAGOSHIMA] },
+        { id: "c", date: "2026-10-07", stops: [named(KAGOSHIMA, "Sakurajima")] },
       ],
     });
     expect(bias?.center.lat).toBeCloseTo(HAKATA.lat, 4);
+  });
+
+  it("anchors distances on the day's last stop, not its centroid", () => {
+    const bias = resolveBias({
+      dayId: "mon",
+      days: [
+        {
+          id: "mon",
+          date: "2026-10-05",
+          stops: [named(HAKATA, "Canal City"), named({ lat: 33.6, lng: 130.41 }, "Ohori Park")],
+        },
+      ],
+    });
+    expect(bias?.anchor?.name).toBe("Ohori Park");
+    expect(bias?.anchor?.location.lat).toBeCloseTo(33.6, 4);
   });
 
   it("uses the viewport last, capped at the API's 50 km", () => {
     const bias = resolveBias({ dayId: null, days, viewport: { center: KAGOSHIMA, radius: 90000 } });
     expect(bias?.source).toBe("viewport");
     expect(bias?.radius).toBe(50000);
+    // A dragged rectangle is not a place, so there is nothing to measure from.
+    expect(bias?.anchor).toBeNull();
   });
 
   it("is null on a brand new trip, which searches unbiased", () => {
@@ -78,10 +98,13 @@ describe("resolveBias", () => {
 
 describe("roundedCentre", () => {
   it("rounds so a nudged map still hits the cache", () => {
-    const a = resolveBias({ dayId: "d", days: [{ id: "d", date: "2026-10-05", stops: [HAKATA] }] });
+    const a = resolveBias({
+      dayId: "d",
+      days: [{ id: "d", date: "2026-10-05", stops: [named(HAKATA, "Canal City")] }],
+    });
     const b = resolveBias({
       dayId: "d",
-      days: [{ id: "d", date: "2026-10-05", stops: [{ lat: 33.5912, lng: 130.4008 }] }],
+      days: [{ id: "d", date: "2026-10-05", stops: [named({ lat: 33.5912, lng: 130.4008 }, "Canal City")] }],
     });
     expect(roundedCentre(a)).toBe(roundedCentre(b));
   });

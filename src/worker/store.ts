@@ -11,6 +11,9 @@ import { orderKeyAppend } from "../lib/order.ts";
 import { describeStop, tripCities } from "../lib/derive.ts";
 import type { PlaceDetails } from "../lib/places.ts";
 import type { DayGeo, LatLng } from "../lib/geo.ts";
+import { avatarColor, dayHue } from "./ui/tokens.ts";
+
+export { dayHue };
 
 export interface TripRow {
   id: string;
@@ -37,8 +40,10 @@ export interface StopRow {
   place_id: string | null;
   title: string;
   note: string;
+  start_time: string | null;
   order_key: string;
   status: string;
+  created_by: string;
   place_name: string | null;
   google_place_id: string | null;
   lat: number | null;
@@ -49,23 +54,6 @@ export interface StopRow {
 }
 
 const now = () => Date.now();
-
-/**
- * The day ramp from PLAN.md section 7: day one a deep green, the last day a
- * pale yellow, olive and orange on the way. A sequence encoded as a sequence,
- * so "further down the ramp" reads as "further away in time" with no legend.
- */
-const RAMP_START = { r: 0x4e, g: 0x7a, b: 0x4b };
-const RAMP_END = { r: 0xe8, g: 0xd0, b: 0x7a };
-
-export function dayHue(index: number, total: number): string {
-  const t = total <= 1 ? 0 : index / (total - 1);
-  const mix = (a: number, b: number) => Math.round(a + (b - a) * t);
-  const hex = (n: number) => n.toString(16).padStart(2, "0");
-  return `#${hex(mix(RAMP_START.r, RAMP_END.r))}${hex(mix(RAMP_START.g, RAMP_END.g))}${hex(
-    mix(RAMP_START.b, RAMP_END.b),
-  )}`;
-}
 
 /** Every date from start to end inclusive, as ISO days. */
 export function datesBetween(start: string, end: string): string[] {
@@ -158,7 +146,8 @@ export async function listDays(db: D1Database, tripId: string): Promise<DayRow[]
 export async function listStops(db: D1Database, tripId: string): Promise<StopRow[]> {
   const { results } = await db
     .prepare(
-      `SELECT s.id, s.day_id, s.place_id, s.title, s.note, s.order_key, s.status,
+      `SELECT s.id, s.day_id, s.place_id, s.title, s.note, s.start_time,
+              s.order_key, s.status, s.created_by,
               p.name AS place_name, p.google_place_id, p.lat, p.lng, p.city,
               p.category, p.maps_url
          FROM stops s
@@ -172,15 +161,65 @@ export async function listStops(db: D1Database, tripId: string): Promise<StopRow
 }
 
 /**
- * Places on the trip already, so the search list can say "on trip" instead of
- * offering the same place twice (PLAN.md section 4b).
+ * Places already on the trip, mapped to the day they sit on.
+ *
+ * The search list needs more than a yes or no: `design/PlaceSearch.dc.html`
+ * writes the row as "Already on Sat Oct 3", so the day has to come back with
+ * it. A place kept in the To be planned bucket has no day, and the artboard's
+ * wording falls back to the bucket's own name.
  */
-export async function placeIdsOnTrip(db: D1Database, tripId: string): Promise<Set<string>> {
+export async function placesOnTrip(
+  db: D1Database,
+  tripId: string,
+): Promise<Map<string, string>> {
   const { results } = await db
-    .prepare(`SELECT google_place_id FROM places WHERE trip_id = ? AND google_place_id IS NOT NULL`)
+    .prepare(
+      `SELECT p.google_place_id, d.date
+         FROM places p
+         LEFT JOIN stops s ON s.place_id = p.id AND s.deleted_at IS NULL
+         LEFT JOIN days d ON d.id = s.day_id
+        WHERE p.trip_id = ? AND p.google_place_id IS NOT NULL`,
+    )
     .bind(tripId)
-    .all<{ google_place_id: string }>();
-  return new Set((results ?? []).map((r) => r.google_place_id));
+    .all<{ google_place_id: string; date: string | null }>();
+
+  const out = new Map<string, string>();
+  for (const row of results ?? []) {
+    // A place can hang off several stops; the first day we see is enough to
+    // tell someone it is already here.
+    if (out.has(row.google_place_id)) continue;
+    out.set(row.google_place_id, row.date ? dayLabel(row.date) : "To be planned");
+  }
+  return out;
+}
+
+/** `2026-10-03` -> `Sat Oct 3`, the form every artboard uses for a day. */
+export function dayLabel(isoDate: string): string {
+  const date = new Date(`${isoDate}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return isoDate;
+  const weekday = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][date.getUTCDay()];
+  const month = MONTHS[date.getUTCMonth()];
+  return `${weekday} ${month} ${date.getUTCDate()}`;
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/**
+ * `Sep 30 – Oct 10`, the date range on a trip card. The month is not repeated
+ * when both ends share one, which is how the artboards write `Apr 11 – 22`.
+ */
+export function dateRangeLabel(startIso: string, endIso: string): string {
+  const start = new Date(`${startIso}T00:00:00Z`);
+  const end = new Date(`${endIso}T00:00:00Z`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return `${startIso} – ${endIso}`;
+  }
+  const left = `${MONTHS[start.getUTCMonth()]} ${start.getUTCDate()}`;
+  const right =
+    start.getUTCMonth() === end.getUTCMonth() && start.getUTCFullYear() === end.getUTCFullYear()
+      ? `${end.getUTCDate()}`
+      : `${MONTHS[end.getUTCMonth()]} ${end.getUTCDate()}`;
+  return `${left} – ${right}`;
 }
 
 /**
@@ -289,27 +328,59 @@ export async function addPlaceAsStop(
 
 // --- read models ------------------------------------------------------------
 
-/** What the bias resolver needs: each day, with the coordinates on it. */
+/**
+ * What the bias resolver needs: each day, with its coordinates in planned
+ * order and each one named, so the circle can carry an anchor to measure
+ * distances from.
+ */
 export function toDayGeo(days: readonly DayRow[], stops: readonly StopRow[]): DayGeo[] {
   return days.map((day) => ({
     id: day.id,
     date: day.date,
     stops: stops
       .filter((s) => s.day_id === day.id && s.lat !== null && s.lng !== null)
-      .map((s) => ({ lat: s.lat as number, lng: s.lng as number })),
+      .map((s) => ({
+        lat: s.lat as number,
+        lng: s.lng as number,
+        name: s.place_name ?? s.title,
+      })),
   }));
 }
 
 export interface StopView {
   id: string;
   title: string;
-  /** Derived, never typed. PLAN.md section 4c. */
+  /** Derived, never typed. PLAN.md section 4c, `meta` in Main.dc.html. */
   description: string;
+  /** Typed by a person, and absent until someone writes one. */
   note: string;
+  /** `10:00`, or empty. Many stops never get one (PLAN.md section 11). */
+  time: string;
   status: string;
+  /** Two letters in the avatar on the row. */
+  author: string;
+  authorColor: string;
   city: string | null;
   mapsUrl: string | null;
   location: LatLng | null;
+}
+
+/**
+ * Two letters for the avatar on a row.
+ *
+ * The artboards show real initials, KQ and MT, because they draw named people.
+ * There are no names until Better Auth lands (PLAN.md section 5), so these are
+ * derived from the id: arbitrary, but stable per person and shaped like
+ * initials, which is what the avatar has to read as. Digits would read as a
+ * count.
+ */
+export function initialsFor(userId: string): string {
+  const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  let hash = 0;
+  for (let i = 0; i < userId.length; i++) hash = (hash * 33 + userId.charCodeAt(i)) >>> 0;
+  const first = LETTERS[hash % 26] as string;
+  const second = LETTERS[Math.floor(hash / 26) % 26] as string;
+  return `${first}${second}`;
 }
 
 /**
@@ -338,7 +409,10 @@ export function stopsForDay(stops: readonly StopRow[], dayId: string | null): St
       title: stop.place_name ?? stop.title,
       description: describeStop({ category: stop.category, location }, previous),
       note: stop.note,
+      time: stop.start_time ?? "",
       status: stop.status,
+      author: initialsFor(stop.created_by),
+      authorColor: avatarColor(stop.created_by),
       city: stop.city,
       mapsUrl: stop.maps_url,
       location,

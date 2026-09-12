@@ -1,0 +1,135 @@
+/**
+ * The icons, transcribed from the artboards.
+ *
+ * Each one keeps the exact path, stroke width and line caps its artboard uses,
+ * because that is what makes a 12px icon read correctly. Size and colour are
+ * the only things a caller sets.
+ */
+
+interface IconOptions {
+  size?: number;
+  color?: string;
+  width?: number;
+}
+
+const svg = (
+  body: string,
+  { size = 16, color = "#6B645B", width = 2 }: IconOptions,
+  extra = "",
+) =>
+  `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="${width}" ${extra}>${body}</svg>`;
+
+/** PlaceSearch: the search field, and the Find a place button. */
+export const search = (o: IconOptions = {}) =>
+  svg(
+    `<circle cx="11" cy="11" r="7"></circle><path d="M16.5 16.5L21 21"></path>`,
+    { width: 2.1, ...o },
+    'stroke-linecap="round"',
+  );
+
+/** PlaceSearch: clearing the field. NewTrip: closing the screen. */
+export const close = (o: IconOptions = {}) =>
+  svg(`<path d="M6 6l12 12M18 6L6 18"></path>`, { width: 2.2, ...o }, 'stroke-linecap="round"');
+
+/** The map pin, used for the bias chip and the "on trip" tile. */
+export const pin = (o: IconOptions = {}) =>
+  svg(
+    `<path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11z"></path>`,
+    { ...o },
+    'stroke-linejoin="round"',
+  );
+
+/** The same pin with a hole, which marks a place already on the trip. */
+export const pinDot = (o: IconOptions = {}) =>
+  svg(
+    `<path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11z"></path><circle cx="12" cy="10" r="2.4"></circle>`,
+    { width: 1.9, ...o },
+    'stroke-linejoin="round"',
+  );
+
+/** A bowl of ramen: the food tile on a search row. */
+export const bowl = (o: IconOptions = {}) =>
+  svg(
+    `<path d="M4 10h16M5 10a7 7 0 0 1 14 0M6 14h12M7 18h10"></path>`,
+    { width: 1.9, ...o },
+    'stroke-linecap="round"',
+  );
+
+/** A link, for "Paste a Google Maps link". */
+export const link = (o: IconOptions = {}) =>
+  svg(
+    `<path d="M9.5 14.5l5-5M8 16H6.5a4.5 4.5 0 0 1 0-9H8M16 8h1.5a4.5 4.5 0 0 1 0 9H16"></path>`,
+    { ...o },
+    'stroke-linecap="round"',
+  );
+
+export const plus = (o: IconOptions = {}) =>
+  svg(`<path d="M12 5v14M5 12h14"></path>`, { width: 2.3, ...o }, 'stroke-linecap="round"');
+
+export const chevron = (o: IconOptions = {}) =>
+  svg(
+    `<polyline points="6 9 12 15 18 9"></polyline>`,
+    { width: 2.4, color: "#A59C90", ...o },
+    'stroke-linecap="round" stroke-linejoin="round"',
+  );
+
+export const calendar = (o: IconOptions = {}) =>
+  svg(
+    `<rect x="3" y="4" width="18" height="17" rx="2.5"></rect><path d="M8 2v4M16 2v4M3 10h18"></path>`,
+    { ...o },
+    'stroke-linecap="round" stroke-linejoin="round"',
+  );
+
+/** Inviting someone: a person with a plus. */
+export const invite = (o: IconOptions = {}) =>
+  svg(
+    `<circle cx="9.5" cy="8" r="3.4"></circle><path d="M3.2 19.5a6.6 6.6 0 0 1 12.6 0M18.5 8.5v5M21 11h-5"></path>`,
+    { width: 1.9, ...o },
+    'stroke-linecap="round" stroke-linejoin="round"',
+  );
+
+export const navigate = (o: IconOptions = {}) =>
+  svg(
+    `<polygon points="3 11 22 2 13 21 11 13 3 11"></polygon>`,
+    { width: 2.2, ...o },
+    'stroke-linecap="round" stroke-linejoin="round"',
+  );
+
+export const check = (o: IconOptions = {}) =>
+  svg(
+    `<polyline points="20 6 9 17 4 12"></polyline>`,
+    { width: 2.6, ...o },
+    'stroke-linecap="round" stroke-linejoin="round"',
+  );
+
+export const pencil = (o: IconOptions = {}) =>
+  svg(
+    `<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path>`,
+    { ...o },
+    'stroke-linecap="round" stroke-linejoin="round"',
+  );
+
+export const kebab = ({ size = 15, color = "#6B645B" }: IconOptions = {}) =>
+  `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="${color}"><circle cx="12" cy="5" r="1.5"></circle><circle cx="12" cy="12" r="1.5"></circle><circle cx="12" cy="19" r="1.5"></circle></svg>`;
+
+/** The drag handle on a stop row: two columns of three dots. */
+export const grip = ({ color = "#A59C90" }: IconOptions = {}) =>
+  `<svg width="11" height="15" viewBox="0 0 12 16" style="flex-shrink:0;opacity:0.4"><g fill="${color}"><circle cx="3.5" cy="3" r="1.3"></circle><circle cx="8.5" cy="3" r="1.3"></circle><circle cx="3.5" cy="8" r="1.3"></circle><circle cx="8.5" cy="8" r="1.3"></circle><circle cx="3.5" cy="13" r="1.3"></circle><circle cx="8.5" cy="13" r="1.3"></circle></g></svg>`;
+
+export const trash = (o: IconOptions = {}) =>
+  svg(
+    `<path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13"></path>`,
+    { color: "#B08070", ...o },
+    'stroke-linecap="round"',
+  );
+
+/** The layers and locate buttons on the map. */
+export const layers = (o: IconOptions = {}) =>
+  svg(
+    `<polygon points="12 2 22 8.5 12 15 2 8.5 12 2"></polygon><polyline points="2 15.5 12 22 22 15.5"></polyline>`,
+    { width: 1.9, ...o },
+    'stroke-linejoin="round"',
+  );
+
+export const locate = ({ size = 18, color = "#6B645B" }: IconOptions = {}) =>
+  `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.9"><circle cx="12" cy="12" r="7"></circle><circle cx="12" cy="12" r="2" fill="${color}" stroke="none"></circle><path d="M12 1v3M12 20v3M1 12h3M20 12h3" stroke-linecap="round"></path></svg>`;

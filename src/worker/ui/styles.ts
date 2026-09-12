@@ -1,0 +1,343 @@
+import { COLOR as C, FRAME, SANS, SERIF } from "./tokens.ts";
+
+/**
+ * The stylesheet, transcribed from `design/*.dc.html`.
+ *
+ * The artboards hold their styles inline on each element. Collecting them into
+ * classes here is the only liberty taken: the values themselves are copied,
+ * including the ones that look odd on their own — 13.5px row titles, 10.5px
+ * secondary lines, a 1.5px field border — because those are what the design
+ * actually specifies.
+ */
+export function styles(): string {
+  return `
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: ${C.map};
+  color: ${C.ink};
+  font-family: ${SANS};
+  display: flex; align-items: center; justify-content: center; min-height: 100vh;
+}
+a { color: ${C.link}; text-decoration: none; }
+button { font-family: ${SANS}; cursor: pointer; }
+[hidden] { display: none !important; }
+
+/* Every phone artboard is 375x667 and clips. On a real phone it fills. */
+#frame {
+  position: relative; width: ${FRAME.width}px; height: ${FRAME.height}px;
+  overflow: hidden; background: ${C.paper};
+}
+@media (max-width: 420px), (max-height: 700px) {
+  body { display: block; }
+  #frame { width: 100vw; height: 100dvh; }
+}
+
+.screen { position: absolute; inset: 0; display: flex; flex-direction: column; background: ${C.paper}; }
+.serif { font-family: ${SERIF}; font-weight: 500; }
+
+/* ---- Trips (design/Trips.dc.html) ---- */
+.trips-bar { display: flex; align-items: center; gap: 12px; height: 52px; padding: 0 16px; flex-shrink: 0; }
+.trips-title { font-family: ${SERIF}; font-size: 21px; font-weight: 500; flex-grow: 1; }
+.me-avatar {
+  width: 32px; height: 32px; border-radius: 50%; border: 1px solid ${C.border};
+  background: ${C.accent}; color: #FFF9F0; font-size: 12px; font-weight: 700; padding: 0;
+}
+.trips-scroll { flex-grow: 1; overflow-y: auto; padding-bottom: 76px; }
+.section-label {
+  padding: 0 16px 6px; font-size: 10px; font-weight: 700;
+  letter-spacing: 0.1em; color: ${C.greyer};
+}
+.section-label.spaced { padding-top: 10px; }
+
+.trip-card {
+  margin: 0 14px 12px; border-radius: 16px; border: 1.5px solid #C6DBC2;
+  background: ${C.card}; overflow: hidden; width: calc(100% - 28px);
+  padding: 0; text-align: left; display: block; color: inherit; font: inherit;
+}
+.trip-card-map { height: 62px; background: #E9F1E6; position: relative; overflow: hidden; }
+.trip-card-day {
+  position: absolute; right: 12px; top: 11px; font-size: 9.5px; font-weight: 700;
+  letter-spacing: 0.07em; color: ${C.todayInk}; background: rgba(255,252,246,0.92);
+  border-radius: 5px; padding: 3px 7px;
+}
+.trip-card-body { padding: 11px 13px 13px; }
+.trip-card-name { font-family: ${SERIF}; font-size: 17px; font-weight: 500; }
+.trip-card-sub { font-size: 11.5px; color: ${C.grey}; margin-top: 3px; }
+.trip-card-foot { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.trip-card-count { font-size: 11px; color: ${C.grey}; font-variant-numeric: tabular-nums; }
+.progress { height: 5px; border-radius: 3px; background: #EFE6D6; margin-top: 8px; overflow: hidden; }
+.progress > div { height: 100%; background: ${C.today}; }
+
+.trip-row {
+  margin: 0 14px 10px; border-radius: 14px; border: 1px solid ${C.borderWarm};
+  background: ${C.card}; padding: 10px 13px; display: flex; align-items: center; gap: 11px;
+  width: calc(100% - 28px); text-align: left; color: inherit; font: inherit;
+}
+.trip-row.past { border-color: ${C.line}; background: transparent; opacity: 0.7; padding: 9px 13px; }
+.date-tile {
+  width: 42px; height: 42px; border-radius: 11px; background: ${C.yellowTile};
+  display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.date-tile.past { width: 38px; height: 38px; background: ${C.greyTile}; }
+.date-tile .m { font-size: 8.5px; font-weight: 700; color: ${C.aheadInk}; letter-spacing: 0.06em; }
+.date-tile .d { font-size: 14px; font-weight: 700; color: #6B5426; line-height: 1; }
+.date-tile.past .m { font-size: 8px; color: ${C.greyer}; }
+.date-tile.past .d { font-size: 13px; color: #8C8479; }
+.trip-row-text { display: flex; flex-direction: column; gap: 2px; flex-grow: 1; min-width: 0; }
+.trip-row-name { font-size: 14.5px; font-weight: 600; }
+.trip-row.past .trip-row-name { font-size: 13.5px; font-weight: 500; color: ${C.inkSoft}; }
+.trip-row-sub { font-size: 11px; color: ${C.grey}; }
+.trip-row.past .trip-row-sub { font-size: 10.5px; color: ${C.greyer}; }
+
+.avatars { display: flex; }
+.avatars > span {
+  width: 24px; height: 24px; border-radius: 50%; color: #FFF9F0; font-size: 9px;
+  font-weight: 700; display: flex; align-items: center; justify-content: center;
+  border: 2px solid ${C.card};
+}
+.avatars > span + span { margin-left: -8px; }
+.avatars.small > span { width: 22px; height: 22px; font-size: 8.5px; margin-left: 0; }
+.avatars.small > span + span { margin-left: -7px; }
+
+.trips-foot {
+  position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 14px 18px;
+  background: linear-gradient(to top, ${C.paper} 68%, rgba(251,246,238,0));
+}
+.btn-dark {
+  width: 100%; height: 40px; border-radius: 10px; border: none; background: ${C.ink};
+  color: ${C.paper}; font-size: 14px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.btn-dark:disabled { opacity: 0.4; }
+
+/* ---- New trip (design/NewTrip.dc.html) ---- */
+.top-bar { display: flex; align-items: center; gap: 10px; height: 48px; flex-shrink: 0; padding: 0 12px; }
+.icon-btn {
+  width: 30px; height: 30px; border-radius: 9px; border: 1px solid ${C.border};
+  background: ${C.card}; display: flex; align-items: center; justify-content: center; padding: 0;
+}
+.top-bar-title { font-family: ${SERIF}; font-size: 17px; font-weight: 500; flex-grow: 1; }
+.ask { font-family: ${SERIF}; font-size: 23px; font-weight: 500; line-height: 1.15; margin-bottom: 11px; }
+.ask.small { font-size: 17px; margin-bottom: 0; }
+.underlined { border-bottom: 1.5px solid ${C.ink}; padding-bottom: 9px; }
+.underlined input {
+  width: 100%; border: 0; background: transparent; padding: 0; outline: none;
+  font-family: ${SANS}; font-size: 16px; font-weight: 500; color: ${C.ink};
+  caret-color: ${C.accent};
+}
+.underlined input::placeholder { color: ${C.faint}; }
+
+.cal { display: grid; grid-template-columns: repeat(7, 1fr); }
+.dw { height: 22px; display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 700; color: ${C.greyer}; }
+.cal button {
+  height: 34px; display: flex; align-items: center; justify-content: center;
+  font-size: 13px; color: #4A443C; font-variant-numeric: tabular-nums;
+  background: transparent; border: 0; padding: 0; font-family: ${SANS};
+}
+.cal button.off { color: #CFC6B8; pointer-events: none; }
+.cal button.in { background: #F3EAD8; }
+.cal button.s { background: #F3EAD8; border-radius: 999px 0 0 999px; }
+.cal button.e { background: #F3EAD8; border-radius: 0 999px 999px 0; }
+.cal button.s.e { border-radius: 999px; }
+.cal .cap {
+  width: 28px; height: 28px; border-radius: 50%; background: ${C.ink}; color: ${C.paper};
+  font-weight: 700; display: flex; align-items: center; justify-content: center;
+}
+.month-name { font-size: 13px; font-weight: 700; padding: 16px 4px 2px; }
+.new-trip-foot {
+  flex-shrink: 0; border-top: 1px solid ${C.sheetEdge}; background: ${C.paper}; padding: 12px 14px 16px;
+}
+.range-line { display: flex; align-items: center; gap: 9px; margin-bottom: 16px; }
+.range-line .r { font-size: 14px; font-weight: 600; flex-grow: 1; }
+.range-line .n { font-size: 12px; color: ${C.grey}; }
+
+/* ---- Trip: top bar, map, sheet (design/Main.dc.html, EmptyTrip.dc.html) ---- */
+.trip-bar {
+  position: absolute; top: 0; left: 0; right: 0; height: 50px; z-index: 30;
+  display: flex; align-items: center; gap: 9px; padding: 0 12px;
+  background: ${C.paper}; border-bottom: 1px solid ${C.border};
+}
+.trip-bar-text { display: flex; flex-direction: column; gap: 1px; flex-grow: 1; min-width: 0; }
+.trip-bar-name {
+  font-family: ${SERIF}; font-size: 17px; font-weight: 500; letter-spacing: -0.01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.trip-bar-sub { font-size: 10.5px; color: #8C8479; letter-spacing: 0.01em; }
+.trip-bar .avatars > span { border-color: ${C.paper}; font-size: 10.5px; font-weight: 600; }
+.round-btn {
+  width: 28px; height: 28px; flex-shrink: 0; border-radius: 50%; border: 1px solid ${C.borderWarm};
+  background: ${C.card}; display: flex; align-items: center; justify-content: center; padding: 0;
+}
+.map { position: absolute; top: 50px; left: 0; right: 0; bottom: 0; background: ${C.map}; overflow: hidden; }
+.map-chip {
+  position: absolute; left: 10px; top: 10px; display: flex; align-items: center; gap: 8px;
+  background: rgba(255,252,246,0.94); border: 1px solid ${C.borderWarm}; border-radius: 999px;
+  padding: 5px 10px 5px 9px; box-shadow: 0 1px 3px rgba(80,66,44,0.08);
+}
+.map-chip .k { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; }
+.map-chip .k i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.map-chip .empty { font-size: 10.5px; color: ${C.grey}; }
+.map-controls { position: absolute; right: 10px; top: 10px; display: flex; flex-direction: column; gap: 7px; }
+.map-controls button {
+  width: 34px; height: 34px; border-radius: 10px; border: 1px solid ${C.borderWarm};
+  background: ${C.card}; box-shadow: 0 1px 3px rgba(80,66,44,0.10);
+  display: flex; align-items: center; justify-content: center; padding: 0;
+}
+.pin { position: absolute; transform: translate(-50%, -100%); }
+.pin > i {
+  display: block; border-radius: 50%; border: 2.5px solid ${C.card};
+  box-shadow: 0 2px 6px rgba(70,58,40,0.22);
+}
+
+.sheet {
+  position: absolute; left: 0; right: 0; bottom: 0; background: ${C.paper};
+  border-radius: 20px 20px 0 0; box-shadow: 0 -6px 24px rgba(84,68,44,0.16);
+  display: flex; flex-direction: column; z-index: 20; border-top: 1px solid ${C.sheetEdge};
+}
+.grabber { padding: 7px 0 4px; display: flex; justify-content: center; flex-shrink: 0; cursor: grab; }
+.grabber > i { width: 38px; height: 4px; border-radius: 3px; background: #DCD1BD; display: block; }
+.sheet-scroll { flex-grow: 1; overflow-y: auto; padding: 0 0 16px; }
+
+.day-head {
+  display: flex; align-items: center; gap: 9px; padding: 0 14px; height: 40px;
+  width: 100%; background: transparent; border: 0; text-align: left; font-family: ${SANS};
+}
+.day-head.open { background: ${C.highlight}; }
+.day-hue { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; opacity: 0.45; }
+.day-head.open .day-hue { opacity: 1; }
+.day-head-text { display: flex; flex-direction: column; flex-grow: 1; min-width: 0; }
+.day-head-top { display: flex; align-items: baseline; gap: 7px; }
+.day-label { font-size: 12.5px; font-weight: 500; color: ${C.inkSoft}; }
+.day-head.open .day-label { font-weight: 700; color: ${C.ink}; }
+.today-tag {
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.07em; color: ${C.todayInk};
+  background: ${C.greenTile}; border-radius: 4px; padding: 2px 5px;
+}
+.day-place { font-size: 10px; color: ${C.greyer}; }
+.day-progress { font-size: 10px; color: ${C.greyer}; font-variant-numeric: tabular-nums; }
+.day-wrap { border-bottom: 1px solid ${C.line}; }
+.day-wrap.open { border-bottom-color: ${C.sheetEdge}; }
+.day-body { padding: 0 0 8px; }
+
+.stop { margin: 0 9px 3px; border-radius: 10px; background: transparent; border: 1px solid transparent; }
+.stop.selected { background: ${C.card}; border-color: ${C.borderWarm}; }
+.stop-row {
+  display: flex; align-items: center; gap: 8px; height: 42px; padding: 0 10px 0 6px;
+  width: 100%; background: transparent; border: 0; text-align: left; font-family: ${SANS};
+}
+.stop-time { font-size: 11px; font-weight: 600; width: 36px; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.stop-text { display: flex; flex-direction: column; flex-grow: 1; min-width: 0; }
+.stop-name {
+  font-size: 12.5px; font-weight: 500; color: ${C.ink};
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.stop.done .stop-name { text-decoration: line-through; color: ${C.greyer}; }
+.stop-meta {
+  font-size: 9.5px; color: ${C.meta};
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.stop-meta:empty { display: none; }
+.stop-author {
+  width: 17px; height: 17px; border-radius: 50%; color: #FFF9F0; font-size: 7.5px;
+  font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.stop.done .stop-author { opacity: 0.45; }
+.stop-dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid; flex-shrink: 0; }
+
+.stop-actions { padding: 0 7px 7px 36px; position: relative; }
+.stop-note { display: flex; gap: 6px; padding-bottom: 7px; }
+.stop-note > i { width: 2px; border-radius: 2px; background: #E0D5BF; flex-shrink: 0; }
+.stop-note > span { font-size: 10.5px; color: #736C62; line-height: 1.4; }
+.action-row { display: flex; gap: 6px; }
+.action {
+  flex-grow: 1; flex-basis: 0; min-width: 0; height: 30px; border-radius: 8px;
+  border: 1px solid ${C.border}; background: ${C.card}; color: ${C.inkSoft};
+  font-size: 11px; font-weight: 600; display: flex; align-items: center;
+  justify-content: center; gap: 4px; padding: 0;
+}
+.action.dark { border: none; background: ${C.ink}; color: ${C.paper}; }
+.action.on { background: ${C.greenTile}; border-color: #BFD4BB; color: ${C.todayInk}; }
+.action.kebab { width: 34px; flex-grow: 0; flex-basis: auto; flex-shrink: 0; }
+.add-stop {
+  margin: 3px 9px 2px; width: calc(100% - 18px); height: 22px; border-radius: 8px;
+  border: none; background: ${C.line}; display: flex; align-items: center;
+  justify-content: center; padding: 0;
+}
+
+.empty-state { padding: 22px 20px 16px; text-align: center; }
+.empty-state h3 { font-family: ${SERIF}; font-size: 17px; font-weight: 500; margin: 0; }
+.empty-state p { font-size: 11.5px; color: ${C.grey}; line-height: 1.5; margin: 5px 0 0; }
+.empty-actions { display: flex; gap: 7px; margin-top: 15px; }
+.empty-actions button {
+  flex-grow: 1; height: 38px; border-radius: 10px; font-size: 12.5px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.empty-actions .primary { border: none; background: ${C.ink}; color: ${C.paper}; }
+.empty-actions .secondary { border: 1px solid ${C.border}; background: ${C.card}; color: ${C.inkSoft}; }
+
+/* ---- Place search (design/PlaceSearch.dc.html) ---- */
+.search-head { padding: 6px 13px 8px; flex-shrink: 0; }
+.search-field {
+  height: 40px; border-radius: 10px; border: 1.5px solid ${C.ink}; background: ${C.card};
+  display: flex; align-items: center; gap: 10px; padding: 0 13px;
+}
+.search-field input {
+  flex-grow: 1; border: 0; background: transparent; outline: none; padding: 0;
+  font-family: ${SANS}; font-size: 14px; font-weight: 500; color: ${C.ink};
+  caret-color: ${C.accent}; min-width: 0;
+}
+.search-field input::placeholder { color: ${C.faint}; font-weight: 400; }
+.search-field .clear { background: none; border: 0; padding: 0; display: flex; }
+.chips { display: flex; align-items: center; gap: 7px; margin-top: 10px; min-width: 0; }
+.chip {
+  display: flex; align-items: center; gap: 6px; height: 28px; border-radius: 999px;
+  background: ${C.highlight}; border: 1px solid ${C.borderWarm}; padding: 0 11px;
+  font-size: 11px; font-weight: 600; color: ${C.inkSoft}; font-family: ${SANS};
+  /* One line, always. A wrapped chip is 28px twice over and breaks the row. */
+  white-space: nowrap; min-width: 0;
+}
+.chip > span { overflow: hidden; text-overflow: ellipsis; }
+.chip.plain { background: transparent; border-color: ${C.border}; color: ${C.grey}; flex-shrink: 0; }
+.chip-link {
+  font-size: 11px; font-weight: 600; color: ${C.link}; background: none;
+  border: 0; padding: 0; font-family: ${SANS}; white-space: nowrap; flex-shrink: 0;
+}
+.chip-link[aria-pressed="true"] { text-decoration: underline; }
+.results { flex-grow: 1; overflow-y: auto; }
+
+.result {
+  display: flex; align-items: center; gap: 11px; padding: 0 16px; height: 52px;
+  border-top: 1px solid ${C.line}; width: 100%; background: transparent;
+  border-left: 0; border-right: 0; border-bottom: 0; text-align: left; font-family: ${SANS};
+}
+.result.on-trip { background: ${C.highlight}; }
+.result.far { height: 50px; opacity: 0.65; }
+.result-tile {
+  width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center;
+  justify-content: center; flex-shrink: 0; background: ${C.greenTile};
+}
+.result-tile.yellow { background: ${C.yellowTile}; }
+.result-tile.grey { background: ${C.greyTile}; }
+.result-text { display: flex; flex-direction: column; gap: 2px; flex-grow: 1; min-width: 0; }
+.result-name {
+  font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.result.far .result-name { font-size: 13px; font-weight: 500; color: ${C.inkSoft}; }
+.result-meta { font-size: 10.5px; color: ${C.grey}; }
+.result.on-trip .result-meta { color: ${C.aheadInk}; }
+.result.far .result-meta { color: #A8A093; }
+.result-add {
+  width: 32px; height: 32px; border-radius: 9px; border: 1px solid ${C.border};
+  background: ${C.card}; display: flex; align-items: center; justify-content: center;
+  padding: 0; flex-shrink: 0;
+}
+.result-tag { font-size: 11px; font-weight: 600; color: ${C.grey}; flex-shrink: 0; }
+.result-hint { padding: 14px 16px; font-size: 11.5px; color: ${C.grey}; }
+
+/* A quiet inline error, in the terracotta the palette already uses. */
+.err { padding: 10px 16px; font-size: 11.5px; color: ${C.link}; }
+`;
+}

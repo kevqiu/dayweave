@@ -16,17 +16,23 @@ import type { Bias, LatLng } from "./geo.ts";
 const BASE = "https://places.googleapis.com/v1";
 
 /** Place Details requires a field mask; asking for less costs less. */
-const DETAILS_FIELDS = [
+const PLACE_FIELDS = [
   "id",
   "displayName",
   "formattedAddress",
   "shortFormattedAddress",
   "location",
+  "rating",
   "primaryType",
   "primaryTypeDisplayName",
   "addressComponents",
   "googleMapsUri",
-].join(",");
+];
+
+const DETAILS_FIELDS = PLACE_FIELDS.join(",");
+
+/** The same fields, spelled the way Text Search wants them. */
+const SEARCH_FIELDS = PLACE_FIELDS.map((f) => `places.${f}`).join(",");
 
 export interface PlacesConfig {
   apiKey: string;
@@ -65,6 +71,8 @@ export interface PlaceDetails {
   countryCode: string | null;
   /** Already shortened to the form section 4c wants: `ramen`, not `Ramen Restaurant`. */
   category: string | null;
+  /** Google's star rating, which the search rows show. Null when unrated. */
+  rating: number | null;
   mapsUrl: string | null;
 }
 
@@ -146,6 +154,64 @@ export async function autocomplete(
     .filter((s): s is Suggestion => s !== null);
 }
 
+/**
+ * Text Search (New).
+ *
+ * This is what the Add a place screen actually runs on, and the artboard is
+ * why: `design/PlaceSearch.dc.html` shows a list of results carrying a
+ * category, a rating and a distance. Autocomplete returns none of those — it
+ * returns completions — so a screen built on it could not be drawn. PLAN.md
+ * section 4b names Text Search for exactly this case, "where you want a list
+ * rather than a completion".
+ *
+ * One call returns everything needed to show the row *and* to write the place,
+ * so picking one costs nothing further. Autocomplete and Place Details are
+ * still here, still session-token paired, for a completion field that wants
+ * the cheaper per-session billing.
+ */
+export async function textSearch(
+  config: PlacesConfig,
+  input: { query: string; bias?: Bias | null; languageCode?: string; maxResults?: number },
+): Promise<PlaceDetails[]> {
+  const body: Record<string, unknown> = {
+    textQuery: input.query,
+    maxResultCount: Math.min(20, Math.max(1, input.maxResults ?? 10)),
+  };
+  if (input.languageCode) body.languageCode = input.languageCode;
+
+  if (input.bias) {
+    // Bias, never restriction: a Hakone teahouse has to stay findable from
+    // Fukuoka. Distant results come back and are dimmed instead.
+    body.locationBias = {
+      circle: {
+        center: { latitude: input.bias.center.lat, longitude: input.bias.center.lng },
+        radius: input.bias.radius,
+      },
+    };
+  }
+
+  const response = await fetch(`${BASE}/places:searchText`, {
+    method: "POST",
+    headers: headers(config, { "X-Goog-FieldMask": SEARCH_FIELDS }),
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw new PlacesError(response.status, await readError(response));
+  }
+
+  const payload = (await response.json()) as { places?: DetailsResponse[] };
+  return (payload.places ?? []).flatMap((place) => {
+    try {
+      return [toDetails(place)];
+    } catch {
+      // A result with no id or no location cannot become a stop, so drop it
+      // rather than failing the whole search.
+      return [];
+    }
+  });
+}
+
 export async function placeDetails(
   config: PlacesConfig,
   placeId: string,
@@ -196,6 +262,7 @@ interface DetailsResponse {
   formattedAddress?: string;
   shortFormattedAddress?: string;
   location?: { latitude?: number; longitude?: number };
+  rating?: number;
   primaryType?: string;
   primaryTypeDisplayName?: { text?: string };
   addressComponents?: AddressComponent[];
@@ -236,6 +303,7 @@ function toDetails(place: DetailsResponse): PlaceDetails {
     city: cityFrom(components),
     countryCode: countryFrom(components),
     category: shortCategory(place.primaryTypeDisplayName?.text, place.primaryType),
+    rating: typeof place.rating === "number" ? place.rating : null,
     mapsUrl: place.googleMapsUri ?? null,
   };
 }
