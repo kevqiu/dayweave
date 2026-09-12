@@ -183,14 +183,22 @@ offered a second time.
 **Setup**: Google as the only social provider, sessions in a cookie with the lookup in KV, Better
 Auth's tables in D1 alongside ours through Drizzle.
 
-**Roles are ours, not the library's.** Better Auth ships an organization plugin, but a trip is not an
-org: people belong to several trips at different levels and there is no tenant above them. So
-`trip_members(trip_id, user_id, role)` stays hand-rolled and every API call checks it.
+**There are no roles.** Inviting someone to a trip means you want them editing it, so membership
+itself is the permission: if you are in `trip_members`, you can change anything. Better Auth's
+organization plugin is not used either, since a trip is not an org. This can grow a role column
+later without moving any data.
 
-**Invites** are a signed token emailed to an address, valid 7 days, carrying the trip and the role.
-Accepting while signed out sends you through Google first and then straight into the trip. The
-Members artboard shows both sides of this, including a view-only share link for people who should
-not have to make an account at all.
+`trips.owner_id` survives as a record of who started the trip, not as a permission. The one thing it
+should gate eventually is deleting the whole trip.
+
+**Invites** are a signed token emailed to an address, carrying just the trip. **They do not expire**
+— an invite to a trip in eight months is a normal thing to send, and an expiry would turn that into
+a support problem. Accepting while signed out sends you through Google first and then straight into
+the trip. Revoking is an explicit action, which is the honest version of what an expiry was
+pretending to do.
+
+**The view-only link is not a role.** It is an unauthenticated read of one trip, for someone who
+should not have to make an account to look at the map. It never writes.
 
 ### Drive
 
@@ -233,7 +241,7 @@ everyone on the trip regardless of their mail provider.
 
 - Client connects over WebSocket, gets a snapshot plus the current sequence number.
 - Every change is an **op**: `{type, entity, id, patch, actorId, clientSeq}`.
-- The DO validates against membership role, assigns `seq`, writes to D1, broadcasts.
+- The DO checks the actor is a member, assigns `seq`, writes to D1, broadcasts.
 - Clients apply optimistically, then reconcile against the authoritative op.
 - Conflict rule is per field, last writer wins, **except ordering**.
 
@@ -242,7 +250,10 @@ a stop between two others you generate a key between their keys. Two people reor
 produce different keys rather than fighting over the same integer, and nothing has to be renumbered.
 This is also what makes offline reorder work.
 
-Presence (who is looking, whose cursor is where) lives only in DO memory and is never persisted.
+**Presence is out of the MVP.** Live cursors on a shared map look impressive and are a lot of work
+for something two people planning a trip will rarely see at the same moment. What ships instead is
+the cheap 90%: changes arrive live, and a stop shows who added it. When presence does come, it lives
+only in DO memory and is never persisted.
 
 ---
 
@@ -264,6 +275,15 @@ cluster readable — dimming, not hue.
 at a glance but makes "what have I done today" harder, and today is what you look at while
 travelling.
 
+**Day hues are a ramp, not a wheel.** Day 1 is a deep green and the last day is a pale yellow,
+travelling through olive, orange and yellow on the way. A trip is a sequence, so the hues should
+encode a sequence: further down the ramp means further away in time, readable without a legend.
+A rainbow of arbitrary hues said nothing. The ramp also sits in the same family as the status
+colours, so the map does not fight itself.
+
+People get their own small palette that is deliberately outside the ramp, so an avatar never reads
+as a day.
+
 Palette, warm and low-saturation throughout:
 
 ```
@@ -271,7 +291,8 @@ paper    #FBF6EE     ink      #33302B     line     #E9DFCE
 surface  #FFFCF6     ink-2    #8C8479     surface-2 #F6EFE2
 today    #6F9A6B on #E4EEE1        ahead  #E0B355 on #F8EECF
 done     #BDB4A7 on #EFE9DF
-day hues #C4826A #B98F4E #8E9A57 #6E9A78 #5E9694 #6E8CA8 #8A83AE #A87A93 #B07A6E #94897A
+day ramp #3F6B4A #57794C #70864D #8C8C4C #AD8A49 #CE8845 #D79C4D #E0B054 #E6C168 #EBCE87 #F0DCA6
+avatars  #C4826A #6E8CA8 #8A83AE #A87A93        (people, deliberately off the day ramp)
 ```
 
 Type: **Newsreader** for headings, a warm literary serif. **Figtree** for UI, rounded and friendly
@@ -309,10 +330,12 @@ verification     id, identifier, value, expires_at
 
 -- ours
 trips            id, name, slug, start_date, end_date, timezone, owner_id, cover_color
-trip_members     trip_id, user_id, role            -- owner | editor | viewer
-trip_invites     id, trip_id, email, token_hash, role, expires_at, invited_by, accepted_at
-trip_share_links id, trip_id, token_hash, role, revoked_at
-                 -- the view-only link, so someone can look without an account
+trip_members     trip_id, user_id, joined_at
+                 -- membership IS the permission. no role column in v1
+trip_invites     id, trip_id, email, token_hash, invited_by, accepted_at, revoked_at
+                 -- no expiry. revoking is explicit
+trip_share_links id, trip_id, token_hash, revoked_at
+                 -- read-only, unauthenticated. not a role, a separate door
 
 days             id, trip_id, date, label, place_label, hue
                  -- place_label is "Fukuoka" or "Fukuoka -> Kagoshima", set by hand in the Planner
@@ -364,10 +387,11 @@ makes dragging onto a day a single field update and keeps drag-back-off free.
 | Places in | **Google My Maps**, KML endpoint, hourly sync | §3 |
 | Spreadsheet | **Replaced** by the Planner grid. No import, no export in v1 | §4 |
 | Place search | **Places API (New)**, `locationBias` circle centred on the open day | §4b |
-| Auth | **Better Auth** on D1, Google only, roles hand-rolled | §5 |
+| Auth | **Better Auth** on D1, Google only, no roles, invites never expire | §5 |
 | Drive | Plumbed but unused in v1. `drive.file`, asked incrementally | §5 |
 | Flights | **Out of v1.** Hand-entered in the Planner travel row | §5b |
-| Colour | **Status on the pins**, day as a dot and as dimming | §7 |
+| Colour | **Status on the pins**, day as a dot on a green-to-yellow ramp | §7 |
+| Presence | Live cursors **out of v1**. Live changes stay in | §6 |
 
 ## 11. Still open
 

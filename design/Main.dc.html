@@ -184,8 +184,8 @@
                 </div>
               </sc-for>
 
-              <button style="margin: 2px 10px 0; width: calc(100% - 20px); height: 22px; border-radius: 7px; border: none; background: transparent; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#BDB4A7" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+              <button style="margin: 4px 10px 2px; width: calc(100% - 20px); height: 24px; border-radius: 8px; border: none; background: #F1E9DA; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9A9184" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
               </button>
             </div>
           </sc-if>
@@ -202,12 +202,12 @@
 class Component extends DCLogic {
   data() {
     return [
-      { id: 'd1', label: 'Wed Oct 1', place: 'Fukuoka', hue: '#C4826A', state: 'past',
+      { id: 'd1', label: 'Wed Oct 1', place: 'Fukuoka', hue: '#3F6B4A', state: 'past',
         nodes: [
           { id: 'n11', time: '15:00', name: 'Fly to Fukuoka', meta: 'flight · NH 3151', x: 60, y: 90, note: 'From Haneda. Auto-imported from Gmail.', by: 'Kevin added this', author: 'KQ' },
           { id: 'n12', time: '19:30', name: 'Uoden Hakata Seafood', meta: 'izakaya · 4 min walk', x: 140, y: 150, note: 'Reservation under Kevin, 2 people.', by: 'Kevin added this', author: 'KQ' }
         ] },
-      { id: 'd2', label: 'Fri Oct 2', place: 'Fukuoka', hue: '#B98F4E', state: 'today',
+      { id: 'd2', label: 'Fri Oct 2', place: 'Fukuoka', hue: '#57794C', state: 'today',
         nodes: [
           { id: 'n21', time: '10:00', name: 'Kanetora Rich Soup Ramen', meta: 'ramen · opens 10:00', x: 118, y: 214, note: 'Tonkotsu, small counter. Cash only, queue before 11.', by: 'Kevin added this', author: 'KQ' },
           { id: 'n22', time: '12:30', name: 'Ohori Park', meta: 'park · 12 min walk', x: 252, y: 168, note: 'Loop the pond, teahouse on the east side.', by: 'Mika added this', author: 'MT' },
@@ -215,13 +215,13 @@ class Component extends DCLogic {
           { id: 'n24', time: '16:00', name: 'Canal City Hakata', meta: 'shopping · 8 min walk', x: 236, y: 288, note: '', by: 'Mika added this', author: 'MT' },
           { id: 'n25', time: '19:30', name: 'Sushi Zaisho', meta: 'sushi · reservation', x: 196, y: 356, note: 'Omakase, 8 seats. Arrive 10 minutes early.', by: 'Kevin added this', author: 'KQ' }
         ] },
-      { id: 'd3', label: 'Sat Oct 3', place: 'Fukuoka', hue: '#8E9A57', state: 'future',
+      { id: 'd3', label: 'Sat Oct 3', place: 'Fukuoka', hue: '#70864D', state: 'future',
         nodes: [
           { id: 'n31', time: '10:30', name: 'Menya Ishii', meta: 'ramen', x: 90, y: 260, note: '', by: 'Kevin added this', author: 'KQ' },
           { id: 'n32', time: '11:30', name: 'Ainoshima ferry', meta: 'ferry departs 11:30', x: 300, y: 120, note: 'Cat island. Ferry back at 13:50, there is no later one.', by: 'Kevin added this', author: 'KQ' },
           { id: 'n33', time: '19:00', name: 'Yakiniku at the night market', meta: 'street food', x: 180, y: 330, note: '', by: 'Mika added this', author: 'MT' }
         ] },
-      { id: 'd4', label: 'Sun Oct 4', place: 'Fukuoka to Kagoshima', hue: '#6E9A78', state: 'future',
+      { id: 'd4', label: 'Sun Oct 4', place: 'Fukuoka to Kagoshima', hue: '#8C8C4C', state: 'future',
         nodes: [
           { id: 'n41', time: '10:00', name: 'Ramen at Hakata Station', meta: 'ramen · before train', x: 150, y: 300, note: '', by: 'Kevin added this', author: 'KQ' },
           { id: 'n42', time: '11:00', name: 'Shinkansen to Kagoshima', meta: 'train · 1h 20m', x: 160, y: 320, note: '', by: 'Kevin added this', author: 'KQ' }
