@@ -4,7 +4,8 @@ A shared map of a trip. Stops come in from the places you already saved and the
 spreadsheet you already wrote, get grouped by day, and grey out as you visit them.
 Built to be used one-handed, on a phone, on hotel wifi.
 
-Status: planning. No application code yet. Wireframes are in `design/`.
+Status: building. The Worker, the schema, the My Maps parser and place search (§4b) exist;
+everything else below is still a plan. Wireframes are in `design/`.
 
 ---
 
