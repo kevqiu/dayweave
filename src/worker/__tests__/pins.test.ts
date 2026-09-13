@@ -130,13 +130,15 @@ describe("pinLook", () => {
   });
 
   describe("a bed", () => {
-    it("keeps its green and its roof whatever day is open", () => {
+    it("keeps its green, its roof and its size whatever day is open", () => {
       state.selectedStopId = null;
       for (const open of [true, false]) {
         const look = api.pinLook(today, bed, open, undefined);
         expect(look.fill).toBe(api.PIN.bed);
         expect(look.roof).toBe(true);
         expect(look.number).toBe(null);
+        // Never mini: a bed is exempt from the whole scheme, size included.
+        expect(look.size).toBe(api.PIN.full);
       }
     });
 

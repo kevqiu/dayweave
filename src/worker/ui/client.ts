@@ -137,7 +137,22 @@ window.matchMedia(WIDE).addEventListener("change", () => { if (planning()) rende
 // Rotating a tablet changes how many days fit, so the grid is re-dealt. Never
 // mid-drag: a render would throw away the card under the finger.
 let resizeFrame = null;
+/*
+ * Only a change of density is worth a re-render.
+ *
+ * This used to re-render on any resize at all while the Plan view was up,
+ * which is fine on a desk and wrong on a phone: opening the keyboard resizes
+ * the viewport, so tapping into the search field or the note editor rebuilt
+ * the frame, threw away the input that had just been focused, and shut the
+ * keyboard again. The only thing the Plan view actually needs from a resize is
+ * whether it crossed 780px, so that is the only thing that triggers one.
+ */
+let wasWide = wideNow();
+
 window.addEventListener("resize", () => {
+  const wide = wideNow();
+  if (wide === wasWide) return;
+  wasWide = wide;
   if (!planning() || state.drag) return;
   if (resizeFrame) cancelAnimationFrame(resizeFrame);
   resizeFrame = requestAnimationFrame(() => { resizeFrame = null; render(); });
@@ -632,9 +647,9 @@ const STATUS_RING = { done: "#EFE9DF", now: "#E4EEE1", ahead: "#F8EECF" };
  *   at it — and keeps the ink ring and the extra size it already had.
  */
 const PIN = {
-  full: 22,
-  mini: 12,
-  selected: 28,
+  full: 26,
+  mini: 16,
+  selected: 32,
   /**
    * The one green that never changes. The deepest step of the day ramp, which
    * is also day one's colour, so a hotel reads as part of the same family
@@ -669,7 +684,10 @@ function pinLook(day, stop, open, number) {
   if (stop.accommodation) {
     return {
       fill: PIN.bed,
-      size: selected ? PIN.selected : open ? PIN.full : PIN.mini,
+      // Never shrunk either. A bed is exempt from the whole scheme: it does
+      // not fade for a day being over, it does not fade for something else
+      // being selected, and it does not go mini for being on another day.
+      size: selected ? PIN.selected : PIN.full,
       ring: selected ? "#33302B" : "#FFFCF6",
       opacity: 1,
       roof: true,
@@ -867,6 +885,66 @@ function grabber() {
 
   el.addEventListener("pointerup", end);
   el.addEventListener("pointercancel", end);
+  return el;
+}
+
+/**
+ * The way out of a sheet, and the only one it needs.
+ *
+ * The search view had a labelled "Back to trip" button above its field. It was
+ * put there because PlaceSearch.dc.html draws a bare X inside the field, which
+ * reads as "clear what I typed" as readily as "leave" — a real problem, wrong
+ * answer. The button names the thing behind the sheet, and what is behind it
+ * is the map on one screen and the day grid on another, so it was either
+ * wrong on one of them or vague on both.
+ *
+ * A sheet on iOS does not name what is behind it. It shows a grabber — the
+ * small pill Apple calls exactly that — and you pull it down to put it away,
+ * or tap it. So that is what this is: the same handle the main sheet already
+ * has, doing the same thing. It means "put this away" on any screen, because
+ * it refers to the card and not to whatever it is covering.
+ *
+ * A pull that does not get far enough springs back, which is how a person
+ * finds out the gesture exists without losing anything.
+ */
+const DISMISS_PULL = 90;
+
+function dismissGrabber(sheetId, close) {
+  const el = h("div", { class: "grabber" }, [h("i", {}, [])]);
+
+  el.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    const sheet = $(sheetId);
+    if (!sheet) return;
+
+    const startY = event.clientY;
+    let moved = 0;
+    let down = 0;
+    sheet.classList.add("dragging");
+
+    // On the window, not on the handle: a gesture that ends a few pixels
+    // outside the pill it started on is still that gesture.
+    const move = (e) => {
+      const delta = e.clientY - startY;
+      moved = Math.max(moved, Math.abs(delta));
+      down = Math.max(0, delta);
+      sheet.style.transform = "translateY(" + down + "px)";
+    };
+
+    const end = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+      sheet.classList.remove("dragging");
+      sheet.style.transform = "";
+      if (moved < 6 || down > DISMISS_PULL) close();
+    };
+
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+  });
+
   return el;
 }
 
@@ -1448,12 +1526,34 @@ function dragHandle(day, stop) {
     // The row underneath is a tap target; grabbing the handle is not a tap.
     event.stopPropagation();
 
+    const row = el.closest(".order-row");
+    const rect = row ? row.getBoundingClientRect() : null;
+
     state.drag = {
       stopId: stop.id,
       fromDayId: day.id,
       title: stop.title,
       description: stop.description,
       y: event.clientY,
+      x: event.clientX,
+      /*
+       * Where the card was grabbed, and how wide it was.
+       *
+       * The lifted card used to be pinned to the frame with left: 9 and
+       * right: 9, which is a phone-shaped assumption: in the Planner at a desk
+       * the frame is up to 1440 wide and the card came up the width of the
+       * window. It follows the finger at the size it was picked up at now.
+       */
+      width: null,
+      grabX: 0,
+      /*
+       * Off every drop zone — over the day rail, or past the tray.
+       *
+       * Without this the drag kept whatever day it was last over and the drop
+       * committed to it, which is a move nobody asked for. Letting go out
+       * there puts the card back instead.
+       */
+      outside: false,
       targetDayId: day.id,
       afterStopId: undefined,
       gridTime: undefined,
@@ -1462,6 +1562,10 @@ function dragHandle(day, stop) {
       hoverStart: 0,
       moved: false,
     };
+    if (rect) {
+      state.drag.width = rect.width;
+      state.drag.grabX = event.clientX - rect.left;
+    }
 
     // The listeners go on the window, not on this button, and deliberately so:
     // starting a drag re-renders, which replaces this element and would throw
@@ -1471,6 +1575,7 @@ function dragHandle(day, stop) {
       if (!state.drag) return;
       state.drag.moved = true;
       state.drag.y = e.clientY;
+      state.drag.x = e.clientX;
       resolveDropTarget(e.clientX, e.clientY);
       paintDrag();
     };
@@ -1485,7 +1590,9 @@ function dragHandle(day, stop) {
       const drag = state.drag;
       state.drag = null;
       suppressTap = drag.moved;
-      if (drag.moved) commitDrag(drag);
+      // Let go over the day rail or off the end of the tray and the card goes
+      // back where it came from. A drop has to land on something.
+      if (drag.moved && !drag.outside) commitDrag(drag);
       else render();
     };
 
@@ -1506,6 +1613,8 @@ function resolveDropTarget(x, y) {
   const drag = state.drag;
   const wraps = [...document.querySelectorAll(".drop-zone[data-day-id]")];
 
+  drag.outside = false;
+
   let hit = null;
   for (const wrap of wraps) {
     const rect = wrap.getBoundingClientRect();
@@ -1517,7 +1626,7 @@ function resolveDropTarget(x, y) {
     hit = wrap;
     break;
   }
-  if (!hit) { endHover(); return; }
+  if (!hit) { drag.outside = true; endHover(); return; }
 
   if (hit.dataset.grid) {
     endHover();
@@ -1653,10 +1762,22 @@ function paintDrag() {
   const card = $("lifted");
   if (!drag || !frame || !card) return;
 
-  const top = drag.y - frame.getBoundingClientRect().top - 23;
-  card.style.top = top + "px";
-  card.style.left = "";
-  card.style.width = "";
+  const box = frame.getBoundingClientRect();
+  card.style.top = drag.y - box.top - 23 + "px";
+
+  if (drag.width) {
+    // The size it was picked up at, held under the point it was picked up by.
+    // Clamped to the frame so a card grabbed at its right edge cannot be
+    // dragged off the left of the screen.
+    const left = Math.max(9, Math.min(box.width - drag.width - 9, drag.x - box.left - drag.grabX));
+    card.style.left = left + "px";
+    card.style.right = "auto";
+    card.style.width = drag.width + "px";
+  } else {
+    card.style.left = "";
+    card.style.right = "";
+    card.style.width = "";
+  }
 
   // Two different things can be happening: placing the stop between two rows
   // of a list that is showing, or dropping it on a day that is not. Which one
@@ -1895,8 +2016,8 @@ function sheetNote() {
 
   return [
     h("div", { class: "scrim", onclick: close }, []),
-    h("div", { class: "sheet modal", style: "height:auto" }, [
-      h("div", { class: "grabber", onclick: close }, [h("i", {}, [])]),
+    h("div", { class: "sheet modal", id: "note-sheet", style: "height:auto" }, [
+      dismissGrabber("note-sheet", close),
       h("div", { class: "modal-head" }, [
         h("div", { class: "modal-title", text: target.note ? "Edit note" : "Add a note" }, []),
         h("div", { class: "modal-sub", text: target.name }, []),
@@ -2058,8 +2179,8 @@ function sheetMove() {
 
   return [
     h("div", { class: "scrim", onclick: close }, []),
-    h("div", { class: "sheet modal", style: "max-height:92%" }, [
-      h("div", { class: "grabber", onclick: close }, [h("i", {}, [])]),
+    h("div", { class: "sheet modal", id: "move-sheet", style: "max-height:92%" }, [
+      dismissGrabber("move-sheet", close),
       h("div", { class: "modal-head" }, [
         h("div", { class: "modal-title", text: "Move to another date" }, []),
         h("div", { class: "modal-sub", text: move.stop.name + " · currently " + move.stop.currently }, []),
@@ -2190,14 +2311,9 @@ function sheetSearch() {
   renderResults(results);
 
   return h("div", { class: "sheet", id: "search-sheet", style: "height:529px" }, [
-    h("div", { class: "grabber", onclick: closeSearch }, [h("i", {}, [])]),
+    dismissGrabber("search-sheet", closeSearch),
     h("div", { class: "search-head" }, [
-      // The way out, named. PlaceSearch.dc.html puts a bare X inside the field
-      // instead, which reads as "clear what I typed" as readily as "leave".
-      h("button", { class: "back-to-trip", onclick: closeSearch }, [
-        icon("arrowLeftSoft"),
-        h("span", { text: "Back to trip" }, []),
-      ]),
+      searchTarget(),
       h("div", { class: "search-field" }, [
         icon("search"),
         h("input", {
@@ -2220,6 +2336,29 @@ function sheetSearch() {
       ]),
     ]),
     results,
+  ]);
+}
+
+/**
+ * What this search is adding to, above the field.
+ *
+ * The sheet is opened from four places — a day's plus, a gap in the Planner's
+ * clock, the tray, the empty day — and once it is up they all look the same.
+ * A result added from a gap lands at that gap's time, which is a decision the
+ * screen was making silently. So it says so: "Adding to Sun Sep 13, 14:30".
+ *
+ * It replaces the "Back to trip" button that used to sit here, which named
+ * what was behind the sheet rather than what the sheet was for. The grabber
+ * is the way out now.
+ */
+function searchTarget() {
+  const s = state.search;
+  const day = s.dayId ? dayById(s.dayId) : null;
+  const where = day ? day.label : "To be planned";
+  const when = s.startTime ? ", " + s.startTime : "";
+  return h("div", { class: "search-target" }, [
+    icon(day ? "calendar" : "pinChip"),
+    h("span", { text: "Adding to " + where + when }, []),
   ]);
 }
 
@@ -2575,32 +2714,61 @@ function emptyClock(day) {
   ]);
 }
 
+/**
+ * A row on the day's clock, and it is a card like any other.
+ *
+ * It was not: the sheet's rows open on a tap and show Navigate, Visited, Add
+ * note and the kebab, and these did nothing at all — so a stop reached through
+ * the Plan view could not be noted, ticked off or removed without going back
+ * to the map first. Same tap, same actions, same selection: selectedStopId
+ * is one piece of state and both views read it.
+ *
+ * The row's fixed height comes off while it is open, because the actions have
+ * to go somewhere and the height was sized for a closed row.
+ */
 function planRow(day, stop, row) {
   const done = statusOf(day, stop) === "done";
   const dragging = state.drag && state.drag.stopId === stop.id;
+  const selected = stop.id === state.selectedStopId;
 
   const card = h("div", {
-    class: "plan-row order-row" + (done ? " done" : "") + (dragging ? " ghost" : ""),
+    class: "plan-row order-row" + (done ? " done" : "") + (dragging ? " ghost" : "")
+      + (selected ? " selected" : ""),
     "data-stop-id": stop.id,
-    style: "height:" + row.height + "px",
+    style: selected ? "" : "height:" + row.height + "px",
   }, [
     h("div", { class: "plan-row-top" }, [
       dragHandle(day, stop),
-      h("div", { class: "stop-text" }, [
-        h("span", { class: "plan-name", text: stop.title }, []),
+      h("button", {
+        class: "plan-tap",
+        onclick: () => {
+          // A drag ends on this element too, so the click it produced is not
+          // a tap — the same guard the sheet's rows use.
+          if (suppressTap) { suppressTap = false; return; }
+          state.selectedStopId = selected ? null : stop.id;
+          state.menuOpen = false;
+          render();
+        },
+      }, [
+        h("div", { class: "stop-text" }, [
+          h("span", { class: "plan-name", text: stop.title }, []),
+          h("span", {
+            class: "plan-meta" + (stop.note ? " note" : ""),
+            text: planMeta(stop),
+          }, []),
+        ]),
         h("span", {
-          class: "plan-meta" + (stop.note ? " note" : ""),
-          text: planMeta(stop),
+          class: "plan-author",
+          style: "background:" + stop.authorColor,
+          text: stop.author,
+          title: stop.author + " added this",
         }, []),
       ]),
-      h("span", {
-        class: "plan-author",
-        style: "background:" + stop.authorColor,
-        text: stop.author,
-        title: stop.author + " added this",
-      }, []),
     ]),
-    row.free
+    // The note is already on the row's second line here, so the actions do not
+    // repeat it — that is what the false says.
+    selected && !dragging ? stopActions(stop, done, true) : null,
+    row.free && !selected
       ? h("button", {
           class: "free-slot",
           title: "Plan something into this gap",
@@ -2629,19 +2797,38 @@ function swipeDays(el) {
   let y = 0;
   let live = false;
 
-  el.addEventListener("pointerdown", (e) => {
-    if (state.drag) return;
-    x = e.clientX; y = e.clientY; live = true;
-  });
-  el.addEventListener("pointerup", (e) => {
+  /*
+   * Down on the day, up on the window.
+   *
+   * A swipe that started on the clock and finished a few pixels outside it —
+   * over the tray, over the rail, off the edge of the screen — never fired a
+   * pointerup here at all, so the swipe did nothing. It is the same rule the
+   * drag handle already follows and for the same reason: the element a gesture
+   * starts on is not the element it ends on.
+   */
+  const end = (e) => {
+    window.removeEventListener("pointerup", end);
+    window.removeEventListener("pointercancel", cancel);
     if (!live) return;
     live = false;
     const dx = e.clientX - x;
     const dy = e.clientY - y;
     if (Math.abs(dx) < 55 || Math.abs(dx) < Math.abs(dy) * 1.6) return;
     stepDay(dx < 0 ? 1 : -1);
+  };
+
+  const cancel = () => {
+    window.removeEventListener("pointerup", end);
+    window.removeEventListener("pointercancel", cancel);
+    live = false;
+  };
+
+  el.addEventListener("pointerdown", (e) => {
+    if (state.drag) return;
+    x = e.clientX; y = e.clientY; live = true;
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", cancel);
   });
-  el.addEventListener("pointercancel", () => { live = false; });
 }
 
 /**
@@ -2771,8 +2958,8 @@ function sheetTime() {
 
   return [
     h("div", { class: "scrim", onclick: close }, []),
-    h("div", { class: "sheet modal" }, [
-      h("div", { class: "grabber", onclick: close }, [h("i", {}, [])]),
+    h("div", { class: "sheet modal", id: "time-sheet" }, [
+      dismissGrabber("time-sheet", close),
       h("div", { class: "modal-head" }, [
         h("div", { class: "modal-title", text: "When?" }, []),
         h("div", { class: "modal-sub", text: stop.title }, []),

@@ -298,7 +298,8 @@ To be planned bucket is `#94897A`, which is not on the ramp.
   arithmetic. In short:
 
   - the open day is full size and **numbered**, every other day is a mini dot
-    of its own colour, and a day in the past is mini, grey and at 50%;
+    of its own colour, and a day in the past is mini, grey and at 50%. A bed is
+    exempt from every part of that, size included — it is never mini;
   - selecting a stop pushes the rest of that day to 75% and every other day to
     30%, and leaves the selected pin itself at full strength — dimming the
     thing you just tapped would be an odd way to point at it;

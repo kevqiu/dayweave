@@ -221,6 +221,12 @@ button { font-family: ${SANS}; cursor: pointer; }
 .sheet.stops.full { height: calc(100% - 50px); }
 .sheet.stops.dragging { transition: none; }
 
+/* Pulling a sheet down to put it away, iOS-style: the handle follows the
+   thumb, and a pull that does not get far enough springs back. The transform
+   is only animated on the way back, so the drag itself is not lagged. */
+.sheet { transition: transform 180ms cubic-bezier(0.2, 0.8, 0.3, 1); }
+.sheet.dragging { transition: none; }
+
 /* The header the sheet grows into (design/SheetFull.dc.html). */
 /* SheetFull.dc.html's header row, without its "All stops" title — see the
    note in client.ts. The pill keeps the row's own padding and sits where the
@@ -441,12 +447,16 @@ button { font-family: ${SANS}; cursor: pointer; }
 /* Leaving the search, said in words rather than drawn as an X in the field.
    Matches the Back to trips item in design/TripMenu.dc.html: the same arrow at
    16px and the same 13px label. */
-.back-to-trip {
-  display: flex; align-items: center; gap: 7px; height: 32px; margin: 0 0 8px;
-  background: none; border: 0; padding: 0; font-family: ${SANS};
-  font-size: 13px; font-weight: 600; color: ${C.inkSoft};
+/*
+ * What the search is adding to. Where the "Back to trip" button used to be:
+ * the same place in the sheet, saying what this is for rather than what is
+ * behind it. The grabber above it is the way out.
+ */
+.search-target {
+  display: flex; align-items: center; gap: 6px; padding: 0 4px 8px;
+  font-size: 11.5px; font-weight: 600; color: ${C.grey};
 }
-.back-to-trip:active { color: ${C.ink}; }
+.search-target svg { opacity: 0.75; }
 .search-field {
   height: 40px; border-radius: 10px; border: 1.5px solid ${C.ink}; background: ${C.card};
   display: flex; align-items: center; gap: 10px; padding: 0 13px;
@@ -900,6 +910,16 @@ button { font-family: ${SANS}; cursor: pointer; }
   background: transparent; color: ${C.grey}; font-family: ${SANS}; font-size: 12px;
   font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px;
 }
+
+/* The Plan view's row is a card too: the tap target that opens its actions. */
+.plan-tap {
+  flex-grow: 1; min-width: 0; display: flex; align-items: center; gap: 8px;
+  background: none; border: 0; padding: 0; text-align: left;
+}
+.plan-row.selected {
+  background: ${C.highlight}; border-radius: 12px;
+}
+.plan-row.selected .stop-actions { padding-left: 0; }
 
 /* A quiet inline error, in the terracotta the palette already uses. */
 .err { padding: 10px 16px; font-size: 11.5px; color: ${C.link}; }
