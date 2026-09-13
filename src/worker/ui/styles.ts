@@ -882,5 +882,71 @@ button { font-family: ${SANS}; cursor: pointer; }
 
 /* A quiet inline error, in the terracotta the palette already uses. */
 .err { padding: 10px 16px; font-size: 11.5px; color: ${C.link}; }
+
+/* ---- Sign in (design/SignIn.dc.html) ---- */
+.signin { justify-content: flex-start; }
+.signin-map { height: 272px; flex-shrink: 0; position: relative; background: ${C.mapFill}; }
+.signin-pin {
+  position: absolute; border-radius: 50%; border: 3px solid ${C.paper};
+  transform: translate(-50%, -50%);
+}
+.signin-fade {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 90px;
+  background: linear-gradient(to bottom, rgba(251,246,238,0), ${C.paper});
+}
+.signin-body {
+  flex-grow: 1; display: flex; flex-direction: column; padding: 0 26px 26px;
+}
+/* The heading rides up into the fade, which is where the artboard puts it. */
+.signin-head { margin-top: -16px; }
+.signin-title {
+  font-family: ${SERIF}; font-size: 31px; font-weight: 500;
+  letter-spacing: -0.015em; line-height: 1.12;
+}
+.signin-sub {
+  font-size: 13px; color: #8C8479; line-height: 1.5; margin-top: 11px;
+  max-width: 280px; text-wrap: pretty;
+}
+.signin-google {
+  width: 100%; height: 48px; border-radius: 12px; border: 1px solid ${C.borderWarm};
+  background: ${C.card}; display: flex; align-items: center; justify-content: center;
+  gap: 11px; box-shadow: 0 1px 3px rgba(80,66,44,0.08); padding: 0;
+}
+.signin-google[disabled] { opacity: 0.6; }
+.signin-google span:last-child { font-size: 15px; font-weight: 600; color: ${C.ink}; }
+/*
+ * The G, still a dashed circle.
+ *
+ * PLAN.md section 5 says the mark in the wireframe is a placeholder and that
+ * Google ships the real asset. It is not in the repo, and drawing our own
+ * would be both a worse mark and a breach of their branding terms, so the
+ * artboard's own stand-in is what stays until the asset is here.
+ */
+.signin-g {
+  width: 22px; height: 22px; border-radius: 50%; border: 1.5px dashed #C9BDA6;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: #A59C90;
+}
+.signin-promise {
+  display: flex; align-items: flex-start; gap: 8px; margin-top: 13px;
+}
+.signin-promise svg { flex-shrink: 0; margin-top: 1px; }
+.signin-promise span { font-size: 11.5px; color: ${C.grey}; line-height: 1.5; }
+
+/* The account menu behind the header avatar, in the trip menu's own shape. */
+.me-menu {
+  position: absolute; top: 46px; right: 14px; z-index: 40; min-width: 148px;
+  border-radius: 12px; border: 1px solid ${C.border}; background: ${C.card};
+  box-shadow: 0 10px 24px rgba(80,66,44,0.14); overflow: hidden;
+}
+.me-menu-who {
+  padding: 9px 13px 8px; border-bottom: 1px solid ${C.line};
+  font-size: 11px; color: ${C.grey}; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.me-menu button {
+  display: block; width: 100%; text-align: left; padding: 10px 13px;
+  border: 0; background: none; font-size: 13px; color: ${C.ink};
+}
 `;
 }

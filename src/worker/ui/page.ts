@@ -1,6 +1,6 @@
 import { CLIENT } from "./client.ts";
 import * as icons from "./icons.ts";
-import { cardMap, mapBackground } from "./map.ts";
+import { cardMap, mapBackground, signInMap } from "./map.ts";
 import { lookPinIcon, mapStyle, pinIcon } from "./gmap.ts";
 import { PLAN_CLIENT } from "./plan-client.ts";
 import { styles } from "./styles.ts";
@@ -53,6 +53,8 @@ function iconSet(): Record<string, string> {
     arrowLeftSoft: icons.arrowLeft({ size: 16, color: C.inkSoft, width: 2.2 }),
     pinInk: icons.pinDot({ size: 16, color: C.ink }),
     checkGreen: icons.check({ size: 14, color: C.todayInk }),
+    // SignIn draws it at 14px in #A59C90.
+    shield: icons.shield({ size: 14, color: "#A59C90" }),
   };
 }
 
@@ -61,6 +63,7 @@ export function page(mapsKey = ""): string {
     icons: iconSet(),
     map: mapBackground(),
     cardMap: cardMap(),
+    signInMap: signInMap(),
   };
 
   return `<!doctype html>
@@ -81,7 +84,10 @@ export function page(mapsKey = ""): string {
 window.__ICONS__ = ${JSON.stringify(boot.icons)};
 window.__MAP__ = ${JSON.stringify(boot.map)};
 window.__CARD_MAP__ = ${JSON.stringify(boot.cardMap)};
-// Empty until a browser key is provisioned, and the drawn map stands in.
+window.__SIGNIN_MAP__ = ${JSON.stringify(boot.signInMap)};
+// Provisioned and deployed (INFRA.md item 5). Empty only if the binding is,
+// and then the drawn map stands in — as it also does if the script does not
+// load within 8 seconds.
 window.__MAPS_KEY__ = ${JSON.stringify(mapsKey)};
 window.__MAP_STYLE__ = ${JSON.stringify(mapStyle())};
 window.__PIN__ = ${JSON.stringify({

@@ -12,6 +12,11 @@ import { suggestDays, type CandidateDay } from "../lib/suggest.ts";
 import { formatClock, minutesOf } from "../lib/plan.ts";
 import {
   addPlaceAsStop,
+  adoptDevIdentity,
+  isMember,
+  usersById,
+  initialsForName,
+  type UserRow,
   cityOfDay,
   citiesForTrip,
   createTrip,
@@ -29,54 +34,159 @@ import {
   type DayRow,
   type StopRow,
 } from "./store.ts";
+import { authFor } from "./auth.ts";
 import { page } from "./ui/page.ts";
 import { avatarColor } from "./ui/tokens.ts";
 import type { worker } from "../../alchemy.run.ts";
 
 type Env = typeof worker.Env;
 
-const app = new Hono<{ Bindings: Env }>();
+/** The signed-in person, resolved once per request by the guard below. */
+interface Viewer {
+  id: string;
+  name: string;
+  email: string;
+  image: string | null;
+}
+
+const app = new Hono<{ Bindings: Env; Variables: { viewer: Viewer } }>();
 
 app.get("/health", (c) => c.json({ ok: true }));
 
+/* -------------------------------------------------------------- sign-in */
+
 /**
- * Stands in for Better Auth until PLAN.md section 5 lands.
+ * Better Auth's own routes: sign in, the Google callback, the session, sign
+ * out. PLAN.md section 5, and `src/worker/auth.ts` for the configuration.
  *
- * The schema needs an owner on a trip and an author on a stop, and this gives
- * it one without pretending to be a sign-in: a per-browser id in a cookie, no
- * account, no verification, no sharing.
+ * Mounted before the guard below, because a person who cannot sign in yet is
+ * exactly who these are for.
  */
-const IDENTITY_COOKIE = "yvr_dev_uid";
+app.all("/api/auth/*", (c) => authFor(c.env, new URL(c.req.url)).handler(c.req.raw));
 
-function identity(c: { req: { header: (k: string) => string | undefined } }): {
-  userId: string;
-  setCookie: string | null;
-} {
-  const cookies = c.req.header("cookie") ?? "";
-  const found = /(?:^|;\s*)yvr_dev_uid=([^;]+)/.exec(cookies);
-  if (found?.[1]) return { userId: found[1], setCookie: null };
+/**
+ * The last of the per-browser cookie, and where its trips go.
+ *
+ * Until now a visitor was a `dev_…` id in `yvr_dev_uid`, minted on first sight
+ * and owning everything they made. That cookie is not issued any more, but
+ * browsers are still carrying one, and the trips it owns are real to whoever
+ * made them. So the first request that arrives with both a session and one of
+ * these cookies hands the cookie's trips to the account (see
+ * `adoptDevIdentity`), and then clears the cookie so it can never do it twice.
+ *
+ * It is deliberately not a route anyone can call. There is nothing to press,
+ * nothing to confirm, and no window in which it can be aimed at somebody
+ * else's id: the cookie *is* the proof, and it is spent on use.
+ */
+const DEV_COOKIE = "yvr_dev_uid";
+const CLEAR_DEV_COOKIE = `${DEV_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
 
-  const userId = `dev_${crypto.randomUUID()}`;
-  return {
-    userId,
-    setCookie: `${IDENTITY_COOKIE}=${userId}; Path=/; Max-Age=31536000; SameSite=Lax`,
-  };
-}
+const devCookie = (c: { req: { header: (k: string) => string | undefined } }): string | null =>
+  /(?:^|;\s*)yvr_dev_uid=([^;]+)/.exec(c.req.header("cookie") ?? "")?.[1] ?? null;
+
+/**
+ * Everything under `/api` needs a person, and this is the only place that
+ * decides who they are.
+ *
+ * There used to be two answers to that question — a stub row in `app_user` and
+ * the cookie above — and neither was a sign-in. There is one now, and it comes
+ * from the session Better Auth resolves off the request.
+ */
+app.use("/api/*", async (c, next) => {
+  if (c.req.path.startsWith("/api/auth/")) return next();
+
+  const auth = authFor(c.env, new URL(c.req.url));
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+  if (!session) return c.json({ error: "sign in first" }, 401);
+
+  const dev = devCookie(c);
+  if (dev) {
+    await adoptDevIdentity(c.env.DB, dev, session.user.id);
+    c.header("set-cookie", CLEAR_DEV_COOKIE);
+  }
+
+  c.set("viewer", {
+    id: session.user.id,
+    name: session.user.name,
+    email: session.user.email,
+    image: session.user.image ?? null,
+  });
+  return next();
+});
 
 const placesConfig = (env: Env) => ({
   apiKey: env.GOOGLE_PLACES_KEY,
 });
 
-const person = (userId: string) => ({
+/**
+ * The avatar on a row: two letters and a colour, and no name or email.
+ *
+ * `design/Trips.dc.html` and `design/Main.dc.html` draw people as initials in
+ * a circle and never as a name, so that is all this sends. It also means one
+ * member of a trip does not learn another's email address from the payload of
+ * a screen that was only ever going to draw two letters.
+ */
+const person = (user: Pick<UserRow, "id" | "name">) => ({
+  initials: user.name ? initialsForName(user.name) : initialsFor(user.id),
+  color: avatarColor(user.id),
+});
+
+/**
+ * You, which is not the same shape as anyone else.
+ *
+ * `person` withholds the name and the email on purpose. Your own are not a
+ * leak to you, and the account menu behind the avatar needs the email to say
+ * which account it is about to sign out of.
+ */
+const me = (viewer: Viewer) => ({ ...person(viewer), name: viewer.name, email: viewer.email });
+
+/** A member whose account is gone, but whose id is still on the trip. */
+const strangerPerson = (userId: string) => ({
   initials: initialsFor(userId),
   color: avatarColor(userId),
 });
 
+/* --------------------------------------------------------- who may look */
+
+/**
+ * Membership is the permission, and this is where it is spent.
+ *
+ * PLAN.md section 5: there are no roles, because inviting someone to a trip
+ * means you want them editing it. So every trip-scoped route reads its trip
+ * through one of these two, and a trip you are not in answers exactly as a
+ * trip that does not exist does — a 403 would confirm the id.
+ *
+ * Nothing enforced this before, because there was nobody to enforce it
+ * against: the owner of a trip was a cookie, and every request carried a
+ * different one. The ids are real now, so the check is worth making.
+ */
+async function tripForViewer(db: D1Database, tripId: string, userId: string) {
+  const trip = await getTrip(db, tripId);
+  if (!trip) return null;
+  return (await isMember(db, tripId, userId)) ? trip : null;
+}
+
+async function stopForViewer(db: D1Database, stopId: string, userId: string) {
+  const stop = await getStop(db, stopId);
+  if (!stop) return null;
+  return (await isMember(db, stop.trip_id, userId)) ? stop : null;
+}
+
+/**
+ * The same rule as a `WHERE` clause, for the writes that never load the row.
+ *
+ * Saving a note or a time is one statement against a stop id, and adding a
+ * read in front of it to check membership would put a round trip on the path
+ * PLAN.md section 2 works hardest to keep short. This says the same thing to
+ * the database instead: update the row only if it belongs to a trip the person
+ * is on. A write that matches nothing is a stop that is gone or was never
+ * theirs, and `meta.changes` tells the two apart from neither.
+ */
+const ON_A_TRIP_OF_MINE = `trip_id IN (SELECT trip_id FROM trip_members WHERE user_id = ?)`;
+
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
 app.get("/", (c) => {
-  const { setCookie } = identity(c);
-  if (setCookie) c.header("set-cookie", setCookie);
   // The browser key is public by design; the Places key stays server-side.
   return c.html(page(c.env.GOOGLE_MAPS_BROWSER_KEY));
 });
@@ -84,8 +194,7 @@ app.get("/", (c) => {
 // --- trips ------------------------------------------------------------------
 
 app.post("/api/trips", async (c) => {
-  const { userId, setCookie } = identity(c);
-  if (setCookie) c.header("set-cookie", setCookie);
+  const { id: userId } = c.get("viewer");
 
   const body = await c.req.json<{ name?: string; startDate?: string; endDate?: string }>();
   const name = body.name?.trim();
@@ -104,8 +213,8 @@ app.post("/api/trips", async (c) => {
 });
 
 app.get("/api/trips", async (c) => {
-  const { userId, setCookie } = identity(c);
-  if (setCookie) c.header("set-cookie", setCookie);
+  const viewer = c.get("viewer");
+  const userId = viewer.id;
 
   const { results } = await c.env.DB.prepare(
     `SELECT t.* FROM trips t
@@ -138,15 +247,14 @@ app.get("/api/trips", async (c) => {
     });
   }
 
-  return c.json({ me: person(userId), trips });
+  return c.json({ me: me(viewer), trips });
 });
 
 app.get("/api/trips/:tripId", async (c) => {
-  const { userId, setCookie } = identity(c);
-  if (setCookie) c.header("set-cookie", setCookie);
+  const viewer = c.get("viewer");
 
   const tripId = c.req.param("tripId");
-  const trip = await getTrip(c.env.DB, tripId);
+  const trip = await tripForViewer(c.env.DB, tripId, viewer.id);
   if (!trip) return c.json({ error: "no such trip" }, 404);
 
   const [days, stops, members] = await Promise.all([
@@ -157,7 +265,7 @@ app.get("/api/trips/:tripId", async (c) => {
 
   return c.json({
     trip,
-    me: person(userId),
+    me: me(viewer),
     members,
     cities: citiesForTrip(days, stops),
     headerSubtitle: headerSubtitle(trip.start_date, trip.end_date, stops.length),
@@ -191,12 +299,26 @@ function headerSubtitle(startDate: string, endDate: string, stopCount: number): 
 const daysBetween = (a: string, b: string) =>
   Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
 
+/**
+ * The avatars on a trip card, in the order people joined.
+ *
+ * Two reads rather than a join: the ids come off `trip_members`, and the names
+ * come out of Better Auth's `user` table in one go. A member whose account no
+ * longer exists still has a row here, and still gets a circle — see
+ * `strangerPerson`.
+ */
 async function listMembers(db: D1Database, tripId: string) {
   const { results } = await db
     .prepare(`SELECT user_id FROM trip_members WHERE trip_id = ? ORDER BY joined_at`)
     .bind(tripId)
     .all<{ user_id: string }>();
-  return (results ?? []).map((r) => person(r.user_id));
+
+  const ids = (results ?? []).map((r) => r.user_id);
+  const users = await usersById(db, ids);
+  return ids.map((id) => {
+    const user = users.get(id);
+    return user ? person(user) : strangerPerson(id);
+  });
 }
 
 // --- place search -----------------------------------------------------------
@@ -214,13 +336,14 @@ const MIN_QUERY_LENGTH = 3;
 const CACHE_TTL_SECONDS = 60 * 60;
 
 app.get("/api/trips/:tripId/place-search", async (c) => {
+  const { id: userId } = c.get("viewer");
   const tripId = c.req.param("tripId");
   const query = (c.req.query("q") ?? "").trim();
   if (query.length < MIN_QUERY_LENGTH) {
     return c.json({ results: [], bias: null, reason: "too-short" });
   }
 
-  const trip = await getTrip(c.env.DB, tripId);
+  const trip = await tripForViewer(c.env.DB, tripId, userId);
   if (!trip) return c.json({ error: "no such trip" }, 404);
 
   const [days, stops] = await Promise.all([listDays(c.env.DB, tripId), listStops(c.env.DB, tripId)]);
@@ -376,8 +499,7 @@ async function placeFromCache(env: Env, placeId: string): Promise<PlaceDetails |
 // --- stops ------------------------------------------------------------------
 
 app.post("/api/trips/:tripId/stops", async (c) => {
-  const { userId, setCookie } = identity(c);
-  if (setCookie) c.header("set-cookie", setCookie);
+  const { id: userId } = c.get("viewer");
 
   const tripId = c.req.param("tripId");
   const body = await c.req.json<{
@@ -390,7 +512,7 @@ app.post("/api/trips/:tripId/stops", async (c) => {
   const startTime = cleanTime(body.startTime);
   if (startTime === false) return c.json({ error: "that is not a time" }, 400);
 
-  const trip = await getTrip(c.env.DB, tripId);
+  const trip = await tripForViewer(c.env.DB, tripId, userId);
   if (!trip) return c.json({ error: "no such trip" }, 404);
 
   let details: PlaceDetails | null;
@@ -429,14 +551,13 @@ app.post("/api/trips/:tripId/stops", async (c) => {
  * link and searching for that name resolves it without a separate API.
  */
 app.post("/api/trips/:tripId/stops/link", async (c) => {
-  const { userId, setCookie } = identity(c);
-  if (setCookie) c.header("set-cookie", setCookie);
+  const { id: userId } = c.get("viewer");
 
   const tripId = c.req.param("tripId");
   const body = await c.req.json<{ url?: string; dayId?: string | null }>();
   if (!body.url) return c.json({ error: "paste a link first" }, 400);
 
-  const trip = await getTrip(c.env.DB, tripId);
+  const trip = await tripForViewer(c.env.DB, tripId, userId);
   if (!trip) return c.json({ error: "no such trip" }, 404);
 
   const name = await placeNameFromUrl(body.url);
@@ -492,7 +613,8 @@ async function placeNameFromUrl(raw: string): Promise<string | null> {
  * client never has to reason about distance or re-derive a reason.
  */
 app.get("/api/stops/:stopId/move-options", async (c) => {
-  const stop = await getStop(c.env.DB, c.req.param("stopId"));
+  const { id: userId } = c.get("viewer");
+  const stop = await stopForViewer(c.env.DB, c.req.param("stopId"), userId);
   if (!stop) return c.json({ error: "no such stop" }, 404);
 
   const [days, stops] = await Promise.all([
@@ -542,7 +664,8 @@ app.get("/api/stops/:stopId/move-options", async (c) => {
 });
 
 app.post("/api/stops/:stopId/move", async (c) => {
-  const stop = await getStop(c.env.DB, c.req.param("stopId"));
+  const { id: userId } = c.get("viewer");
+  const stop = await stopForViewer(c.env.DB, c.req.param("stopId"), userId);
   if (!stop) return c.json({ error: "no such stop" }, 404);
 
   const body = await c.req.json<{
@@ -583,13 +706,13 @@ app.post("/api/stops/:stopId/move", async (c) => {
 });
 
 app.post("/api/stops/:stopId/visited", async (c) => {
-  const { userId } = identity(c);
+  const { id: userId } = c.get("viewer");
   const body = await c.req.json<{ visited?: boolean }>();
   const visited = body.visited !== false;
 
-  await c.env.DB.prepare(
+  const done = await c.env.DB.prepare(
     `UPDATE stops SET status = ?, visited_at = ?, visited_by = ?, updated_at = ?
-      WHERE id = ? AND deleted_at IS NULL`,
+      WHERE id = ? AND deleted_at IS NULL AND ${ON_A_TRIP_OF_MINE}`,
   )
     .bind(
       visited ? "visited" : "planned",
@@ -597,19 +720,26 @@ app.post("/api/stops/:stopId/visited", async (c) => {
       visited ? userId : null,
       Date.now(),
       c.req.param("stopId"),
+      userId,
     )
     .run();
+  if (!done.meta.changes) return c.json({ error: "no such stop" }, 404);
 
   return c.json({ ok: true, visited });
 });
 
 app.post("/api/stops/:stopId/note", async (c) => {
+  const { id: userId } = c.get("viewer");
   const body = await c.req.json<{ note?: string }>();
   // Written by a person, never generated. An empty note is a blank card, not
   // a placeholder (PLAN.md section 4c).
-  await c.env.DB.prepare(`UPDATE stops SET note = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`)
-    .bind((body.note ?? "").trim(), Date.now(), c.req.param("stopId"))
+  const done = await c.env.DB.prepare(
+    `UPDATE stops SET note = ?, updated_at = ?
+      WHERE id = ? AND deleted_at IS NULL AND ${ON_A_TRIP_OF_MINE}`,
+  )
+    .bind((body.note ?? "").trim(), Date.now(), c.req.param("stopId"), userId)
     .run();
+  if (!done.meta.changes) return c.json({ error: "no such stop" }, 404);
   return c.json({ ok: true });
 });
 
@@ -622,15 +752,18 @@ app.post("/api/stops/:stopId/note", async (c) => {
  * case (section 11) rather than an error.
  */
 app.post("/api/stops/:stopId/time", async (c) => {
+  const { id: userId } = c.get("viewer");
   const body = await c.req.json<{ time?: string | null }>();
   const time = cleanTime(body.time);
   if (time === false) return c.json({ error: "that is not a time" }, 400);
 
-  await c.env.DB.prepare(
-    `UPDATE stops SET start_time = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
+  const done = await c.env.DB.prepare(
+    `UPDATE stops SET start_time = ?, updated_at = ?
+      WHERE id = ? AND deleted_at IS NULL AND ${ON_A_TRIP_OF_MINE}`,
   )
-    .bind(time, Date.now(), c.req.param("stopId"))
+    .bind(time, Date.now(), c.req.param("stopId"), userId)
     .run();
+  if (!done.meta.changes) return c.json({ error: "no such stop" }, 404);
   return c.json({ ok: true, time });
 });
 
@@ -642,10 +775,14 @@ function cleanTime(raw: string | null | undefined): string | null | false {
 }
 
 app.post("/api/stops/:stopId/delete", async (c) => {
+  const { id: userId } = c.get("viewer");
   // Soft, so someone else's offline edit stays undoable (PLAN.md section 9).
-  await c.env.DB.prepare(`UPDATE stops SET deleted_at = ?, updated_at = ? WHERE id = ?`)
-    .bind(Date.now(), Date.now(), c.req.param("stopId"))
+  const done = await c.env.DB.prepare(
+    `UPDATE stops SET deleted_at = ?, updated_at = ? WHERE id = ? AND ${ON_A_TRIP_OF_MINE}`,
+  )
+    .bind(Date.now(), Date.now(), c.req.param("stopId"), userId)
     .run();
+  if (!done.meta.changes) return c.json({ error: "no such stop" }, 404);
   return c.json({ ok: true });
 });
 
@@ -661,13 +798,14 @@ app.post("/api/stops/:stopId/delete", async (c) => {
  * specifies, and it is tested and deployed.
  */
 app.get("/api/trips/:tripId/complete", async (c) => {
+  const { id: userId } = c.get("viewer");
   const query = (c.req.query("q") ?? "").trim();
   const sessionToken = c.req.query("session") ?? "";
   if (query.length < MIN_QUERY_LENGTH) return c.json({ suggestions: [], reason: "too-short" });
   if (!sessionToken) return c.json({ error: "a search needs a session token" }, 400);
 
   const tripId = c.req.param("tripId");
-  const trip = await getTrip(c.env.DB, tripId);
+  const trip = await tripForViewer(c.env.DB, tripId, userId);
   if (!trip) return c.json({ error: "no such trip" }, 404);
 
   const [days, stops] = await Promise.all([listDays(c.env.DB, tripId), listStops(c.env.DB, tripId)]);

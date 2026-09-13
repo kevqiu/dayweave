@@ -40,4 +40,40 @@ describe("page", () => {
   it("does not leak anything that looks like a key", () => {
     expect(page()).not.toMatch(/AIza[0-9A-Za-z_-]{10}/);
   });
+
+  it("puts the browser key in the page when it has one, and nothing when it does not", () => {
+    expect(page()).toContain('window.__MAPS_KEY__ = ""');
+    expect(page("AIzaTestKey")).toContain('window.__MAPS_KEY__ = "AIzaTestKey"');
+  });
+});
+
+/** design/SignIn.dc.html. PLAN.md section 5. */
+describe("the sign-in screen", () => {
+  const html = page();
+
+  it("offers Google, in the words Google's branding terms allow", () => {
+    // "Connect with Google" is not one of the permitted strings.
+    expect(html).toContain("Continue with Google");
+    expect(html).not.toContain("Connect with Google");
+  });
+
+  it("is the only provider, and asks for no password", () => {
+    expect(html).not.toContain("Continue with Apple");
+    expect(html).not.toContain("type=\"password\"");
+  });
+
+  it("keeps the promise the artboard prints under the button", () => {
+    expect(html).toContain("We ask for your name and email, nothing else");
+  });
+
+  it("draws its own quiet map rather than borrowing the trip card's", () => {
+    expect(html).toContain("window.__SIGNIN_MAP__");
+    // The six pins of the artboard's ramp, first and last.
+    expect(html).toContain("#3F6B4A");
+    expect(html).toContain("#F0DCA6");
+  });
+
+  it("leaves out the share-link line, which has nothing to open yet", () => {
+    expect(html).not.toContain("Open it without an account");
+  });
 });

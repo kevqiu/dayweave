@@ -39,7 +39,17 @@ const icon = (name, cls) => h("span", { class: cls || "", html: ICONS[name], sty
 async function api(path, options) {
   const res = await fetch(path, options);
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || "request failed");
+  if (!res.ok) {
+    const error = new Error(data.error || "request failed");
+    error.status = res.status;
+    // 401 is not a failure to report, it is a screen to show. Everything
+    // under /api needs a signed-in person now (PLAN.md 5), so any call can
+    // come back this way when a session runs out mid-trip — and the screen
+    // it lands on is the same one whether that happened at boot or halfway
+    // through a note. Doing it here means no caller has to remember to.
+    if (res.status === 401 && state.screen !== "signIn") showSignIn();
+    throw error;
+  }
   return data;
 }
 
@@ -50,6 +60,9 @@ const post = (path, body) =>
 
 const state = {
   screen: "trips",
+  /* The account menu behind the header avatar, and the wait for Google. */
+  meMenu: false,
+  signingIn: false,
   /* Inside a trip: the map and its sheet, or the Plan view (PLAN.md 4f). */
   view: "map",
   trips: [],
@@ -97,6 +110,7 @@ function render() {
   frame.classList.toggle("wide", grid);
 
   frame.replaceChildren();
+  if (state.screen === "signIn") { frame.append(screenSignIn()); return; }
   if (state.screen === "trips") frame.append(screenTrips());
   else if (state.screen === "newTrip") frame.append(screenNewTrip());
   else if (state.screen === "trip") {
@@ -201,8 +215,13 @@ function screenTrips() {
   return h("div", { class: "screen" }, [
     h("div", { class: "trips-bar" }, [
       h("div", { class: "trips-title", text: "Trips" }, []),
-      h("button", { class: "me-avatar", text: state.me ? state.me.initials : "" }, []),
+      h("button", {
+        class: "me-avatar",
+        text: state.me ? state.me.initials : "",
+        onclick: () => { state.meMenu = !state.meMenu; render(); },
+      }, []),
     ]),
+    state.meMenu ? meMenu() : null,
     scroll,
     h("div", { class: "trips-foot" }, [
       h("button", { class: "btn-dark", onclick: openNewTrip }, [icon("plus"), "Start a new trip"]),
@@ -372,6 +391,122 @@ async function createTrip() {
   backStack.pop();
   history.replaceState({ depth: backStack.length }, "");
   await openTrip(trip.trip.id);
+}
+
+/* --------------------------------------------------------------- sign in */
+
+/**
+ * design/SignIn.dc.html: a quiet map, two lines, and one button.
+ *
+ * No email field, no password, no second provider, and the button reads
+ * "Continue with Google" rather than "Connect with" — Google's branding terms
+ * allow a fixed set of strings and Connect is not one of them (PLAN.md 5).
+ *
+ * The artboard's last line, "Someone sent you a link to look at? Open it
+ * without an account", is left out. It is the door for a view-only share link,
+ * and share links are a table with no API yet: a person who was sent one would
+ * have opened the link itself rather than arriving here, so the line has
+ * nothing to do from this screen until there is something to open. See
+ * CLAUDE.md.
+ */
+function screenSignIn() {
+  return h("div", { class: "screen signin" }, [
+    h("div", { class: "signin-map", html: window.__SIGNIN_MAP__ }, []),
+    h("div", { class: "signin-body" }, [
+      h("div", { class: "signin-head" }, [
+        h("div", { class: "signin-title", html: "Your trip,<br>on one map" }, []),
+        h("div", {
+          class: "signin-sub",
+          text: "Everywhere you meant to go, grouped by day, greying out as you get there. Shared with whoever is coming.",
+        }, []),
+      ]),
+      h("span", { style: "flex-grow:1" }, []),
+      state.error ? h("div", { class: "err", style: "padding:0 0 10px", text: state.error }, []) : null,
+      h("button", {
+        class: "signin-google",
+        disabled: state.signingIn,
+        onclick: signInWithGoogle,
+      }, [
+        h("span", { class: "signin-g", text: "G" }, []),
+        h("span", { text: state.signingIn ? "Taking you to Google…" : "Continue with Google" }, []),
+      ]),
+      h("div", { class: "signin-promise" }, [
+        icon("shield"),
+        h("span", {
+          text: "We ask for your name and email, nothing else. Photos and files stay on your device until you attach one.",
+        }, []),
+      ]),
+    ]),
+  ]);
+}
+
+/**
+ * Hand off to Google.
+ *
+ * Better Auth answers with the URL to send the browser to rather than
+ * redirecting the fetch, because a redirect on an XHR would be followed by the
+ * browser and land the consent screen inside a JSON parse.
+ */
+async function signInWithGoogle() {
+  state.signingIn = true;
+  state.error = null;
+  render();
+  try {
+    const data = await post("/api/auth/sign-in/social", { provider: "google", callbackURL: "/" });
+    if (!data.url) throw new Error("sign-in did not come back with anywhere to go");
+    window.location.href = data.url;
+  } catch (error) {
+    state.signingIn = false;
+    state.error = error.message;
+    render();
+  }
+}
+
+/**
+ * The account menu, behind the terracotta avatar in the trips header.
+ *
+ * No artboard draws it. design/Trips.dc.html does draw the avatar as a
+ * button rather than a badge, though, and an app you can sign in to and not
+ * out of is not finished, so the smallest honest reading of that button is one
+ * item and the name of whoever is signed in above it.
+ *
+ * Built like the stop's kebab rather than like the trip menu: it is a dropdown
+ * on a control, not a layer over the screen, and the kebab is the one the
+ * artboards already draw that way.
+ */
+function meMenu() {
+  return h("div", { class: "me-menu" }, [
+    state.me && state.me.email
+      ? h("div", { class: "me-menu-who", text: state.me.email }, [])
+      : null,
+    h("button", { text: "Sign out", onclick: signOut }, []),
+  ]);
+}
+
+/** The screen every 401 lands on, whichever call met it. */
+function showSignIn() {
+  state.screen = "signIn";
+  state.signingIn = false;
+  state.trip = null;
+  state.trips = [];
+  state.search = null;
+  state.move = null;
+  state.noteFor = null;
+  state.timeFor = null;
+  state.meMenu = false;
+  render();
+}
+
+async function signOut() {
+  state.meMenu = false;
+  try {
+    await post("/api/auth/sign-out", {});
+  } catch (error) {
+    // Signed out is signed out: the cookie is cleared by the response either
+    // way, and a failure here must not leave the screen showing a trip list
+    // that the next request will refuse.
+  }
+  showSignIn();
 }
 
 /* ------------------------------------------------------------------ trip */
@@ -2867,9 +3002,18 @@ function rangeLabel(a, b) {
 /* ------------------------------------------------------------------ boot */
 
 (async function start() {
-  const data = await api("/api/trips");
-  state.trips = data.trips;
-  state.me = data.me;
-  render();
+  try {
+    const data = await api("/api/trips");
+    state.trips = data.trips;
+    state.me = data.me;
+    render();
+  } catch (error) {
+    // A 401 has already put the sign-in screen up, in api(). Anything else is
+    // a real failure, and the trips screen says so rather than staying blank.
+    if (error.status !== 401) {
+      state.error = error.message;
+      render();
+    }
+  }
 })();
 `;

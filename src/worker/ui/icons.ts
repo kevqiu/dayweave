@@ -170,3 +170,11 @@ export const arrowLeft = (o: IconOptions = {}) =>
     { ...o },
     'stroke-linecap="round" stroke-linejoin="round"',
   );
+
+/** SignIn: the shield beside the line about what we ask for. */
+export const shield = (o: IconOptions = {}) =>
+  svg(
+    `<path d="M12 22s8-3.5 8-10V5.5L12 2 4 5.5V12c0 6.5 8 10 8 10z"></path>`,
+    { width: 1.9, ...o },
+    'stroke-linejoin="round"',
+  );

@@ -470,13 +470,29 @@ export function navigateUrl(
 }
 
 /**
- * Two letters for the avatar on a row.
+ * Two letters for the avatar on a row, from a real name.
  *
- * The artboards show real initials, KQ and MT, because they draw named people.
- * There are no names until Better Auth lands (PLAN.md section 5), so these are
- * derived from the id: arbitrary, but stable per person and shaped like
- * initials, which is what the avatar has to read as. Digits would read as a
- * count.
+ * The artboards show KQ and MT because they draw named people, and there are
+ * named people now: Better Auth keeps the name Google gave us. Two words give
+ * a letter each; one word gives its first two, because a single initial in a
+ * 32px circle reads as an unfinished one.
+ */
+export function initialsForName(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "";
+  const first = words[0] as string;
+  if (words.length === 1) return first.slice(0, 2).toUpperCase();
+  const last = words[words.length - 1] as string;
+  return `${first[0]}${last[0]}`.toUpperCase();
+}
+
+/**
+ * Two letters for someone with no name to read.
+ *
+ * Kept for the member whose row has outlived the account it named — a trip
+ * still lists a `user_id` after that user is gone, and an empty circle would
+ * read as a bug rather than as an absence. Arbitrary, but stable per id and
+ * shaped like initials. Digits would read as a count.
  */
 export function initialsFor(userId: string): string {
   const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -539,4 +555,79 @@ export function citiesForTrip(days: readonly DayRow[], stops: readonly StopRow[]
   }
   for (const stop of stops.filter((s) => s.day_id === null)) inDayOrder.push(stop.city);
   return tripCities(inDayOrder);
+}
+
+/* ------------------------------------------------------------------ people */
+
+export interface UserRow {
+  id: string;
+  name: string;
+  email: string;
+  image: string | null;
+}
+
+/**
+ * The people behind a set of ids, in one read.
+ *
+ * `user` is Better Auth's table and this is the only place the app reads it:
+ * everywhere else a person is an id on a row, which is what keeps membership
+ * a foreign key rather than a copy of somebody's name.
+ */
+export async function usersById(
+  db: D1Database,
+  ids: readonly string[],
+): Promise<Map<string, UserRow>> {
+  const wanted = [...new Set(ids)].filter(Boolean);
+  if (wanted.length === 0) return new Map();
+
+  const { results } = await db
+    .prepare(`SELECT id, name, email, image FROM "user" WHERE id IN (${wanted.map(() => "?").join(", ")})`)
+    .bind(...wanted)
+    .all<UserRow>();
+
+  return new Map((results ?? []).map((row) => [row.id, row]));
+}
+
+/**
+ * What happens to the trips a `yvr_dev_uid` cookie owns: they follow the
+ * browser that made them, once, into the account that signs in on it.
+ *
+ * Before sign-in existed, a trip was owned by a per-browser id in a cookie.
+ * That id is a bearer token — whoever holds the cookie already has every one
+ * of those trips — so handing them to the account signing in from that same
+ * browser gives nobody access they did not have a second earlier. It is the
+ * one moment when the two ids are provably the same person, which is why this
+ * runs then and never again: the cookie is cleared on the way out.
+ *
+ * Everything the id touches moves together. A trip whose owner moved but whose
+ * stops still read `created_by: dev_…` would put a stranger's initials on the
+ * cards of a trip with one member.
+ *
+ * `UPDATE OR IGNORE` on the membership, then a delete: the primary key is
+ * (trip_id, user_id), so a browser that somehow held both ids on one trip
+ * would collide, and the row to keep in that case is the one already there.
+ */
+export async function adoptDevIdentity(
+  db: D1Database,
+  devId: string,
+  userId: string,
+): Promise<void> {
+  await db.batch([
+    db.prepare(`UPDATE trips SET owner_id = ? WHERE owner_id = ?`).bind(userId, devId),
+    db.prepare(`UPDATE OR IGNORE trip_members SET user_id = ? WHERE user_id = ?`).bind(userId, devId),
+    db.prepare(`DELETE FROM trip_members WHERE user_id = ?`).bind(devId),
+    db.prepare(`UPDATE trip_invites SET invited_by = ? WHERE invited_by = ?`).bind(userId, devId),
+    db.prepare(`UPDATE stops SET created_by = ? WHERE created_by = ?`).bind(userId, devId),
+    db.prepare(`UPDATE stops SET visited_by = ? WHERE visited_by = ?`).bind(userId, devId),
+    db.prepare(`UPDATE ops SET actor_id = ? WHERE actor_id = ?`).bind(userId, devId),
+  ]);
+}
+
+/** Membership is the permission (PLAN.md section 5). There is no role to read. */
+export async function isMember(db: D1Database, tripId: string, userId: string): Promise<boolean> {
+  const row = await db
+    .prepare(`SELECT 1 AS ok FROM trip_members WHERE trip_id = ? AND user_id = ?`)
+    .bind(tripId, userId)
+    .first<{ ok: number }>();
+  return row !== null;
 }
