@@ -7,17 +7,40 @@ import {
   R2Bucket,
   Worker,
 } from "alchemy/cloudflare";
+import { CloudflareStateStore } from "alchemy/state";
 
 // Pinned to the 0.x line on purpose. `npm install alchemy` resolves to a
 // 2.0.0-beta, which is a different, Effect-based API the project has not
 // adopted. See PLAN.md section 2.
 const app = await alchemy("yvr-kocho-sh", {
-  // Alchemy keeps its state in `.alchemy/`, which is gitignored, so a cloud
-  // session that clones the repo fresh starts with no state and tries to
-  // create a database that is already there. Adopting takes over the existing
-  // resources instead of failing. Safe here because this repo is the only
-  // thing that creates them; the real fix is a persistent state store, which
-  // needs an ALCHEMY_STATE_TOKEN on the environment — see ENVIRONMENT.md.
+  /**
+   * State lives on the account, not in the container.
+   *
+   * The default store is `.alchemy/`, which is gitignored, so every cloud
+   * session started with no state at all and announced `[creating]` against a
+   * database that had existed for days. `CloudflareStateStore` keeps the state
+   * in a SQLite Durable Object instead, behind a small Worker that Alchemy
+   * provisions on first use — `alchemy-state-service`, on the account's
+   * workers.dev subdomain, with `ALCHEMY_STATE_TOKEN` as its bearer token.
+   *
+   * That token has to be the **same value for every deploy on this account,
+   * forever**. A different one does not make a second store, it makes the
+   * existing one answer 401. See INFRA.md item 2.
+   */
+  stateStore: (scope) => new CloudflareStateStore(scope),
+
+  /**
+   * Kept, but no longer load-bearing.
+   *
+   * This used to be the only reason a deploy from a fresh clone worked: with
+   * no state, every resource looked new, and adopting took over the existing
+   * one rather than failing on the name. The state store above is what
+   * actually fixes that. Adopting stays as the recovery path for the day the
+   * state is lost anyway — a rotated token, a store deleted by hand — because
+   * without it that day ends with a deploy that cannot proceed and a database
+   * it will not touch. Safe here because this repo is the only thing that
+   * creates these resources.
+   */
   adopt: true,
 });
 
