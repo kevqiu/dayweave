@@ -1940,19 +1940,39 @@ function reachForDrawer(x) {
 
 function resolveDropTarget(x, y) {
   const drag = state.drag;
-  const wraps = [...document.querySelectorAll(".drop-zone[data-day-id]")];
+
+  /*
+   * The drawer is over the calendar, so it is asked first.
+   *
+   * The zones were tested in DOM order and the day column comes first and
+   * spans nearly the whole width — including the strip the open drawer is
+   * sitting on. So a card dragged into To be planned resolved as a drop on the
+   * column underneath it, and there was no way to put anything back. Anything
+   * inside the dock is an overlay and is tested ahead of what it covers.
+   */
+  const all = [...document.querySelectorAll(".drop-zone[data-day-id]")];
+  const overlay = all.filter((el) => el.closest(".tray-dock"));
+  const wraps = overlay.length ? overlay.concat(all.filter((el) => !overlay.includes(el))) : all;
 
   drag.outside = false;
   reachForDrawer(x);
 
+  /*
+   * Both axes, always.
+   *
+   * This used to check y alone unless the zone was a grid column, on the
+   * reasoning that a sheet stacks its days so the horizontal says nothing.
+   * True of a sheet, and false of everything else: the shut drawer is parked
+   * off the right edge at full height, so on y alone it matched every drop and
+   * swallowed the lot, and on the desk a card dragged over the map was landing
+   * on whichever rail day happened to share its y. Where a zone really is full
+   * width the extra check costs nothing.
+   */
   let hit = null;
   for (const wrap of wraps) {
     const rect = wrap.getBoundingClientRect();
     if (y < rect.top || y > rect.bottom) continue;
-    // A sheet stacks its days, so where the finger is across them says
-    // nothing. The Planner's columns sit side by side and share every y, so
-    // there the horizontal is the whole answer to which day this is.
-    if (wrap.dataset.grid && (x < rect.left || x > rect.right)) continue;
+    if (x < rect.left || x > rect.right) continue;
     hit = wrap;
     break;
   }
@@ -3047,28 +3067,41 @@ function swipeDays(el) {
    * drag handle already follows and for the same reason: the element a gesture
    * starts on is not the element it ends on.
    */
-  const end = (e) => {
-    window.removeEventListener("pointerup", end);
-    window.removeEventListener("pointercancel", cancel);
+  /*
+   * The furthest the finger got, kept as it moves.
+   *
+   * A horizontal drag across a vertically scrolling element is a gesture the
+   * browser may decide is its own, and when it does it sends pointercancel and
+   * no pointerup at all — so waiting for pointerup meant the swipe did nothing
+   * on a real phone. The travel is measured on the way and a cancel counts the
+   * same as a finish. A touch-action of pan-y on the scroller makes that
+   * rarer; this makes it harmless when it happens anyway.
+   */
+  let dx = 0;
+  let dy = 0;
+
+  const done = () => {
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", done);
+    window.removeEventListener("pointercancel", done);
     if (!live) return;
     live = false;
-    const dx = e.clientX - x;
-    const dy = e.clientY - y;
-    if (Math.abs(dx) < 55 || Math.abs(dx) < Math.abs(dy) * 1.6) return;
+    if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
     stepDay(dx < 0 ? 1 : -1);
   };
 
-  const cancel = () => {
-    window.removeEventListener("pointerup", end);
-    window.removeEventListener("pointercancel", cancel);
-    live = false;
+  const move = (e) => {
+    if (!live) return;
+    dx = e.clientX - x;
+    dy = e.clientY - y;
   };
 
   el.addEventListener("pointerdown", (e) => {
     if (state.drag) return;
-    x = e.clientX; y = e.clientY; live = true;
-    window.addEventListener("pointerup", end);
-    window.addEventListener("pointercancel", cancel);
+    x = e.clientX; y = e.clientY; dx = 0; dy = 0; live = true;
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", done);
+    window.addEventListener("pointercancel", done);
   });
 }
 
@@ -3456,7 +3489,10 @@ function gridScroll(days, span, band, wide) {
       gutter,
       lines,
       // The last columns hang their popover to the left, where there is room.
-      ...days.map((day, i) => gridColumn(day, span, band, i >= days.length - 2)),
+      // The popover hangs left for the last columns, where there is no room to
+      // its right. With one column there is no room either side, so it goes
+      // below the card instead — see .screen.desk.narrow .gpop.
+      ...days.map((day, i) => gridColumn(day, span, band, days.length > 2 && i >= days.length - 2)),
     ]),
   ]);
 

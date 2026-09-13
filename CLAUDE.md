@@ -315,10 +315,19 @@ To be planned bucket is `#94897A`, which is not on the ramp.
     the grid. Lodging *is* built, from stops rather than from the `lodging`
     table — see above.
 
-  **What is being dragged decides how the drop is read.** A sheet stacks its
-  days, so the finger's y says which one it is over. The Planner's columns sit
-  side by side and share every y, so there the x is the whole answer — and a
-  hit test that only checked y quietly dropped everything on Monday.
+  **A drop is hit-tested on both axes, always.** It used to check y alone
+  unless the zone was a grid column, on the reasoning that a sheet stacks its
+  days so the horizontal says nothing about which one you are over. True of a
+  sheet, and false of everything else — and it caused two bugs. The shut
+  drawer is parked off the right edge at full height, so on y alone it matched
+  every drop and swallowed the lot: nothing could be put back into To be
+  planned. On the desk, a card dragged over the map landed on whichever rail
+  day happened to share its y. Where a zone really is full width the extra
+  check costs nothing.
+
+  **Overlay zones are asked first.** The drawer sits over a column that spans
+  nearly the whole width, so both match; the one on top has to win, or a drop
+  into the drawer resolves as a drop on the calendar underneath it.
 
 - **The sign-in screen leaves out its last line, and the avatar gained a
   menu.** `SignIn.dc.html` ends with *Someone sent you a link to look at?

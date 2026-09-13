@@ -900,7 +900,12 @@ button { font-family: ${SANS}; cursor: pointer; }
 
 /* 10px of air so the 08:00 label, which the artboard hangs at -6px, is not
    sliced in half by the top of the scroller. */
-.grid-scroll { flex-grow: 1; overflow-y: auto; min-height: 0; padding-top: 10px; }
+/* pan-y: the column scrolls vertically and a sideways drag is the day swipe,
+   so the browser must not claim the horizontal axis for a scroll of its own. */
+.grid-scroll {
+  flex-grow: 1; overflow-y: auto; min-height: 0; padding-top: 10px;
+  touch-action: pan-y;
+}
 .grid-inner { display: flex; position: relative; }
 .grid-gutter { width: 56px; flex-shrink: 0; border-right: 1px solid ${C.sheetEdge}; position: relative; z-index: 2; }
 .hour-label { position: absolute; right: 9px; font-size: 10px; color: ${C.faint}; }
@@ -976,11 +981,34 @@ button { font-family: ${SANS}; cursor: pointer; }
 .gpop-item.danger { color: #A06B52; }
 .gcol.flip .gpop { left: auto; right: calc(100% + 7px); }
 
+/*
+ * One column: below the card, not beside it.
+ *
+ * Beside it means off the screen at 375px — the popover hung to the right of a
+ * card that already reaches the right edge, and the flip rule (meant for the
+ * last columns of a week) then hung it off the left instead. There is no room
+ * either side of a single column, and there is plenty underneath.
+ */
+.screen.desk.narrow .gpop,
+.screen.desk.narrow .gcol.flip .gpop {
+  left: 4px; right: 4px; top: calc(100% + 6px); width: auto;
+}
+
 /* The bar a dragged card would land on, and the hour it would land at. */
 .grid-drop { position: absolute; height: 3px; border-radius: 2px; background: ${C.today}; z-index: 61; }
+/*
+ * Centred, not left-aligned.
+ *
+ * The card is held by the grip on its left edge, so a hand dragging one sits
+ * exactly over the left end of the line it is about to land on — which is
+ * where the time was. In the middle of the column it is clear of the finger
+ * whichever hand is holding the phone.
+ */
 .grid-drop span {
-  position: absolute; left: 0; top: -16px; font-size: 9.5px; font-weight: 700;
-  color: ${C.todayInk}; letter-spacing: 0.04em; white-space: nowrap;
+  position: absolute; left: 50%; transform: translateX(-50%); top: -16px;
+  font-size: 9.5px; font-weight: 700; color: ${C.todayInk};
+  letter-spacing: 0.04em; white-space: nowrap;
+  background: ${C.paper}; padding: 0 5px; border-radius: 4px;
 }
 
 .tray-side {
