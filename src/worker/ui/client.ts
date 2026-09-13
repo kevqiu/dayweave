@@ -217,6 +217,7 @@ function tripCard(trip) {
 
   return h("button", { class: "trip-card", onclick: () => openTrip(trip.id) }, [
     h("div", { class: "trip-card-map", html: window.__CARD_MAP__ }, [
+      ...cardNodes(trip),
       h("span", { class: "trip-card-day", text: "DAY " + dayOf + " OF " + total }, []),
     ]),
     h("div", { class: "trip-card-body" }, [
@@ -233,6 +234,33 @@ function tripCard(trip) {
       h("div", { class: "progress" }, [h("div", { style: "width:" + pct + "%" }, [])]),
     ]),
   ]);
+}
+
+/**
+ * A node per day on the card's map strip, from design/Trips.dc.html.
+ *
+ * The server hands over percentages it has already fitted into the strip, so
+ * every day of the trip is in view at once and nothing here reasons about
+ * coordinates. A day with nothing located on it has no node.
+ *
+ * Painted in date order, so a day that happens later sits over an earlier one
+ * where two of them are in the same place, and today's sits over both: on a
+ * card that says DAY 3 OF 11 the green one is the thing being looked for.
+ */
+function cardNodes(trip) {
+  return (trip.dayNodes || []).map((node) =>
+    h("i", {
+      class: node.status === "now" ? "trip-card-node now" : "trip-card-node",
+      style: "left:" + node.x + "%;top:" + node.y + "%;background:" + STATUS_FILL[node.status],
+      title: nodeDate(node.date),
+    }, []),
+  );
+}
+
+/** Oct 3, for the title on a node. */
+function nodeDate(iso) {
+  const date = new Date(iso + "T00:00:00Z");
+  return MONTHS[date.getUTCMonth()] + " " + date.getUTCDate();
 }
 
 function tripRow(trip, past) {

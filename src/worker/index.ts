@@ -8,6 +8,7 @@ import {
   type PlaceDetails,
 } from "../lib/places.ts";
 import { haversineMetres, resolveBias, roundedCentre, type Bias } from "../lib/geo.ts";
+import { previewNodes } from "../lib/preview.ts";
 import { suggestDays, type CandidateDay } from "../lib/suggest.ts";
 import { formatClock, minutesOf } from "../lib/plan.ts";
 import {
@@ -130,6 +131,9 @@ app.get("/api/trips", async (c) => {
     trips.push({
       ...trip,
       cities,
+      // One node a day for the card's map strip, already fitted into it:
+      // src/lib/preview.ts does the arithmetic so the browser does none.
+      dayNodes: previewNodes(toDayGeo(days, stops), todayIso()),
       // Dates, then the cities. With no stops the cities half is absent
       // rather than empty — section 4d is explicit about that.
       subtitle: cities.length ? `${range} · ${cities.join(", ")}` : range,

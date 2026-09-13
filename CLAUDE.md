@@ -100,6 +100,23 @@ To be planned bucket is `#94897A`, which is not on the ramp.
 - **A trip card's subtitle is derived too**: dates, then the cities, as
   `Sep 30 – Oct 10 · Fukuoka, Kagoshima, Hakone`. With no stops the cities half
   is absent, not empty. PLAN.md §4d.
+- **The trip card's map strip carries a node per day.** `Trips.dc.html` draws
+  four status pins across the 62px strip of a trip that is eleven days long, so
+  what it specifies is the shape rather than the count: one node a day, at the
+  centroid of that day's stops, filled by its §7 status. A day with nothing
+  located on it has no node, because a node in the middle of the strip would be
+  a guess about where a day nobody has planned yet is going to be.
+  `src/lib/preview.ts` does the fitting and the trips endpoint hands the client
+  finished percentages, so nothing in the browser reasons about coordinates.
+
+  Two things the fit has to settle that no artboard does. **Days in one city
+  land on top of one another**, and a heap of six days is a preview of one, so
+  the nodes are eased apart until 17px separates their centres: the cluster
+  stays where it was and opens into a constellation. **The `DAY 3 OF 11` chip
+  is all but opaque**, so a node that lands in its corner is pushed out from
+  under it, down or back along the strip, whichever is the smaller lie about
+  where the day is. A day hidden behind a label is a day the strip failed to
+  preview.
 - **Search rows are 52px** with a 30px rounded icon tile, and read
   `Ramen · 4.3 · 450 m from Ohori Park` — category, rating, then distance from
   the named bias anchor. A place already on the trip gets the `#F6EFE2` row,
@@ -275,7 +292,7 @@ To be planned bucket is `#94897A`, which is not on the ramp.
 - `src/worker/index.ts` — Hono routes.
 - `src/worker/store.ts` — D1 reads and writes.
 - `src/lib/` — pure, tested logic: Places client, bias circle, derived text,
-  order keys, the Plan view's geometry, KML.
+  order keys, the Plan view's geometry, the trip card's nodes, KML.
 
 ## The map
 
