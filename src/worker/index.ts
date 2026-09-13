@@ -11,6 +11,7 @@ import { haversineMetres, resolveBias, roundedCentre, type Bias } from "../lib/g
 import { suggestDays, type CandidateDay } from "../lib/suggest.ts";
 import { formatClock, minutesOf } from "../lib/plan.ts";
 import {
+  addNoteAsStop,
   addPlaceAsStop,
   adoptDevIdentity,
   isMember,
@@ -547,6 +548,41 @@ app.post("/api/trips/:tripId/stops", async (c) => {
     startTime,
   });
   return c.json({ ...result, place: details }, 201);
+});
+
+/**
+ * A stop that is not a place: "Pick up the rental car", "Get ready".
+ *
+ * The schema has allowed this since 0001 — `stops.place_id` is nullable and
+ * the comment on it reads "NULL = a note, no pin" — and nothing could make
+ * one, so a trip could hold only the places Google knows about. Half of what
+ * is on a day is not one of those.
+ *
+ * It costs no Places call, which is why it is its own route rather than a flag
+ * on the one above.
+ */
+app.post("/api/trips/:tripId/stops/note", async (c) => {
+  const { id: userId } = c.get("viewer");
+
+  const tripId = c.req.param("tripId");
+  const body = await c.req.json<{ title?: string; dayId?: string | null; startTime?: string | null }>();
+  const title = body.title?.trim();
+  // The title is the whole of it, so there is nothing to fall back on.
+  if (!title) return c.json({ error: "give it a name" }, 400);
+  const startTime = cleanTime(body.startTime);
+  if (startTime === false) return c.json({ error: "that is not a time" }, 400);
+
+  const trip = await tripForViewer(c.env.DB, tripId, userId);
+  if (!trip) return c.json({ error: "no such trip" }, 404);
+
+  const result = await addNoteAsStop(c.env.DB, {
+    tripId,
+    dayId: body.dayId ?? null,
+    title,
+    userId,
+    startTime,
+  });
+  return c.json({ ...result, title }, 201);
 });
 
 /**

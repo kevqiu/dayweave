@@ -62,6 +62,8 @@ function iconSet(): Record<string, string> {
     // In a row's chip the roof takes the chip's own colour, so it is drawn in
     // the bed green rather than inheriting a stroke it cannot inherit.
     houseHue: icons.house({ size: 11, color: "#3F6B4A" }),
+    // The search row that makes a stop with no place behind it.
+    pencilGrey: icons.pencil({ size: 16, color: "#8C8479" }),
   };
 }
 

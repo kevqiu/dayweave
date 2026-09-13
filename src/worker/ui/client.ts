@@ -1979,12 +1979,16 @@ function stopActions(stop, done, showTimes) {
 
   wrap.append(
     h("div", { class: "action-row" }, [
-      h("a", {
-        class: "action dark",
-        href: stop.navigateUrl || "#",
-        target: "_blank",
-        rel: "noreferrer",
-      }, [icon("navigateLight"), "Navigate"]),
+      // A stop with no place has nowhere to navigate to, and a button that
+      // goes nowhere is the placeholder this app does not do.
+      stop.navigateUrl
+        ? h("a", {
+            class: "action dark",
+            href: stop.navigateUrl,
+            target: "_blank",
+            rel: "noreferrer",
+          }, [icon("navigateLight"), "Navigate"])
+        : null,
       h("button", {
         class: done ? "action on" : "action",
         onclick: () => optimistic(
@@ -2430,12 +2434,14 @@ async function runSearch(query) {
   try {
     const data = await api("/api/trips/" + state.trip.trip.id + "/place-search?" + params);
     if (ticket !== searchTicket) return;
-    s.rows = data.results;
+    // Defensive: a reply without results is not something the Worker sends,
+    // and a client that throws on one shows the stack where the rows go.
+    s.rows = data.results || [];
     s.bias = data.bias;
     s.pins = data.pins || [];
     // A new set of results is a new set of places; nothing is being looked at.
     if (!s.rows.some((r) => r.placeId === s.lookingAt)) s.lookingAt = null;
-    s.note = data.results.length ? null : "Nothing found for that.";
+    s.note = s.rows.length ? null : "Nothing found for that.";
   } catch (error) {
     if (ticket !== searchTicket) return;
     s.rows = [];
@@ -2467,7 +2473,23 @@ function renderResults(container) {
         h("span", { style: "font-size:10.5px;color:#A0978A", text: "for somewhere search cannot find" }, []),
       ]),
     ]),
+    // And the thing that is not a place at all. Half of what is on a day is
+    // not somewhere Google knows about: picking up the car, getting ready,
+    // the two hours before a concert.
+    h("button", { class: "result", onclick: addNoteStop }, [
+      h("div", { class: "result-tile grey" }, [icon("pencilGrey")]),
+      h("div", { class: "result-text" }, [
+        h("span", { style: "font-size:13px;font-weight:600", text: noteRowTitle() }, []),
+        h("span", { style: "font-size:10.5px;color:#A0978A", text: "something to do, with no place attached" }, []),
+      ]),
+    ]),
   );
+}
+
+/** The row reads back what has been typed, so it is obvious what it will make. */
+function noteRowTitle() {
+  const typed = state.search.query.trim();
+  return typed ? "Add \u201c" + typed + "\u201d as a note" : "Add a note instead";
 }
 
 function resultRow(row) {
@@ -2555,6 +2577,35 @@ function addPlace(row) {
     }),
     "That place did not save",
   );
+}
+
+/**
+ * A stop with a title and no place.
+ *
+ * It takes the day and the time the search was opened with, so a tap on 14:00
+ * in the Planner and then this puts "Pick up the rental car" at 14:00 — the
+ * same journey a place takes. What is already typed in the field is the
+ * obvious title, so it is offered rather than asked for twice.
+ */
+async function addNoteStop() {
+  const s = state.search;
+  const typed = s.query.trim();
+  const title = (typed || window.prompt("What is it?") || "").trim();
+  if (!title) return;
+
+  try {
+    await post("/api/trips/" + state.trip.trip.id + "/stops/note", {
+      title,
+      dayId: s.dayId,
+      startTime: s.startTime,
+    });
+    closeSearch();
+    state.trip = await api("/api/trips/" + state.trip.trip.id);
+    render();
+  } catch (error) {
+    s.note = error.message;
+    renderResults($("results"));
+  }
 }
 
 async function pasteLink() {

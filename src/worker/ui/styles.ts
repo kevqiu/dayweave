@@ -885,7 +885,9 @@ button { font-family: ${SANS}; cursor: pointer; }
  * the grid — there is no room beside it at 375px, and the grid is what the
  * screen is for.
  */
-.tray-dock { position: absolute; inset: 0; pointer-events: none; z-index: 30; }
+/* Above the grid, below any sheet: a sheet is the topmost thing on the screen,
+   and the tab used to float over the search field. */
+.tray-dock { position: absolute; inset: 0; pointer-events: none; z-index: 15; }
 .tray-tab {
   position: absolute; right: 0; top: 50%; transform: translateY(-50%);
   pointer-events: auto; display: flex; flex-direction: column; align-items: center;

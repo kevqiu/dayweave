@@ -662,3 +662,59 @@ export async function isMember(db: D1Database, tripId: string, userId: string): 
     .first<{ ok: number }>();
   return row !== null;
 }
+
+/**
+ * A stop that is not a place: "Pick up the rental car", "Get ready".
+ *
+ * `0001_init.sql` has always allowed this — `stops.place_id` is nullable and
+ * the column comment reads "NULL = a note, no pin" — and nothing could make
+ * one. Now something can. It behaves as every other stop does: it sits on a
+ * day, takes a time, drags between days and hours, and can be ticked off. What
+ * it does not have is a place, so it has no pin on the map, no walk on its
+ * second line and no Navigate.
+ *
+ * The title is the whole of it. A place's title comes from Google and its note
+ * is the thing a person wrote; here the person wrote the title, and the note
+ * stays available for the detail underneath.
+ */
+export async function addNoteAsStop(
+  db: D1Database,
+  input: {
+    tripId: string;
+    dayId: string | null;
+    title: string;
+    userId: string;
+    startTime?: string | null;
+  },
+): Promise<{ stopId: string }> {
+  const siblings = await db
+    .prepare(
+      `SELECT order_key FROM stops
+        WHERE trip_id = ? AND deleted_at IS NULL
+          AND day_id IS ?`,
+    )
+    .bind(input.tripId, input.dayId)
+    .all<{ order_key: string }>();
+
+  const stopId = crypto.randomUUID();
+  await db
+    .prepare(
+      `INSERT INTO stops (id, trip_id, day_id, place_id, title, start_time, order_key,
+                          created_by, created_at, updated_at)
+       VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      stopId,
+      input.tripId,
+      input.dayId,
+      input.title,
+      input.startTime ?? null,
+      orderKeyAppend((siblings.results ?? []).map((r) => r.order_key)),
+      input.userId,
+      now(),
+      now(),
+    )
+    .run();
+
+  return { stopId };
+}

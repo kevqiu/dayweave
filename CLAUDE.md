@@ -365,6 +365,23 @@ To be planned bucket is `#94897A`, which is not on the ramp.
   `apartment` and `campground` are left out, being as often somewhere you are
   visiting as somewhere you are staying.
 
+- **A stop does not have to be a place.** `0001_init.sql` has always allowed
+  one — `stops.place_id` is nullable and its comment reads "NULL = a note, no
+  pin" — and nothing could make one, so a trip could hold only what Google
+  knows about. Half of what is on a day is not that: picking up the rental
+  car, getting ready, the two hours before a concert.
+
+  The search sheet's last row makes one, under the Paste-a-link row, and it
+  reads back whatever is in the field so it is obvious what it will make. It
+  takes the day and the time the sheet was opened with, exactly as a place
+  does, so tapping 14:00 in the Planner and then this puts the thing at 14:00.
+  Afterwards it is an ordinary stop: it drags between days and hours, takes a
+  time, can be ticked off and noted.
+
+  What it does not have is a place, so it has no pin on the map, no walk on
+  its second line, and **no Navigate button** — a stop with nowhere to go
+  cannot offer to take you there.
+
 - **Nothing is a placeholder.** Where the app does not know something, the
   artboards leave it out rather than filling it with a dash. Two consequences
   worth knowing: the map carries no place labels, because the artboards' own
