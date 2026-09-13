@@ -4,25 +4,122 @@ A shared map of a trip. Stops come in from the places you already saved and the
 spreadsheet you already wrote, get grouped by day, and grey out as you visit them.
 Built to be used one-handed, on a phone, on hotel wifi.
 
-Status: building. The Worker, the schema, the My Maps parser and place search (§4b) exist;
-everything else below is still a plan. Wireframes are in `design/`.
+Wireframes are in `design/`, and they are the specification — `CLAUDE.md` is the
+law on how to read and follow them.
+
+---
+
+## 0. Where this is, and what to pick up next
+
+*Last walked over the deployed Worker on 2026-09-13, at phone, tablet and desk
+widths. Everything below was checked in the running app, not inferred from the
+code.*
+
+### Built and working
+
+| | Where |
+|---|---|
+| Trips list — happening now, coming up, past; derived subtitles | §4d |
+| Starting a trip — name, then the date range on a real calendar | §4d |
+| The empty trip, with its two ways forward | §4g |
+| The phone home screen — map, two-height sheet, day accordion, stops | §4c, §7 |
+| Place search — Text Search, biased to the open day, KV-cached, deduped | §4b |
+| Derived text everywhere — the grey line, the trip subtitle, the cities | §4c |
+| The stop's actions and kebab; Navigate, Visited, notes | §4e |
+| Move to day, with the BEST FIT card and a reason on every other day | §8 |
+| Drag to reorder, across days, with spring-loaded opening | §4e |
+| The one trip menu, and history-backed back navigation | §4h |
+| The Plan view, phone and desk, with times, free slots and the tray | §4f |
+| The real Google map, styled to the palette, with the drawn map as fallback | §7 |
+| Optimistic writes on every edit, with a revert and a notice on failure | §2 |
+
+### Next, in the order it is worth doing
+
+1. **Sign in (§5).** Better Auth on D1, Google only. Everything in the two lists
+   below that is *blocked* is blocked on this: there is no real person, so
+   there is nobody to invite, no avatar that means anything, and no way to tell
+   two phones apart. `design/SignIn.dc.html` is drawn and untouched. This is
+   the single biggest unlock in the file.
+2. **Members and invites (§5).** `trip_invites` and `trip_share_links` are in
+   the schema with no API behind them. `design/Members.dc.html` is drawn. The
+   invite button in the trip bar and the Trips invite banner are both waiting
+   on this and currently do nothing.
+3. **Fix "today" (see the bugs below).** One-line-ish, and wrong in a way that
+   matters to the whole premise of the app.
+4. **Bringing in a My Map (§3).** The KML parser is written and tested and the
+   spike route works; nothing writes to `places` from it, nothing uses
+   `sources`, and there is no hourly sync. `design/Import.dc.html` is drawn,
+   and *Bring in a My Map* on the empty trip does nothing when tapped.
+5. **Offline (§4g).** Stated as a requirement in §2 and drawn in
+   `design/Offline.dc.html`; nothing is built. No service worker, no queued
+   writes, no strip under the nav. The optimistic write path is the right
+   shape for it, but it drops a failed write rather than holding it.
+6. **Live changes (§6).** `TripRoom` is a stub Durable Object that accepts
+   sockets and broadcasts. Nothing in the client opens one, so two phones on
+   one trip never see each other.
+7. **The wide layout (`design/Desktop.dc.html`).** The Planner grid is the only
+   screen that has a desk density; the Trips list and the map still centre a
+   375px frame on a 1440px window.
+8. **Editing a trip after it exists (§4d).** There is no way to rename a trip,
+   change its dates, or delete one. §4d's *Changing the dates later* is written
+   and unbuilt, and the trip menu has no item for any of it.
+
+Infrastructure has its own backlog in **INFRA.md** — the Places key, the custom
+domain, the Maps browser key, Alchemy state. None of it blocks the list above
+except sign-in, which needs the Google OAuth client in INFRA.md §4.
+
+### Known bugs
+
+1. **"Today" is computed in UTC, and the trip's own timezone is never read.**
+   `todayIso()` is `new Date().toISOString().slice(0, 10)` in both
+   `src/worker/index.ts` and the client. `trips.timezone` is written at
+   creation and read by nothing. In Japan before 09:00 local it is still
+   yesterday; in Vancouver after 17:00 it is already tomorrow. That decides the
+   TODAY tag, which day the trip opens on, the done/ahead colour of every pin
+   and card, the now line in the Planner, and "day 3 of 11". For an app whose
+   whole question is *what am I doing today, in the country I am standing in*,
+   this is the one to fix first.
+2. **Tap targets are under the floor, as §11 guessed.** Measured on a 375px
+   viewport: the Navigate / Visited / Add note buttons are **30px** tall and
+   the search row's `+` is **32x32**. Apple asks 44 and Google 48. The
+   artboards draw them at those sizes, so this is a real conflict between the
+   spec and a device, and it needs settling rather than quietly rounding.
+3. **Four controls are drawn and do nothing when tapped.** *Invite someone* in
+   the trip bar (both views), the two map controls (layers, locate), the
+   account avatar on the Trips list, and *Bring in a My Map* on the empty trip.
+   Each is blocked on an item above — but a control that responds to nothing is
+   worse than one that is not there, so either wire them or take them out.
+4. **A failed write is announced and then forgotten.** The revert is right, but
+   there is no retry and nothing is queued, so an edit made on bad hotel wifi
+   is simply lost. §2 promised better than this; see *Offline* above.
+5. **A drag cannot be undone.** A drop commits the moment you let go, and
+   §11.7 already names the fix — a toast reading *Moved to Sat Oct 3* with an
+   Undo, which the op log makes cheap.
+
+### Drawn but deliberately not built
+
+Recorded so nobody builds them by accident: the "All stops" title on the
+expanded sheet, the "Search anywhere" control, and the X inside the search
+field are all **deliberate departures** with the reasoning in `CLAUDE.md`. The
+Planner's travel and lodging rows and its add-a-day rails are left out because
+`travel_legs` and `lodging` have no API and nothing can fill them (§5b).
 
 ---
 
 ## 1. What it has to do
 
-| | Capability | Hard part |
-|---|---|---|
-| 1 | Show every stop on one full-screen map, clustered | none, solved problem |
-| 2 | Pull places in from Google | saved lists have no API, so we use My Maps — §3 |
-| 3 | Plan days and times as a grid | built in, replacing the spreadsheet — §4 |
-| 3b | Sign in, invite people to a trip | picking an auth library that runs on Workers — §5 |
-| 3c | Search for places and add them | biasing results to the day you are planning — §4b |
-| 4 | Colour by progress, group by day | two encodings, one channel — §7 |
-| 5 | Mark visited, add notes | none |
-| 6 | ~~Import flights from Gmail~~ | deferred past v1 — §5b |
-| 7 | Live collaboration, no refreshing | ordering conflicts on drag-reorder — §6 |
-| 8 | Drag a stop to another day, or "move to day" with a suggestion | the suggestion needs a distance model — §8 |
+| | Capability | Hard part | Built |
+|---|---|---|---|
+| 1 | Show every stop on one full-screen map, clustered | none, solved problem | yes, less clustering |
+| 2 | Pull places in from Google | saved lists have no API, so we use My Maps — §3 | parser only |
+| 3 | Plan days and times as a grid | built in, replacing the spreadsheet — §4 | yes |
+| 3b | Sign in, invite people to a trip | picking an auth library that runs on Workers — §5 | no |
+| 3c | Search for places and add them | biasing results to the day you are planning — §4b | yes |
+| 4 | Colour by progress, group by day | two encodings, one channel — §7 | yes |
+| 5 | Mark visited, add notes | none | yes |
+| 6 | ~~Import flights from Gmail~~ | deferred past v1 — §5b | n/a |
+| 7 | Live collaboration, no refreshing | ordering conflicts on drag-reorder — §6 | stub DO only |
+| 8 | Drag a stop to another day, or "move to day" with a suggestion | the suggestion needs a distance model — §8 | yes |
 
 ---
 
@@ -85,6 +182,9 @@ shapes the data model below, which is why ordering is a string and not an intege
 
 ## 3. Places come from Google My Maps
 
+*Status: the KML parser is written and tested and the spike route fetches a real map. Nothing yet
+writes those places into a trip, `sources` is an empty table, and there is no hourly sync. See §0.*
+
 **Decided.** There is no API for a Google Maps *saved list* — not in Maps Platform, not in Drive,
 not in People. Every route into one is either a manual export or scraping a page that will change.
 
@@ -135,6 +235,10 @@ rethinking the plan anyway.
 ---
 
 ## 4b. Adding places from inside the app
+
+*Status: built, and measured against the deployed Worker. Two departures from what follows are
+recorded in `CLAUDE.md`: there is no "Search anywhere" (dropping the bias searches near the
+Cloudflare edge, not near you), and the bias never gates a result, only ranks it.*
 
 **Google Places API (New)**, proxied through the Worker so the key never reaches the browser.
 
@@ -232,6 +336,9 @@ The city on each place is reverse-geocoded once at import and stored, not recomp
 
 ### Changing the dates later
 
+*Not built. There is no way to rename a trip, move its dates, or delete one — the trip menu holds
+Map view, Plan view and Back to trips, and nothing else. What follows is still the plan.*
+
 Trips get extended and cut short, so this cannot live in a settings screen. The Planner has a **plus
 at each end of the day grid**: one adds a day before the trip, one adds a day after, and both are a
 single click that widens `trips.start_date` or `end_date` and inserts a `days` row. Removing a day
@@ -281,8 +388,8 @@ Both write the same op: a `day_id` change, an `order_key` between its new neighb
 
 ## 4f. Planning on a phone
 
-**In v1.** A seven-column grid cannot work at 375 px at any density, so the phone Plan view is one
-day per screen: the time running down the side, the gaps drawn to scale, days swiped on a pill rail.
+**In v1, and built.** A seven-column grid cannot work at 375 px at any density, so the phone Plan
+view is one day per screen: the time running down the side, the gaps drawn to scale, days swiped on a pill rail.
 It is Direction C from the explorations page, which earns its place after all.
 
 **The tray along the bottom is why it is worth building.** *To be planned* has no good home anywhere
@@ -291,6 +398,11 @@ Here it sits directly under the day you are filling, ready to drag up. That is a
 the app does.
 
 The desktop Planner stays the grid. They are the same view at two densities, not two features.
+
+**As built**, the grid appears from 780 px rather than the 1440 the artboard was drawn at, and deals
+as many days as fit — seven at 1280 and up, fewer below, never a column under 120 px. Times are set
+on the time itself, and a stop without one waits in a band under the hours instead of being given a
+time nobody chose. `CLAUDE.md` holds the four judgement calls the artboards did not settle.
 
 ---
 
@@ -351,6 +463,10 @@ header.
 ---
 
 ## 5. Auth
+
+*Status: not built, and the largest single thing missing. Today every visitor is an anonymous id in
+a cookie, `app_user` holds a stub row, and avatars are two letters derived from that id. Invites and
+share links are in the schema with no API. See §0.*
 
 **Better Auth**, which is the right call. Alternatives considered:
 
@@ -426,6 +542,11 @@ everyone on the trip regardless of their mail provider.
 ---
 
 ## 6. Realtime
+
+*Status: `TripRoom` exists as a stub that accepts sockets, broadcasts, and hibernates. Nothing in
+the client opens one, and no op is written or replayed. Two phones on one trip do not see each
+other; a change lands after the other side re-reads the trip. The op log below is also what an undo
+and an offline queue would be built on, so it is worth more than live cursors.*
 
 `TripRoom` Durable Object per trip.
 
@@ -604,17 +725,30 @@ what makes dragging onto a day a single field update and keeps drag-back-off fre
 
 ## 11. Still open
 
+*Three of these were answered by walking the deployed app on 2026-09-13; the
+answers are folded in below and the live ones are listed in §0.*
+
 1. **Naming the sidebar.** You suggested Planned or Scheduled. I used **Planned**, because the list
    holds places that are *not* on a day yet, so Scheduled would say the opposite of what it means.
    Shortlist and Ideas both work too. Easy to change.
 2. **Trip scale** — is 11 days and ~50 stops the shape, or should this hold a 30-day trip with 300?
    It changes the Planner's column widths and forces horizontal paging, not the schema.
-3. **Times** — many stops will have none. End of the day, or hold a position in the order anyway?
+3. ~~**Times** — many stops will have none. End of the day, or hold a position in the order anyway?~~
+   **Settled by the Plan view.** A stop keeps its place in the day's order whether or not it has a
+   time; the phone's time gutter simply shows a plus where there is none, and the Planner's grid
+   holds untimed stops in a band under the hours until someone drags one on to a time. Nothing is
+   pushed to the end of the day, and no time is invented.
 4. **Visited** — per person or per trip? If Mika eats the ramen and you do not, is it visited?
-5. **Tap targets on the phone.** The action buttons are 30 px after the density pass, under both the
-   Apple and Google floors. First thing to check on a device.
+5. **Tap targets on the phone.** Now measured rather than guessed: the action buttons are **30 px**
+   tall and the search row's add button is **32 x 32**, against Apple's 44 and Google's 48. The
+   artboards draw them at those sizes, so this is the spec and a real device disagreeing, and it
+   wants a decision — grow them and depart from the artboards, or keep them and extend the hit area
+   invisibly the way the sheet handle already does.
+6. **Which timezone is "today"?** Not previously asked, and it turns out to matter more than
+   anything else in this list. The trip has a `timezone` column that nothing reads, and both the
+   Worker and the client ask UTC what day it is. See §0's bug list.
 7. **Undoing a drag.** There is no rearrange mode and so no Done button, which means a drop is
-   committed the moment you let go. On a live shared list that wants an undo, most likely a toast
+   committed the moment you let go. Still true of the sheet, and now of the Planner grid too. On a live shared list that wants an undo, most likely a toast
    reading "Moved to Sat Oct 3" with an Undo action. The op log in section 6 already makes this
    cheap, but nothing in the wireframes shows it yet.
 8. **Getting data out.** CSV export is cut from v1. Worth adding back before anyone trusts this with
