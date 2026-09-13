@@ -1,7 +1,8 @@
 # Working on this repo
 
 Read `PLAN.md` for what the product is and why each decision went the way it
-did. Read `ENVIRONMENT.md` before trying to deploy. This file is about one
+did. Read `ENVIRONMENT.md` before trying to deploy, and `INFRA.md` for the
+state of the live account — every item in it is closed bar two Google quotas. This file is about one
 thing only: **the design in `design/` is the specification for the UI, and the
 UI is expected to match it 1:1.**
 

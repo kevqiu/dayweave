@@ -136,7 +136,7 @@ yvr.kocho.sh
    │      ├── Places proxy  Autocomplete + Details, key server-side, KV-cached
    │      ├── D1             relational truth: trips, days, stops, places, members
    │      ├── DO  TripRoom   one per trip. WebSocket hibernation, op sequencing, presence
-   │      ├── R2  tiles      Protomaps basemap (.pmtiles) — self-hosted, no per-tile cost
+   │      ├── R2  tiles      empty — the basemap is Google's after all, see below
    │      ├── R2  uploads    Takeout CSVs, photos
    │      ├── KV  sessions   signed session lookup, OAuth state
    │      ├── Queue          import jobs
@@ -155,10 +155,23 @@ yvr.kocho.sh
 - **Workflows** for imports specifically. An import is: fetch list → resolve 46 places → match 34
   sheet rows → write. Any step can fail on a rate limit. Workflows checkpoint each step and retry
   just that one, which a Queue consumer would have to reimplement badly.
-- **R2 + Protomaps** instead of Google's map tiles. One `.pmtiles` file for Japan is a few hundred
-  MB, R2 has no egress fee, and MapLibre lets us style it to the warm palette. Google tiles would
-  cost per load, cannot be restyled past their preset themes, and force Google's UI attributions
-  into a design meant to be calm.
+- ~~**R2 + Protomaps** instead of Google's map tiles.~~ **Reversed, 2026-09-13, and closed.** The
+  reasoning was: one `.pmtiles` file for Japan is a few hundred MB, R2 has no egress fee, MapLibre
+  styles it to the warm palette, and Google tiles cost per load, cannot be restyled past their
+  presets, and force Google's furniture into a calm design.
+
+  Three things killed it. **Google's Maps Platform terms forbid showing Places content on a
+  non-Google map** — the trip's pins *are* Places content, so "Protomaps underneath, Google Places
+  on top" is precisely the combination the terms name, and moving the basemap would mean moving
+  place search too, losing the ratings and the Japanese POI coverage that make the rows in
+  `PlaceSearch.dc.html` worth having. **"A few hundred MB" was wrong**: a country extract lands in
+  the low gigabytes even capped at z14. And **two of the three objections were already answered**
+  without it — `gmap.ts` styles the Google map down to `tokens.ts` and turns every default control
+  off, so the only furniture is ours. The per-load cost is real, remains, and is what the Dynamic
+  Maps quota is for.
+
+  So the map is Google's, the R2 bucket stays empty, and MapLibre is not a dependency. If the
+  per-load cost ever bites, the decision to revisit is *both* halves at once: basemap and search.
 - **Better Auth on D1** for sign-in, sessions and the Google tokens Drive will need later. See §5.
 - **No Gmail and no Sheets integration in v1.** Sign-in asks for `openid email profile` only.
 
@@ -170,8 +183,10 @@ tie an MVP to an alpha IaC tool. The 0.x line is what the ecosystem guides descr
 `alchemy/cloudflare/vite` integration the frontend needs, and its resource names are the ones this
 document assumes. Revisit when v2 is stable.
 
-**Frontend**: React 19 + Vite + TanStack Router + MapLibre GL JS. Tailwind v4 with the palette as
-CSS variables; no component library, the UI is small and specific. Framer Motion only for the sheet.
+**Frontend**: React 19 + Vite + TanStack Router. Tailwind v4 with the palette as CSS variables; no
+component library, the UI is small and specific. Framer Motion only for the sheet. MapLibre is off
+this list with Protomaps — the map is the Maps JavaScript API, styled in `gmap.ts`. None of this is
+built: the UI today is one plain script, and PLAN.md §2's framework is a later decision.
 
 **Offline is a requirement, not a nice-to-have.** You will open this in a basement ramen shop with
 no signal. Ops are written to IndexedDB first, applied optimistically, and flushed to the DO when

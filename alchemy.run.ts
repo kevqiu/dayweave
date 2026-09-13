@@ -59,7 +59,11 @@ const placesCache = await KVNamespace("places-cache", {
   title: `${app.name}-${app.stage}-places-cache`,
 });
 
-// Protomaps basemap and anything people attach later.
+// Empty, and staying that way. It was made to hold a Protomaps basemap; PLAN.md
+// section 2 reversed that and the map is Google's (INFRA.md item 6). Kept
+// because attachments — a reservation PDF, a scanned rail pass — are the next
+// thing that needs a bucket, and destroying and recreating one to save nothing
+// is not worth the churn. The name is now the only misleading thing about it.
 const tiles = await R2Bucket("tiles", {
   name: `${app.name}-${app.stage}-tiles`,
 });
