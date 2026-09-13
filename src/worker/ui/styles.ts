@@ -624,17 +624,11 @@ button { font-family: ${SANS}; cursor: pointer; }
 }
 
 
-/* ---- The Plan view, one day a screen (design/PlannerMobile.dc.html) ---- */
-.screen.plan { background: ${C.paper}; }
+/* ---- The Plan view on a phone: the trip bar, the rail, one column ---- */
 /* Main.dc.html floats the bar over the map. Here it is the first row of a
-   column with nothing behind it, so it takes its own space. */
-.screen.plan .trip-bar { position: static; flex-shrink: 0; }
-/* The way into an empty stretch of the day, in the dashed language of the
-   free slot rather than the sheet's filled pill. */
-.clock-list .add-stop {
-  margin: 12px 0 16px; width: 100%; border-radius: 7px;
-  border: 1.2px dashed #E2D8C6; background: transparent; height: 26px;
-}
+   column with nothing behind it, so it takes its own space — without this the
+   rail slides up underneath it. */
+.screen.desk.narrow .trip-bar { position: static; flex-shrink: 0; }
 
 .day-rail {
   height: 46px; flex-shrink: 0; display: flex; align-items: center; gap: 6px;
@@ -655,73 +649,11 @@ button { font-family: ${SANS}; cursor: pointer; }
 }
 .rail-hue { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
 
-/* The day as a clock: the time down the side, the rows beside it, the gaps
-   drawn to scale. */
-.day-clock {
-  flex-grow: 1; overflow-y: auto; display: flex; padding: 10px 12px 0 0; min-height: 0;
-}
-.clock-gutter {
-  width: 44px; flex-shrink: 0; display: flex; flex-direction: column;
-  align-items: flex-end; padding-right: 8px;
-}
-.clock-time {
-  background: none; border: 0; padding: 0; width: 100%;
-  display: flex; align-items: flex-start; justify-content: flex-end;
-  font-family: ${SANS}; font-size: 9.5px; color: ${C.faint};
-  font-variant-numeric: tabular-nums;
-}
-.clock-time.unset { opacity: 0.55; }
-.clock-rule { width: 1.5px; background: ${C.sheetEdge}; flex-shrink: 0; margin-right: 11px; }
-.clock-list { flex-grow: 1; min-width: 0; display: flex; flex-direction: column; }
-
-.plan-row { display: flex; flex-direction: column; }
-.plan-row-top { display: flex; align-items: flex-start; gap: 7px; }
-.plan-row .grip { margin-top: 3px; opacity: 0.35; }
-.plan-name {
-  font-size: 12.5px; font-weight: 500; display: block;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.plan-row.done .plan-name { color: ${C.greyer}; font-weight: 400; text-decoration: line-through; }
-.plan-meta {
-  font-size: 9.5px; color: ${C.meta}; margin-top: 1px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.plan-meta:empty { display: none; }
-.plan-meta.note { color: #736C62; }
-.plan-author {
-  width: 15px; height: 15px; border-radius: 50%; color: #FFF9F0; font-size: 6.5px;
-  font-weight: 700; display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-}
-.plan-row.done .plan-author { opacity: 0.45; }
-.plan-row.ghost { opacity: 0.45; }
-
-/* The gap the day is holding open, and the plus that fills it. */
-.free-slot {
-  margin-top: 9px; height: 22px; border-radius: 7px; border: 1.2px dashed #E2D8C6;
-  background: transparent; display: flex; align-items: center; justify-content: center;
-  gap: 6px; font-family: ${SANS}; font-size: 9.5px; color: ${C.faint};
-}
-
-/* The tray, which is why the Plan view is worth building on a phone. */
-.plan-tray {
-  flex-shrink: 0; border-top: 1px solid ${C.border}; background: ${C.highlight};
-  padding: 8px 12px 12px; max-height: 38%; display: flex; flex-direction: column;
-}
-.plan-tray.full { max-height: 72%; }
-.plan-tray .grabber { height: auto; padding-bottom: 8px; }
-.tray-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+/* Shared by the drawer and the desk panel: the label, the count and the card
+   To be planned is a list of. The phone's own tray — a strip under the day's
+   clock, with a grabber and a pull-up — went with the clock it sat under. */
 .tray-label { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: ${C.greyer}; }
 .tray-count { font-size: 10.5px; color: ${C.greyer}; font-variant-numeric: tabular-nums; }
-.tray-more {
-  background: none; border: 0; padding: 0; font-family: ${SANS};
-  font-size: 10.5px; font-weight: 600; color: ${C.link};
-}
-.tray-sep { width: 1px; height: 12px; background: #E0D5BF; }
-.round-btn.small { width: 22px; height: 22px; border-radius: 6px; }
-.tray-strip { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
-.tray-strip::-webkit-scrollbar { display: none; }
-.tray-list { display: flex; flex-direction: column; gap: 5px; overflow-y: auto; min-height: 0; }
 .tray-empty { font-size: 10.5px; color: ${C.faint}; line-height: 1.5; }
 .tray-card {
   border-radius: 9px; border: 1px solid ${C.borderWarm}; background: ${C.card};
@@ -731,7 +663,7 @@ button { font-family: ${SANS}; cursor: pointer; }
 .tray-card.ghost { opacity: 0.45; border-style: dashed; }
 .tray-name { font-size: 11px; font-weight: 600; white-space: nowrap; }
 .tray-meta { font-size: 9px; color: ${C.meta}; white-space: nowrap; }
-.tray-list .tray-name, .tray-list .tray-meta {
+.tray-side-list .tray-name, .tray-side-list .tray-meta {
   overflow: hidden; text-overflow: ellipsis; display: block;
 }
 .tray-put { background: none; border: 0; padding: 0 2px; display: flex; }
@@ -911,15 +843,78 @@ button { font-family: ${SANS}; cursor: pointer; }
   font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px;
 }
 
-/* The Plan view's row is a card too: the tap target that opens its actions. */
-.plan-tap {
-  flex-grow: 1; min-width: 0; display: flex; align-items: center; gap: 8px;
-  background: none; border: 0; padding: 0; text-align: left;
+/* ---- The Plan view on a phone: one column, and a drawer ---- */
+
+/* One day, so the header has nothing to line up with and can breathe. */
+.screen.desk.narrow .grid-head { height: auto; min-height: 30px; }
+.screen.desk.narrow .gcol-head { padding: 5px 12px 7px; }
+.screen.desk.narrow .grid-main { position: relative; }
+
+/*
+ * Where you are sleeping, above the hours and outside the scroller.
+ *
+ * A hotel is not an event at a time — it is the fact the whole day hangs off —
+ * so it does not scroll away with the morning.
+ */
+.lodging-row {
+  display: flex; flex-shrink: 0; border-bottom: 1px solid ${C.sheetEdge};
+  background: ${C.card};
 }
-.plan-row.selected {
-  background: ${C.highlight}; border-radius: 12px;
+.lodging-gutter {
+  width: 56px; flex-shrink: 0; display: flex; align-items: center;
+  justify-content: center; opacity: 0.7;
 }
-.plan-row.selected .stop-actions { padding-left: 0; }
+.lodging-cell {
+  flex: 1 1 0; min-width: 0; padding: 6px 6px; display: flex; gap: 5px;
+  border-left: 1px solid ${C.line};
+}
+.lodging-card {
+  flex-grow: 1; min-width: 0; text-align: left; padding: 5px 9px;
+  border-radius: 9px; border: 1px solid #CBDCC6; background: #EEF4EC;
+}
+.lodging-card.selected { border-color: ${C.todayInk}; }
+.lodging-name {
+  display: block; font-size: 11.5px; font-weight: 600; color: #3F6B4A;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/*
+ * To be planned, as a drawer over the calendar.
+ *
+ * Shut, it is a tab on the right edge carrying the count. Open, it slides over
+ * the grid — there is no room beside it at 375px, and the grid is what the
+ * screen is for.
+ */
+.tray-dock { position: absolute; inset: 0; pointer-events: none; z-index: 30; }
+.tray-tab {
+  position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+  pointer-events: auto; display: flex; flex-direction: column; align-items: center;
+  gap: 6px; padding: 12px 5px; border: 1px solid ${C.border}; border-right: 0;
+  border-radius: 10px 0 0 10px; background: ${C.card};
+  box-shadow: -2px 0 10px rgba(84,68,44,0.10);
+}
+.tray-tab-label {
+  writing-mode: vertical-rl; font-size: 8.5px; font-weight: 700;
+  letter-spacing: 0.12em; color: ${C.greyer};
+}
+.tray-tab-count {
+  min-width: 17px; height: 17px; border-radius: 9px; background: ${C.highlight};
+  color: ${C.inkSoft}; font-size: 9.5px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.tray-dock.open .tray-tab { opacity: 0; pointer-events: none; }
+.tray-scrim {
+  position: absolute; inset: 0; pointer-events: auto;
+  background: rgba(51,48,43,0.14);
+}
+.tray-side.drawer {
+  position: absolute; top: 0; right: 0; bottom: 0; pointer-events: auto;
+  width: min(280px, 78%); background: ${C.paper};
+  box-shadow: -8px 0 24px rgba(84,68,44,0.18);
+  transform: translateX(101%); transition: transform 200ms cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+.tray-side.drawer.open { transform: translateX(0); }
+.tray-close { background: none; border: 0; padding: 2px; display: flex; }
 
 /* A quiet inline error, in the terracotta the palette already uses. */
 .err { padding: 10px 16px; font-size: 11.5px; color: ${C.link}; }

@@ -29,7 +29,8 @@ That is the map of what exists:
 | `SheetFull.dc.html` | The sheet expanded, and drag-to-reorder | yes, less the title |
 | `AddNote.dc.html` | Only the button reading Add note. See below | n/a |
 | `SignIn.dc.html` | Sign in (§5) | yes, less the share-link line |
-| `Planner.dc.html`, `PlannerStop.dc.html`, `PlannerMobile.dc.html` | The day grid (§4f) | yes, less the travel and lodging rows |
+| `Planner.dc.html`, `PlannerStop.dc.html` | The day grid (§4f) | yes, less the travel row |
+| `PlannerMobile.dc.html` | The phone Planner as a list of rows | **superseded** — the phone draws one column of the grid instead. See below |
 | `Offline.dc.html`, `Import.dc.html`, `Members.dc.html` | The other states (§4g) | no |
 | `Desktop.dc.html` | The wide layout | no |
 | `DirectionA/B/C.dc.html` | Rejected directions. Reference only — do not build these | n/a |
@@ -191,21 +192,50 @@ To be planned bucket is `#94897A`, which is not on the ramp.
   throws away any pointer capture held on it — nothing moves and nothing
   drops. This has now been the cause of two bugs, the sheet handle and this
   one.
-- **The Plan view is one view at two densities, not two screens.** PLAN.md §4f:
-  a seven-column grid cannot work at 375px, so the phone draws the day as a
-  clock and the desk draws the week as a grid. Both read the same trip payload
-  and write the same ops, and crossing 780px re-renders from one into the
-  other. `#frame` fills the viewport up to `1440 x 900` while the grid is
-  showing and shrinks back on the way out; every other screen stays the 375px
-  phone, because `Desktop.dc.html` is not built.
+- **The Plan view is one grid at every width — one column on a phone.** It was
+  two screens: PLAN.md §4f reasoned that a seven-column grid cannot work at
+  375px, so the phone drew the day as a clock, a list of rows with the times
+  down the side, and the desk drew the week as a grid.
 
-  **780 is where the grid starts working, and it is not the artboard's 1440.**
-  1440 is the width the Planner was drawn at, not the width it needs: what it
-  needs is a column per day wide enough to read a place name in, and room for
-  the tray beside them. So the grid deals **as many days as fit** — seven at
-  1280 and up, fewer below, never a column under 120px and never fewer than
-  three days — rather than squeezing seven columns into a tablet. The height
-  half of the query keeps a phone on its side out of it.
+  The premise was right and the conclusion was wrong. The answer to "seven
+  columns will not fit" is **one column**, not a different screen. A day at
+  375px with real hours in it is a calendar, and you can see the shape of the
+  day and the holes in it; a list of rows is an agenda, which is a different
+  thing and loses exactly that. So `screenGrid` is the whole Plan view now, and
+  `gridDays()` returns 1 below 780px. The clock — `screenPlan`, `dayClock`,
+  `planRow`, the phone's own tray strip — is gone, along with its CSS.
+
+  What the phone keeps of its own: the pill rail picks the day (so the column
+  header does not repeat the date, and carries the city and the count
+  instead), a sideways swipe steps a day, and To be planned is a drawer rather
+  than a panel. `#frame` fills the viewport up to `1440 x 900` only for the
+  wide grid; the phone stays 375, because `Desktop.dc.html` is not built.
+
+  **780 is where more than one column starts working, and it is not the
+  artboard's 1440.** 1440 is the width the Planner was drawn at, not the width
+  it needs: what it needs is a column per day wide enough to read a place name
+  in, and room for the tray beside them. So above 780 the grid deals **as many
+  days as fit** — seven at 1280 and up, fewer below, never a column under
+  120px and never fewer than three. The height half of the query keeps a phone
+  on its side out of it.
+
+  **To be planned is a drawer on the right, on a phone.** At a desk it is a
+  column beside the grid and always open, because there is room for both and
+  nothing is covered. At 375px there is no such room, so it slides in over the
+  calendar and is shut by default — the calendar is what the screen is for and
+  the drawer is where you go to fetch something. Two consequences follow from
+  that and are built:
+
+  - **Dragging a card out of it closes it.** The point of picking something up
+    in there is to put it down on the day, and the day is underneath.
+  - **Dragging a card back against the right edge opens it.** A shut drawer is
+    a drop target you cannot see into; holding a card there slides it out so
+    the card can go among the others rather than through a slot. It waits
+    350ms first, the same reason a collapsed day in the sheet waits before
+    springing open: a finger crossing the edge on its way to the last column
+    must not drag the drawer out from under it. It is done with a class rather
+    than a `render()`, because a render mid-drag would replace the handle and
+    the card in the air.
 
   **It opens where the day is.** A calendar that opens on 08:00 with the day
   below the fold has hidden what it was opened for, and on a trip where
@@ -222,16 +252,18 @@ To be planned bucket is `#94897A`, which is not on the ramp.
   `plan-client.test.ts` runs that script and checks it agrees with
   `src/lib/plan.ts` on a table of inputs, so the copy cannot drift quietly.
 
-  Four things the artboards do not settle, decided here:
+  Things the artboards do not settle, decided here:
 
-  - **A row's height answers to the gap after it.** `PlannerMobile.dc.html`
-    draws five rows at 46/62/46/74/46 against times that no single rule
-    reproduces — the 62 in particular answers to nothing else on the page.
-    What it does say is that the row with the largest following gap is the one
-    carrying the dashed slot. So every row is 46, and a row grows by the slot
-    when the gap after it is 75 minutes or more. A visited stop never grows
-    one: that gap is in the past, and the plus on the slot is an invitation to
-    plan.
+  - **Where you sleep is pinned above the hours.** `Planner.dc.html` rules a
+    lodging strip and this file used to say it was not built, because
+    `lodging` is a table with no API and the row would have been furniture
+    with nothing behind it. There is something behind it now: a stop whose
+    category reads as lodging is an accommodation node, so the strip is fed by
+    the trip's own stops. It sits **above** the hours and outside the
+    scroller, because a hotel is not an event at a time — it is the fact the
+    whole day hangs off — so it should not scroll away with the morning. A bed
+    is drawn there and only there: it is skipped in the column, so it does not
+    also turn up in the `NO TIME` band.
   - **Untimed stops wait in a band under the hours.** Every card on
     `Planner.dc.html` has a time and most stops on a real trip have none
     (PLAN.md §11). Giving them one nobody chose is exactly the placeholder this
@@ -245,11 +277,12 @@ To be planned bucket is `#94897A`, which is not on the ramp.
     artboard's *Edit* can actually do: the name comes from the place and the
     note has its own item. No artboard draws the editor itself; it is the note
     editor's sheet with a time field.
-  - **The travel and lodging rows are not built.** `Planner.dc.html` rules two
-    strips under the grid for flights, trains and hotels. `travel_legs` and
-    `lodging` are tables with no API and no way to put anything in them, so
-    drawing the rows would be furniture with nothing behind it. The same goes
-    for the add-a-day rails either side of the grid.
+  - **The travel row is not built.** `Planner.dc.html` rules a strip under the
+    grid for flights and trains. `travel_legs` is a table with no API and no
+    way to put anything in it, so drawing the row would be furniture with
+    nothing behind it. The same goes for the add-a-day rails either side of
+    the grid. Lodging *is* built, from stops rather than from the `lodging`
+    table — see above.
 
   **What is being dragged decides how the drop is read.** A sheet stacks its
   days, so the finger's y says which one it is over. The Planner's columns sit

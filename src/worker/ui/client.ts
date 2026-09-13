@@ -70,7 +70,8 @@ const state = {
   openDayId: null,
   planDayId: null,
   planPage: 0,
-  trayFull: false,
+  /* To be planned, on a phone, is a drawer. Shut until it is wanted. */
+  trayOpen: false,
   timeFor: null,
   pendingTime: null,
   selectedStopId: null,
@@ -103,6 +104,8 @@ const wideNow = () => window.matchMedia(WIDE).matches;
 const planning = () => state.screen === "trip" && state.view === "plan";
 
 function render() {
+  // The Plan view is the grid at every width now — one column on a phone. The
+  // frame only grows for the wide one; every other screen stays 375.
   const grid = planning() && wideNow();
   // The phone frame is 375 wide everywhere else in the app. The Planner at a
   // desk is the same view at another density (PLAN.md 4f), so the frame grows
@@ -114,7 +117,7 @@ function render() {
   if (state.screen === "trips") frame.append(screenTrips());
   else if (state.screen === "newTrip") frame.append(screenNewTrip());
   else if (state.screen === "trip") {
-    frame.append(planning() ? (grid ? screenGrid() : screenPlan()) : screenTrip());
+    frame.append(planning() ? screenGrid() : screenTrip());
   }
   if (state.search) frame.append(sheetSearch());
   if (state.tripMenu) frame.append(...tripMenu());
@@ -127,7 +130,7 @@ function render() {
   if (state.search) paintSearchMap();
   if (state.screen === "trip" && !planning()) paintMap();
   if (planning() && !grid) scrollRailToDay();
-  if (grid) settleGrid();
+  if (planning()) settleGrid();
 }
 
 // The two densities are one view, so crossing the width re-renders into the
@@ -1529,6 +1532,10 @@ function dragHandle(day, stop) {
     const row = el.closest(".order-row");
     const rect = row ? row.getBoundingClientRect() : null;
 
+    // Picking something up in the drawer means putting it down on the day,
+    // and the day is underneath the drawer. Get out of the way.
+    if (state.trayOpen && el.closest(".tray-side")) state.trayOpen = false;
+
     state.drag = {
       stopId: stop.id,
       fromDayId: day.id,
@@ -1609,11 +1616,46 @@ function dragHandle(day, stop) {
  * Where the finger is over. A collapsed day header takes the whole stop; over
  * the open day, the row it would follow is whichever midpoint it has passed.
  */
+/**
+ * Holding a dragged card against the right edge slides the drawer out.
+ *
+ * The shut drawer is a drop target you cannot see into. Rather than posting
+ * the card through a slot, hold it there and the drawer opens so it can go
+ * among the others. The pause is the same idea as the one on a collapsed day
+ * in the sheet: a finger crossing the edge on its way to the last column of
+ * the grid must not drag the drawer out from under it.
+ */
+const DRAWER_EDGE = 28;
+const DRAWER_DWELL = 350;
+let drawerReach = 0;
+
+function reachForDrawer(x) {
+  const dock = document.querySelector(".tray-dock");
+  if (!dock || state.trayOpen) { drawerReach = 0; return; }
+
+  const frame = $("frame");
+  const right = frame ? frame.getBoundingClientRect().right : window.innerWidth;
+  if (x < right - DRAWER_EDGE) { drawerReach = 0; return; }
+
+  const now = performance.now();
+  if (!drawerReach) { drawerReach = now; return; }
+  if (now - drawerReach < DRAWER_DWELL) return;
+
+  drawerReach = 0;
+  state.trayOpen = true;
+  // The drag is live, so this cannot go through render(): that would replace
+  // the handle and the card in the air. The class is the whole of the change.
+  dock.classList.add("open");
+  const panel = $("tray-drawer");
+  if (panel) panel.classList.add("open");
+}
+
 function resolveDropTarget(x, y) {
   const drag = state.drag;
   const wraps = [...document.querySelectorAll(".drop-zone[data-day-id]")];
 
   drag.outside = false;
+  reachForDrawer(x);
 
   let hit = null;
   for (const wrap of wraps) {
@@ -2548,7 +2590,7 @@ function showPlan() {
   openLayer(showMap);
   state.view = "plan";
   state.selectedStopId = null;
-  state.trayFull = false;
+  state.trayOpen = false;
   planDay();
   render();
 }
@@ -2618,27 +2660,6 @@ function planBar(subtitle) {
   ]);
 }
 
-function screenPlan() {
-  const trip = state.trip;
-  planDay();
-  const day = trip.days.find((d) => d.id === state.planDayId);
-  const at = planIndex() + 1;
-
-  return h("div", { class: "screen plan" }, [
-    planBar("Plan view · day " + at + " of " + trip.days.length),
-    dayRail(),
-    day ? dayClock(day) : h("div", { class: "err", text: "This trip has no days." }, []),
-    planTray(),
-    state.error
-      ? h("div", { class: "toast" }, [
-          h("span", { text: state.error }, []),
-          h("button", { onclick: () => { state.error = null; render(); } }, ["Dismiss"]),
-        ])
-      : null,
-    ...dragLayer(),
-  ]);
-}
-
 /**
  * The pill rail. The selected day carries its whole label; the rest drop the
  * weekday, which is how the artboard fits eleven days in 375px.
@@ -2662,130 +2683,6 @@ function dayRail() {
 function shortLabel(label) {
   const parts = String(label).split(" ");
   return parts.length > 2 ? parts.slice(1).join(" ") : label;
-}
-
-/**
- * The day as a clock: the time down the side, the rows beside it, and a
- * dashed slot wherever the day has a gap worth filling.
- */
-function dayClock(day) {
-  const rows = PLAN.planRows(day.stops.map((s) => ({ id: s.id, time: s.time, status: s.status })));
-  const byId = {};
-  rows.forEach((r) => { byId[r.id] = r; });
-
-  const gutter = h("div", { class: "clock-gutter" }, day.stops.map((stop) =>
-    h("button", {
-      class: "clock-time" + (stop.time ? "" : " unset"),
-      style: "height:" + byId[stop.id].height + "px",
-      title: stop.time ? "Change the time" : "Set a time",
-      onclick: () => openTime(stop),
-    }, stop.time ? [stop.time] : [icon("plusTiny")])));
-
-  const list = h("div", {
-    class: "clock-list drop-zone open",
-    "data-day-id": day.id,
-  }, day.stops.map((stop) => planRow(day, stop, byId[stop.id])));
-
-  list.append(
-    h("button", { class: "add-stop", onclick: () => openSearch(day.id) }, [icon("plusGrey")]),
-  );
-
-  const body = h("div", { class: "day-clock" }, [
-    day.stops.length ? gutter : null,
-    day.stops.length ? h("div", { class: "clock-rule" }, []) : null,
-    day.stops.length ? list : emptyClock(day),
-  ]);
-
-  swipeDays(body);
-  return body;
-}
-
-function emptyClock(day) {
-  return h("div", { class: "clock-list drop-zone open", "data-day-id": day.id }, [
-    h("div", { class: "empty-state" }, [
-      h("h3", { text: "Nothing on this day" }, []),
-      h("p", { text: "Find somewhere to go, or drag something up from To be planned." }, []),
-      h("div", { class: "empty-actions" }, [
-        h("button", { class: "primary", onclick: () => openSearch(day.id) }, [
-          icon("searchLight"), "Find a place",
-        ]),
-      ]),
-    ]),
-  ]);
-}
-
-/**
- * A row on the day's clock, and it is a card like any other.
- *
- * It was not: the sheet's rows open on a tap and show Navigate, Visited, Add
- * note and the kebab, and these did nothing at all — so a stop reached through
- * the Plan view could not be noted, ticked off or removed without going back
- * to the map first. Same tap, same actions, same selection: selectedStopId
- * is one piece of state and both views read it.
- *
- * The row's fixed height comes off while it is open, because the actions have
- * to go somewhere and the height was sized for a closed row.
- */
-function planRow(day, stop, row) {
-  const done = statusOf(day, stop) === "done";
-  const dragging = state.drag && state.drag.stopId === stop.id;
-  const selected = stop.id === state.selectedStopId;
-
-  const card = h("div", {
-    class: "plan-row order-row" + (done ? " done" : "") + (dragging ? " ghost" : "")
-      + (selected ? " selected" : ""),
-    "data-stop-id": stop.id,
-    style: selected ? "" : "height:" + row.height + "px",
-  }, [
-    h("div", { class: "plan-row-top" }, [
-      dragHandle(day, stop),
-      h("button", {
-        class: "plan-tap",
-        onclick: () => {
-          // A drag ends on this element too, so the click it produced is not
-          // a tap — the same guard the sheet's rows use.
-          if (suppressTap) { suppressTap = false; return; }
-          state.selectedStopId = selected ? null : stop.id;
-          state.menuOpen = false;
-          render();
-        },
-      }, [
-        h("div", { class: "stop-text" }, [
-          h("span", { class: "plan-name", text: stop.title }, []),
-          h("span", {
-            class: "plan-meta" + (stop.note ? " note" : ""),
-            text: planMeta(stop),
-          }, []),
-        ]),
-        h("span", {
-          class: "plan-author",
-          style: "background:" + stop.authorColor,
-          text: stop.author,
-          title: stop.author + " added this",
-        }, []),
-      ]),
-    ]),
-    // The note is already on the row's second line here, so the actions do not
-    // repeat it — that is what the false says.
-    selected && !dragging ? stopActions(stop, done, true) : null,
-    row.free && !selected
-      ? h("button", {
-          class: "free-slot",
-          title: "Plan something into this gap",
-          onclick: () => openSearch(day.id, row.freeAt),
-        }, [h("span", { text: row.free }, []), icon("plusTiny")])
-      : null,
-  ]);
-  return card;
-}
-
-/**
- * A note beats the derived line here, and is drawn darker for it: the artboard
- * writes "Booked 13:15, they release the table" in a stronger grey than the
- * "park / 12 min walk" beside it, because a person wrote it.
- */
-function planMeta(stop) {
-  return stop.note || stop.description || "";
 }
 
 /**
@@ -2829,52 +2726,6 @@ function swipeDays(el) {
     window.addEventListener("pointerup", end);
     window.addEventListener("pointercancel", cancel);
   });
-}
-
-/**
- * The tray. PLAN.md 4f: To be planned has no good home anywhere else on a
- * phone, and here it sits directly under the day you are filling.
- */
-function planTray() {
-  const all = state.trip.unplanned;
-  const full = state.trayFull;
-
-  const head = h("div", { class: "tray-head" }, [
-    h("span", { class: "tray-label", text: "TO BE PLANNED" }, []),
-    h("span", { class: "tray-count", text: String(all.length) }, []),
-    h("span", { style: "flex-grow:1" }, []),
-    all.length
-      ? h("button", {
-          class: "tray-more",
-          onclick: () => { state.trayFull = !full; render(); },
-          text: full ? "collapse" : "pull up for all",
-        }, [])
-      : null,
-    h("span", { class: "tray-sep" }, []),
-    h("button", {
-      class: "round-btn small",
-      title: "Bringing in a My Map is not built yet",
-      disabled: true,
-      style: "opacity:0.45",
-    }, [icon("pinChip")]),
-  ]);
-
-  const body = h("div", {
-    class: full ? "tray-list drop-zone open" : "tray-strip drop-zone open",
-    "data-day-id": "unplanned",
-  }, all.length
-    ? all.map((stop) => trayCard(stop, full))
-    : [h("span", { class: "tray-empty", text: "Nothing waiting. Anything you add without a date lands here." }, [])]);
-
-  const tray = h("div", { class: "plan-tray" + (full ? " full" : "") }, [
-    h("div", {
-      class: "grabber",
-      onclick: () => { state.trayFull = !full; render(); },
-    }, [h("i", {}, [])]),
-    head,
-    body,
-  ]);
-  return tray;
 }
 
 function trayCard(stop, full) {
@@ -2991,7 +2842,21 @@ function sheetTime() {
  */
 const COLUMN_MIN = 120;
 
+/**
+ * How many days the grid deals.
+ *
+ * One on a phone, which is the whole of the Plan view there now. It used to
+ * draw the day as a list with the times down the side and no grid at all,
+ * on the reasoning that seven columns cannot work at 375px — true, but the
+ * answer to that is one column, not a different screen. A day at 375px with
+ * real hours in it is a calendar; a list of rows is an agenda, and it loses
+ * the thing a calendar is for, which is seeing the shape of the day and the
+ * holes in it.
+ *
+ * At a desk it is as many as fit, never under 120px each and never over seven.
+ */
 function gridDays() {
+  if (!wideNow()) return 1;
   const wide = Math.min(1440, window.innerWidth);
   const tray = Math.min(252, wide * 0.26);
   const columns = Math.floor((wide - 56 - tray) / COLUMN_MIN);
@@ -3012,24 +2877,41 @@ function removeStop(stop) {
   );
 }
 
+/**
+ * The Plan view, at whatever width it is being read at.
+ *
+ * One screen now, not two. A phone gets the same grid with a single column
+ * and the pill rail to choose the day; a desk gets as many columns as fit and
+ * a pager. Both read the same payload, write the same ops, and share every
+ * piece of geometry in src/lib/plan.ts.
+ */
 function screenGrid() {
   planDay();
   const trip = state.trip;
+  const wide = wideNow();
   const total = trip.days.length;
   const page = gridDays();
-  const from = Math.min(state.planPage, Math.max(0, total - page));
+
+  // A phone follows the day the rail is on; a desk pages through them.
+  const from = wide
+    ? Math.min(state.planPage, Math.max(0, total - page))
+    : Math.max(0, planIndex());
   const days = trip.days.slice(from, from + page);
   const span = PLAN.gridSpan(gridTimes(days));
   const band = bandHeight(days);
 
-  return h("div", { class: "screen desk" }, [
-    gridBar(from, total, page),
+  return h("div", { class: "screen desk" + (wide ? "" : " narrow") }, [
+    wide
+      ? gridBar(from, total, page)
+      : planBar("Plan view · day " + (from + 1) + " of " + total),
+    wide ? null : dayRail(),
     h("div", { class: "grid-main" }, [
       h("div", { class: "grid-days" }, [
-        gridHeaders(days),
-        gridScroll(days, span, band),
+        gridHeaders(days, wide),
+        lodgingRow(days),
+        gridScroll(days, span, band, wide),
       ]),
-      traySide(),
+      trayDrawer(wide),
     ]),
     state.error
       ? h("div", { class: "toast" }, [
@@ -3137,7 +3019,7 @@ function gridBar(from, total, page) {
   ]);
 }
 
-function gridHeaders(days) {
+function gridHeaders(days, wide) {
   const today = todayIso();
   return h("div", { class: "grid-head" }, [
     h("div", { class: "grid-gutter-head" }, []),
@@ -3157,18 +3039,59 @@ function gridHeaders(days) {
         class: "gcol-head" + (past ? " past" : "") + (isToday ? " today" : ""),
         onclick: () => { state.planDayId = day.id; render(); },
       }, [
-        h("div", { class: "gcol-top" }, [
-          h("span", { class: "gcol-hue", style: "background:" + day.hue }, []),
-          h("span", { class: "gcol-label", text: day.label }, []),
-          isToday ? h("span", { class: "today-tag", text: "TODAY" }, []) : null,
-        ]),
+        // On a phone the pill rail directly above already names the day in
+        // full, so the header does not say it twice — it carries the city and
+        // the count, which the rail has no room for.
+        wide
+          ? h("div", { class: "gcol-top" }, [
+              h("span", { class: "gcol-hue", style: "background:" + day.hue }, []),
+              h("span", { class: "gcol-label", text: day.label }, []),
+              isToday ? h("span", { class: "today-tag", text: "TODAY" }, []) : null,
+            ])
+          : null,
         h("div", { class: "gcol-sub" + (nothing ? " nothing" : ""), text: line }, []),
       ]);
     }),
   ]);
 }
 
-function gridScroll(days, span, band) {
+/**
+ * Where you are sleeping, pinned above the hours.
+ *
+ * Planner.dc.html rules a lodging strip under its grid and CLAUDE.md said it
+ * was not built, because the lodging table has no API and drawing the row
+ * would have been furniture with nothing behind it. There is something behind
+ * it now: a stop whose category reads as lodging is an accommodation node
+ * (isAccommodation), so the strip is fed by the trip's own stops.
+ *
+ * It sits above the hours rather than under them, and outside the scroller, so
+ * it stays put while the day scrolls — a hotel is not an event at a time, it
+ * is the fact the whole day hangs off. For the same reason the bed is drawn
+ * here and *only* here: it is skipped in the column, so it does not also
+ * appear in the NO TIME band as an untimed card.
+ */
+function lodgingRow(days) {
+  const beds = days.map((day) => day.stops.filter((s) => s.accommodation));
+  if (!beds.some((list) => list.length)) return null;
+
+  return h("div", { class: "lodging-row" }, [
+    h("div", { class: "lodging-gutter", html: ICONS.houseHue }, []),
+    ...days.map((day, i) =>
+      h("div", { class: "lodging-cell" }, beds[i].map((stop) =>
+        h("button", {
+          class: "lodging-card" + (stop.id === state.selectedStopId ? " selected" : ""),
+          onclick: () => {
+            if (suppressTap) { suppressTap = false; return; }
+            state.selectedStopId = stop.id === state.selectedStopId ? null : stop.id;
+            render();
+          },
+        }, [
+          h("span", { class: "lodging-name", text: stop.title }, []),
+        ])))),
+  ]);
+}
+
+function gridScroll(days, span, band, wide) {
   const height = span.height + (band ? band + 12 : 0);
 
   const gutter = h("div", { class: "grid-gutter", style: "height:" + height + "px" },
@@ -3184,7 +3107,7 @@ function gridScroll(days, span, band) {
     PLAN.hourLines(span).map((y) => h("i", { style: "top:" + y + "px" }, [])));
   if (band) lines.append(h("i", { class: "band-rule", style: "top:" + (span.height + 6) + "px" }, []));
 
-  return h("div", { class: "grid-scroll" }, [
+  const scroll = h("div", { class: "grid-scroll" }, [
     h("div", { class: "grid-inner", style: "height:" + height + "px" }, [
       gutter,
       lines,
@@ -3192,6 +3115,11 @@ function gridScroll(days, span, band) {
       ...days.map((day, i) => gridColumn(day, span, band, i >= days.length - 2)),
     ]),
   ]);
+
+  // One column is one day, so sideways across it means the next one. A desk
+  // showing a week has a pager instead, and a swipe there would be ambiguous.
+  if (!wide) swipeDays(scroll);
+  return scroll;
 }
 
 function gridColumn(day, span, band, flip) {
@@ -3229,6 +3157,8 @@ function gridColumn(day, span, band, flip) {
   }
 
   for (const stop of day.stops) {
+    // A bed lives in the pinned strip above the hours, not in them.
+    if (stop.accommodation) continue;
     const box = PLAN.cardBox(span, stop.time, null, Boolean(gridSub(stop)));
     if (!box) continue;
     col.append(gridCard(day, stop, box, null));
@@ -3240,6 +3170,7 @@ function gridColumn(day, span, band, flip) {
   // one on to the hours and it gets the time it lands on.
   let row = 0;
   for (const stop of day.stops) {
+    if (stop.accommodation) continue;
     if (PLAN.minutesOf(stop.time)) continue;
     col.append(gridCard(day, stop, { top: span.height + 20 + row * 42, height: 38 }, "untimed"));
     row++;
@@ -3322,23 +3253,71 @@ function gridPopover(stop) {
 }
 
 /** The sidebar. Same bucket as the phone's tray, laid out down instead of across. */
-function traySide() {
+/**
+ * To be planned, as a drawer on the right.
+ *
+ * At a desk it is a column beside the grid and always open: there is room for
+ * both, and nothing is being covered. On a phone there is no such room, so it
+ * slides in over the calendar from the right edge and is shut by default —
+ * the calendar is what the screen is for, and the drawer is where you go to
+ * fetch something.
+ *
+ * Which is why **dragging a card out of it closes it**. The whole point of
+ * picking something up in there is to put it down on the day, and the day is
+ * underneath the drawer. See the pointerdown in dragHandle.
+ *
+ * And why **dragging a card back towards it opens it again**: the shut drawer
+ * is a drop target you cannot see into, so holding a card against the right
+ * edge slides it out and lets you place the card among the others rather than
+ * posting it through a slot. Same idea as a collapsed day springing open in
+ * the sheet, and the same reason for the pause before it happens — a finger
+ * crossing the edge on its way somewhere else must not disturb it.
+ */
+function trayDrawer(wide) {
   const all = state.trip.unplanned;
-  return h("div", { class: "tray-side" }, [
+  const open = wide || state.trayOpen;
+
+  const panel = h("div", {
+    class: "tray-side" + (wide ? "" : " drawer") + (open ? " open" : ""),
+    id: "tray-drawer",
+  }, [
     h("div", { class: "tray-side-head" }, [
       h("span", { class: "tray-label", text: "TO BE PLANNED" }, []),
       h("span", { style: "flex-grow:1" }, []),
       h("span", { class: "tray-count", text: String(all.length) }, []),
+      wide
+        ? null
+        : h("button", {
+            class: "tray-close",
+            title: "Close",
+            onclick: () => { state.trayOpen = false; render(); },
+          }, [icon("close")]),
     ]),
     h("div", { class: "tray-side-list drop-zone open", "data-day-id": "unplanned" },
       all.length
-        ? all.map((stop) => trayCard(stop, false))
+        ? all.map((stop) => trayCard(stop, true))
         : [h("span", { class: "tray-empty", text: "Nothing waiting. Anything you add without a date lands here." }, [])]),
     h("div", { class: "tray-side-foot" }, [
       h("button", { class: "add-place", onclick: () => openSearch("unplanned") }, [
         icon("plusGrey"), "Add a place",
       ]),
     ]),
+  ]);
+
+  if (wide) return panel;
+
+  return h("div", { class: "tray-dock" + (open ? " open" : "") }, [
+    // The edge tab, which is also what a dragged card is aimed at.
+    h("button", {
+      class: "tray-tab",
+      id: "tray-tab",
+      onclick: () => { state.trayOpen = !state.trayOpen; render(); },
+    }, [
+      h("span", { class: "tray-tab-count", text: String(all.length) }, []),
+      h("span", { class: "tray-tab-label", text: "TO BE PLANNED" }, []),
+    ]),
+    open ? h("div", { class: "tray-scrim", onclick: () => { state.trayOpen = false; render(); } }, []) : null,
+    panel,
   ]);
 }
 
