@@ -79,19 +79,26 @@ Until then the app lives at the workers.dev hostname below.
 ### 4. Google sign-in is not set up
 
 `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are on the environment and bound
-into the Worker, but **nothing uses them** — Better Auth is not installed and
-PLAN.md section 5 is unbuilt. When you get to it you will need, in the Google
-Cloud console: an OAuth consent screen, and authorised redirect URIs for both
-the workers.dev hostname and `yvr.kocho.sh`. The session also needs
-`accounts.google.com` and `oauth2.googleapis.com` added to the network
-allowlist, which ENVIRONMENT.md already lists as not-yet.
+into the Worker, but **nothing uses them** — Better Auth is not installed. When
+you get to it you will need, in the Google Cloud console: an OAuth consent
+screen, and authorised redirect URIs for both the workers.dev hostname and
+`yvr.kocho.sh`. The session also needs `accounts.google.com` and
+`oauth2.googleapis.com` added to the network allowlist, which ENVIRONMENT.md
+already lists as not-yet.
 
-There are currently **two different stand-ins for a signed-in user**, and
-section 5 has to collapse them into one:
+The two stand-ins for a signed-in user have been **collapsed into one**, which
+is what the invite work needed: a `yvr_uid` cookie naming a row in `app_user`,
+where the row holds the name that person typed at the door. The old
+`yvr_dev_uid` cookie is still read, so a browser that owned trips before any of
+this keeps them when it signs in.
 
-- `app_user`, a table holding a single `local-user` row.
-- A per-browser id in a `yvr_dev_uid` cookie, which is what actually owns trips
-  and stops today.
+**It is a stand-in and not a sign-in.** Nothing verifies anybody: the cookie is
+the whole credential, it is not signed, and anyone who copies one is that
+person. That is fine for a trip planner being walked through by the people
+building it and is not fine in front of anyone else — which is why this item is
+first in PLAN.md section 0. When Better Auth lands it replaces two functions,
+`identity` and `signIn`; every screen, invite and membership check above them
+stays as it is.
 
 ### 5. The map needs its own browser key
 

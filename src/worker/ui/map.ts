@@ -50,3 +50,60 @@ export function cardMap(): string {
   </g>
 </svg>`;
 }
+
+/**
+ * The quiet map above the sign-in, from `design/SignIn.dc.html`.
+ *
+ * A different drawing from the one on the home screen: it shows a whole trip
+ * at once rather than one day, with the pins reading left to right down the
+ * day ramp, and a dotted thread through them. Nothing real is on it — nobody
+ * signing in has a trip yet to draw — so unlike `mapBackground` it is a
+ * picture rather than a projection, which is what the artboard draws it as.
+ */
+export function signInMap(): string {
+  return `<svg width="100%" height="272" viewBox="30 60 330 240" preserveAspectRatio="xMidYMid slice" style="display:block">
+  <rect width="390" height="396" fill="${C.mapFill}"></rect>
+  <path d="M0 306 C 78 288, 138 322, 208 310 C 282 297, 326 328, 390 314 L390 396 L0 396 Z" fill="#D9E4E3"></path>
+  <path d="M232 44 C 292 38, 336 76, 338 128 C 340 182, 292 208, 248 194 C 204 180, 196 110, 232 44 Z" fill="#E2E9D7"></path>
+  <g stroke="#E7DFD0" stroke-width="1" fill="none">
+    <path d="M0 84 H390 M0 156 H390 M0 232 H390 M64 0 V306 M148 0 V306 M240 0 V306 M320 0 V306"></path>
+  </g>
+  <g stroke="#FCF9F2" stroke-linecap="round" fill="none">
+    <path d="M-10 118 C 90 110, 152 178, 244 172 C 318 167, 352 212, 400 206" stroke-width="9"></path>
+    <path d="M100 -10 C 108 84, 84 190, 112 268 C 138 340, 120 360, 132 410" stroke-width="9"></path>
+    <path d="M276 -10 C 272 88, 296 168, 274 248 C 256 306, 272 330, 264 380" stroke-width="6"></path>
+  </g>
+  <path d="M58 236 C 104 200, 134 250, 178 214 C 218 182, 236 246, 282 210 C 316 184, 330 132, 306 96"
+        fill="none" stroke="#B0A794" stroke-width="1.6" stroke-dasharray="1 6"
+        stroke-linecap="round" opacity="0.8"></path>
+</svg>`;
+}
+
+/**
+ * The whole strip: the drawing, its six pins, and the fade into the page.
+ *
+ * The pins sit over the SVG rather than in it because each carries a 3px ring
+ * in the page colour. They are placed as percentages of the artboard's own
+ * 375x272 box rather than in its pixels, so they travel with a phone that is
+ * not 375 wide and stay on a map that has been shortened to keep the button
+ * above the fold — where a fixed `top` would simply be clipped off the bottom.
+ * Their colours are the day ramp read left to right, which is the one thing on
+ * this screen that says what the app actually does.
+ */
+export function signInStrip(): string {
+  const pins = [
+    { left: 58, top: 236, size: 17, hex: "#3F6B4A" },
+    { left: 118, top: 212, size: 15, hex: "#70864D" },
+    { left: 178, top: 214, size: 15, hex: "#AD8A49" },
+    { left: 232, top: 232, size: 15, hex: "#CE8845" },
+    { left: 282, top: 210, size: 15, hex: "#E0B054" },
+    { left: 306, top: 96, size: 14, hex: "#F0DCA6" },
+  ]
+    .map(
+      (pin) =>
+        `<i style="left:${((pin.left / 375) * 100).toFixed(2)}%;top:${((pin.top / 272) * 100).toFixed(2)}%;width:${pin.size}px;height:${pin.size}px;background:${pin.hex}"></i>`,
+    )
+    .join("");
+
+  return `${signInMap()}<div class="signin-pins">${pins}</div><div class="signin-fade"></div>`;
+}

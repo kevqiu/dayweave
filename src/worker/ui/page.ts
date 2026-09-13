@@ -1,6 +1,6 @@
 import { CLIENT } from "./client.ts";
 import * as icons from "./icons.ts";
-import { cardMap, mapBackground } from "./map.ts";
+import { cardMap, mapBackground, signInStrip } from "./map.ts";
 import { lookPinIcon, mapStyle, pinIcon } from "./gmap.ts";
 import { PLAN_CLIENT } from "./plan-client.ts";
 import { styles } from "./styles.ts";
@@ -27,6 +27,7 @@ function iconSet(): Record<string, string> {
     // in design/PlannerMobile.dc.html.
     plusTiny: icons.plus({ size: 11, color: C.faint, width: 2.6 }),
     chevron: icons.chevron({ size: 13 }),
+    chevronLeft: icons.chevronLeft({ size: 17, color: C.inkSoft }),
     chevronSmall: icons.chevron({ size: 11 }),
     calendar: icons.calendar({ size: 15, color: C.inkSoft }),
     invite: icons.invite({ size: 15, color: C.inkSoft }),
@@ -53,6 +54,10 @@ function iconSet(): Record<string, string> {
     arrowLeftSoft: icons.arrowLeft({ size: 16, color: C.inkSoft, width: 2.2 }),
     pinInk: icons.pinDot({ size: 16, color: C.ink }),
     checkGreen: icons.check({ size: 14, color: C.todayInk }),
+    // design/Members.dc.html: the chain beside "Anyone with this link", and
+    // design/SignIn.dc.html's shield beside what we promise to ask for.
+    chain: icons.link({ size: 17, color: C.inkSoft }),
+    shield: icons.shield({ size: 14, color: C.greyStroke }),
   };
 }
 
@@ -68,6 +73,7 @@ export function page(mapsKey = ""): string {
     icons: iconSet(),
     map: mapBackground(),
     cardMap: cardMap(),
+    signInMap: signInStrip(),
   };
 
   return `<!doctype html>
@@ -89,6 +95,7 @@ export function page(mapsKey = ""): string {
 window.__ICONS__ = ${JSON.stringify(boot.icons)};
 window.__MAP__ = ${JSON.stringify(boot.map)};
 window.__CARD_MAP__ = ${JSON.stringify(boot.cardMap)};
+window.__SIGNIN_MAP__ = ${JSON.stringify(boot.signInMap)};
 // Empty until a browser key is provisioned, and the drawn map stands in.
 window.__MAPS_KEY__ = ${JSON.stringify(mapsKey)};
 window.__MAP_STYLE__ = ${JSON.stringify(mapStyle())};

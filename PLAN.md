@@ -32,18 +32,25 @@ code.*
 | The Plan view, phone and desk, with times, free slots and the tray | §4f |
 | The real Google map, styled to the palette, with the drawn map as fallback | §7 |
 | Optimistic writes on every edit, with a revert and a notice on failure | §2 |
+| Signing in — a name, held in a cookie. A stand-in for Better Auth, not it | §5 |
+| Invites — one copyable link a trip, the card that waits on the trips list, Join | §5 |
+| Who is on this trip, and membership actually enforced on every route | §5 |
 
 ### Next, in the order it is worth doing
 
-1. **Sign in (§5).** Better Auth on D1, Google only. Everything in the two lists
-   below that is *blocked* is blocked on this: there is no real person, so
-   there is nobody to invite, no avatar that means anything, and no way to tell
-   two phones apart. `design/SignIn.dc.html` is drawn and untouched. This is
-   the single biggest unlock in the file.
-2. **Members and invites (§5).** `trip_invites` and `trip_share_links` are in
-   the schema with no API behind them. `design/Members.dc.html` is drawn. The
-   invite button in the trip bar and the Trips invite banner are both waiting
-   on this and currently do nothing.
+1. **Real sign-in (§5).** `design/SignIn.dc.html` is now built, and what is
+   behind it is a name in a cookie, not authentication: anyone who copies the
+   cookie is that person, and nothing verifies that Mika is Mika. That was
+   enough to unblock invites — an invitation needs a name to be from — and it
+   is not enough to ship to people. Better Auth on D1 with Google replaces the
+   two functions `signIn` and `identity` and nothing else; the screens, the
+   invites and the membership checks all stay as they are. It needs the Google
+   OAuth client in INFRA.md §4.
+2. **The view-only link (§5).** `trip_share_links` is still in the schema with
+   no API. It is the other half of `design/Members.dc.html` — the switch drawn
+   for it now governs the invite link instead — and it is the one door that
+   needs an unauthenticated read of a trip and a client that draws it with
+   every edit control gone.
 3. **Fix "today" (see the bugs below).** One-line-ish, and wrong in a way that
    matters to the whole premise of the app.
 4. **Bringing in a My Map (§3).** The KML parser is written and tested and the
@@ -84,11 +91,16 @@ except sign-in, which needs the Google OAuth client in INFRA.md §4.
    the search row's `+` is **32x32**. Apple asks 44 and Google 48. The
    artboards draw them at those sizes, so this is a real conflict between the
    spec and a device, and it needs settling rather than quietly rounding.
-3. **Four controls are drawn and do nothing when tapped.** *Invite someone* in
-   the trip bar (both views), the two map controls (layers, locate), the
-   account avatar on the Trips list, and *Bring in a My Map* on the empty trip.
-   Each is blocked on an item above — but a control that responds to nothing is
-   worse than one that is not there, so either wire them or take them out.
+3. **Three controls are drawn and do nothing when tapped.** The two map
+   controls (layers, locate), the account avatar on the Trips list, and *Bring
+   in a My Map* on the empty trip. *Invite someone* in the trip bar now opens
+   the People screen. Each of the rest is blocked on an item above — but a
+   control that responds to nothing is worse than one that is not there, so
+   either wire them or take them out.
+
+   The account avatar is the one that changed shape: it now carries your real
+   initials and your name as its title, and there is still nothing behind a
+   tap. What belongs there is signing out, which no artboard draws.
 4. **A failed write is announced and then forgotten.** The revert is right, but
    there is no retry and nothing is queued, so an edit made on bad hotel wifi
    is simply lost. §2 promised better than this; see *Offline* above.
@@ -103,6 +115,14 @@ expanded sheet, the "Search anywhere" control, and the X inside the search
 field are all **deliberate departures** with the reasoning in `CLAUDE.md`. The
 Planner's travel and lodging rows and its add-a-day rails are left out because
 `travel_legs` and `lodging` have no API and nothing can fill them (§5b).
+
+Three more joined them with the invite work, all in `CLAUDE.md` too: the
+**Continue with Google** button on `SignIn.dc.html`, because there is no Google
+behind it and a button that says otherwise is a lie; the **Open it without an
+account** line under it and the **can look, cannot change anything** wording on
+the Members switch, both of which are the view-only link that is not built; and
+the **email half of `Members.dc.html`** — the address field, Send invite, and
+the *invited, not yet joined* list — which a copyable link replaces outright.
 
 ---
 
@@ -464,9 +484,12 @@ header.
 
 ## 5. Auth
 
-*Status: not built, and the largest single thing missing. Today every visitor is an anonymous id in
-a cookie, `app_user` holds a stub row, and avatars are two letters derived from that id. Invites and
-share links are in the schema with no API. See §0.*
+*Status: half built. The screens are all there — `design/SignIn.dc.html`, the invite card on
+`design/Trips.dc.html`, `design/Members.dc.html` — and so are invites, membership and the checks that
+enforce it. What is behind the sign-in screen is **a name in a cookie, not authentication**: it asks
+who you are and believes you. That was the smallest thing that unblocked invites, because an
+invitation has to be from somebody, and it is not something to ship to people. Better Auth replaces
+`signIn` and `identity` in `src/worker/index.ts` and touches nothing else. See §0.*
 
 **Better Auth**, which is the right call. Alternatives considered:
 
@@ -490,18 +513,36 @@ promise §5 has to keep, and it is why Drive is a separate later consent.
 Auth's tables in D1 alongside ours through Drizzle.
 
 **There are no roles.** Inviting someone to a trip means you want them editing it, so membership
-itself is the permission: if you are in `trip_members`, you can change anything. Better Auth's
+itself is the permission: if you are in `trip_members`, you can change anything — and as of the
+invite work every route actually checks, rather than the rule living only in this paragraph. Better Auth's
 organization plugin is not used either, since a trip is not an org. This can grow a role column
 later without moving any data.
 
 `trips.owner_id` survives as a record of who started the trip, not as a permission. The one thing it
 should gate eventually is deleting the whole trip.
 
-**Invites** are a signed token emailed to an address, carrying just the trip. **They do not expire**
-— an invite to a trip in eight months is a normal thing to send, and an expiry would turn that into
-a support problem. Accepting while signed out sends you through Google first and then straight into
-the trip. Revoking is an explicit action, which is the honest version of what an expiry was
-pretending to do.
+**Invites are a link you copy, not an email.** This is a change from what this section used to say,
+and the reason is plain: sending an email needs an email service, and adding one so that four
+friends can be told about a trip is a whole dependency, a domain to verify and a deliverability
+problem, in service of one sentence. A link costs nothing and arrives by whatever people already use
+to talk to each other, which for a trip is a group chat rather than an inbox.
+
+What follows from that:
+
+- **One reusable link per trip**, not one per person. There is no address to remember, so there is
+  nothing to make it personal, and a trip is invited to as a group.
+- **It still does not expire**, for the reason this section always gave: an invite to a trip in
+  eight months is a normal thing to send. **Revoking is explicit** and it is the off half of the one
+  switch on `design/Members.dc.html`.
+- **The token is stored, not hashed.** §9 wrote `token_hash`, and a link you cannot copy a second
+  time is not a link you can hand to two people. Hashing bought little here in any case: the token
+  grants exactly what reading the same database already gives.
+- **Following a link joins nobody.** `/i/<token>` puts the invite in the visitor's session and hands
+  them the app. Being put on a trip by clicking a URL, before you have seen what it is, is not an
+  invitation. The yes is the **Join** button on the card, and the invite survives signing in so that
+  someone with no account can follow the link, arrive, sign in, and still be holding it.
+- **Accepted is `trip_members`**, not a column on the invite. One link, many people, and joining
+  twice joins you once.
 
 **The view-only link is not a role.** It is an unauthenticated read of one trip, for someone who
 should not have to make an account to look at the map. It never writes.
@@ -642,6 +683,8 @@ D1, SQLite. Abbreviated; timestamps and audit columns omitted.
 
 ```sql
 -- Better Auth owns these four. Do not hand-edit them.
+-- Until it lands, `app_user` stands in for `user` and holds the name typed at
+--   the door; email is optional there because nothing asks for one (§5)
 user             id, email, name, image
 session          id, user_id, token, expires_at
 account          id, user_id, provider_id, access_token, refresh_token, scope
@@ -654,8 +697,10 @@ trips            id, name, slug, start_date, end_date, timezone, owner_id, cover
                  --   are derived from places.city at read time, and absent when there are none
 trip_members     trip_id, user_id, joined_at
                  -- membership IS the permission. no role column in v1
-trip_invites     id, trip_id, email, token_hash, invited_by, accepted_at, revoked_at
-                 -- no expiry. revoking is explicit
+trip_invites     id, trip_id, token, invited_by, created_at, revoked_at
+                 -- one live link per trip, reusable. no expiry, revoking is explicit
+                 -- no email and no accepted_at: the link is copied rather than sent,
+                 --   and who accepted it is trip_members (§5)
 trip_share_links id, trip_id, token_hash, revoked_at
                  -- read-only, unauthenticated. not a role, a separate door
 
@@ -718,6 +763,7 @@ what makes dragging onto a day a single field update and keeps drag-back-off fre
 | Stop actions | Navigate, Visited, note on the phone. Edit, note, delete in the Planner | §4e |
 | Trip name | Typed and required. Cities under it are derived, and hidden when empty | §4d |
 | Auth | **Better Auth** on D1, Google only, no roles, invites never expire | §5 |
+| Invites | **A link you copy**, one a trip, revocable. No email service | §5 |
 | Drive | Plumbed but unused in v1. `drive.file`, asked incrementally | §5 |
 | Flights | **Out of v1.** Hand-entered in the Planner travel row | §5b |
 | Colour | **Status on the pins**, day as a dot on a green-to-yellow ramp | §7 |

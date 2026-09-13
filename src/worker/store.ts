@@ -8,10 +8,11 @@
  */
 
 import { orderKeyAppend, orderKeyBetween } from "../lib/order.ts";
+import { initialsOfName, inviteToken } from "../lib/invite.ts";
 import { describeStop, tripCities } from "../lib/derive.ts";
 import type { PlaceDetails } from "../lib/places.ts";
 import type { DayGeo, LatLng } from "../lib/geo.ts";
-import { avatarColor, dayHue } from "./ui/tokens.ts";
+import { AVATAR_COLORS, avatarColor, dayHue } from "./ui/tokens.ts";
 
 export { dayHue };
 
@@ -492,7 +493,11 @@ export function initialsFor(userId: string): string {
  * from the stop before it on that day, which is why this is computed over the
  * ordered list rather than per row.
  */
-export function stopsForDay(stops: readonly StopRow[], dayId: string | null): StopView[] {
+export function stopsForDay(
+  stops: readonly StopRow[],
+  dayId: string | null,
+  people?: ReadonlyMap<string, Person>,
+): StopView[] {
   const ordered = stops.filter((s) => s.day_id === dayId);
   // To be planned is a bucket, not a route. Two things sitting in it next to
   // each other are not one after the other, so the walk between them would be
@@ -501,6 +506,7 @@ export function stopsForDay(stops: readonly StopRow[], dayId: string | null): St
   const isRoute = dayId !== null;
 
   return ordered.map((stop, i) => {
+    const author = personOf(stop.created_by, people);
     const location = stop.lat !== null && stop.lng !== null ? { lat: stop.lat, lng: stop.lng } : null;
     const before = isRoute ? ordered[i - 1] : undefined;
     const previous = before
@@ -522,8 +528,8 @@ export function stopsForDay(stops: readonly StopRow[], dayId: string | null): St
       note: stop.note,
       time: stop.start_time ?? "",
       status: stop.status,
-      author: initialsFor(stop.created_by),
-      authorColor: avatarColor(stop.created_by),
+      author: author.initials,
+      authorColor: author.color,
       city: stop.city,
       navigateUrl: navigateUrl(location, stop.google_place_id),
       location,
@@ -539,4 +545,250 @@ export function citiesForTrip(days: readonly DayRow[], stops: readonly StopRow[]
   }
   for (const stop of stops.filter((s) => s.day_id === null)) inDayOrder.push(stop.city);
   return tripCities(inDayOrder);
+}
+
+// --- people -----------------------------------------------------------------
+
+/**
+ * A person, in the shape an avatar needs.
+ *
+ * `name` is what someone typed at the door and the initials come from it; the
+ * colour comes from where they sit on the trip, which is what keeps two people
+ * on one trip from wearing the same circle (see `peopleOfTrip`). Someone with
+ * no row yet — a browser that owned trips before sign-in existed — keeps the
+ * two derived letters `initialsFor` has always given it, so nothing it made
+ * loses its author.
+ */
+export interface Person {
+  id: string;
+  name: string;
+  initials: string;
+  color: string;
+}
+
+export function personOf(userId: string, people?: ReadonlyMap<string, Person>): Person {
+  const known = people?.get(userId);
+  if (known) return known;
+  return { id: userId, name: "", initials: initialsFor(userId), color: avatarColor(userId) };
+}
+
+export async function getUser(db: D1Database, userId: string): Promise<Person | null> {
+  const row = await db
+    .prepare(`SELECT id, name FROM app_user WHERE id = ?`)
+    .bind(userId)
+    .first<{ id: string; name: string }>();
+  if (!row) return null;
+  return { id: row.id, name: row.name, initials: initialsOfName(row.name), color: avatarColor(row.id) };
+}
+
+/**
+ * Everyone on one trip, with the colour their avatar is that trip.
+ *
+ * The colour comes from the order people joined rather than from a hash of
+ * their id, which is what `tokens.ts` transcribes from the artboards: the
+ * person who started it is terracotta, then blue, violet, mauve. A hash was
+ * fine while a trip had one person on it and stops being fine the moment an
+ * invite is accepted, because two people can hash to the same circle and the
+ * avatar is the only thing telling them apart.
+ */
+export async function peopleOfTrip(
+  db: D1Database,
+  tripId: string,
+): Promise<Map<string, Person>> {
+  const ids = await memberIds(db, tripId);
+  const named = await peopleFor(db, ids);
+
+  const out = new Map<string, Person>();
+  ids.forEach((id, index) => {
+    const known = named.get(id);
+    out.set(id, {
+      id,
+      name: known?.name ?? "",
+      initials: known?.initials ?? initialsFor(id),
+      color: AVATAR_COLORS[index % AVATAR_COLORS.length] as string,
+    });
+  });
+  return out;
+}
+
+/** Names for a set of ids, in one read rather than one per avatar. */
+export async function peopleFor(
+  db: D1Database,
+  userIds: readonly string[],
+): Promise<Map<string, Person>> {
+  const ids = [...new Set(userIds)].filter(Boolean);
+  const out = new Map<string, Person>();
+  if (!ids.length) return out;
+
+  const { results } = await db
+    .prepare(`SELECT id, name FROM app_user WHERE id IN (${ids.map(() => "?").join(", ")})`)
+    .bind(...ids)
+    .all<{ id: string; name: string }>();
+
+  for (const row of results ?? []) {
+    out.set(row.id, {
+      id: row.id,
+      name: row.name,
+      initials: initialsOfName(row.name),
+      color: avatarColor(row.id),
+    });
+  }
+  return out;
+}
+
+/**
+ * Signing in, such as it is.
+ *
+ * PLAN.md section 5 wants Better Auth and Google, and neither is installed —
+ * there is no OAuth client to point at (INFRA.md section 4). What this does
+ * instead is give the browser's existing id a name, which is the one thing
+ * an invite cannot work without: `Mika invited you to Korea` needs a Mika.
+ *
+ * `userId` is the id already in the cookie when there is one, so a browser
+ * that has been making trips anonymously keeps every one of them on the way
+ * through the door rather than starting again as a stranger.
+ */
+export async function signIn(
+  db: D1Database,
+  input: { userId: string | null; name: string },
+): Promise<Person> {
+  const id = input.userId ?? `u_${crypto.randomUUID()}`;
+  await db
+    .prepare(
+      `INSERT INTO app_user (id, name, created_at) VALUES (?, ?, ?)
+         ON CONFLICT (id) DO UPDATE SET name = excluded.name`,
+    )
+    .bind(id, input.name, now())
+    .run();
+
+  return { id, name: input.name, initials: initialsOfName(input.name), color: avatarColor(id) };
+}
+
+// --- membership -------------------------------------------------------------
+
+/**
+ * Membership IS the permission (PLAN.md section 5), which only means anything
+ * once there is a second person, so this is the check the invite feature turns
+ * from a comment into a rule.
+ */
+export async function isMember(
+  db: D1Database,
+  tripId: string,
+  userId: string | null,
+): Promise<boolean> {
+  if (!userId) return false;
+  const row = await db
+    .prepare(`SELECT 1 AS ok FROM trip_members WHERE trip_id = ? AND user_id = ?`)
+    .bind(tripId, userId)
+    .first<{ ok: number }>();
+  return Boolean(row);
+}
+
+export async function memberIds(db: D1Database, tripId: string): Promise<string[]> {
+  const { results } = await db
+    .prepare(`SELECT user_id FROM trip_members WHERE trip_id = ? ORDER BY joined_at`)
+    .bind(tripId)
+    .all<{ user_id: string }>();
+  return (results ?? []).map((r) => r.user_id);
+}
+
+/** Idempotent: following the same link twice joins you once. */
+export async function joinTrip(db: D1Database, tripId: string, userId: string): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO trip_members (trip_id, user_id, joined_at) VALUES (?, ?, ?)
+         ON CONFLICT (trip_id, user_id) DO NOTHING`,
+    )
+    .bind(tripId, userId, now())
+    .run();
+}
+
+/** How many places each person on the trip put there, for the People screen. */
+export async function placeCounts(db: D1Database, tripId: string): Promise<Map<string, number>> {
+  const { results } = await db
+    .prepare(
+      `SELECT created_by, COUNT(*) AS n FROM stops
+        WHERE trip_id = ? AND deleted_at IS NULL
+        GROUP BY created_by`,
+    )
+    .bind(tripId)
+    .all<{ created_by: string; n: number }>();
+
+  const out = new Map<string, number>();
+  for (const row of results ?? []) out.set(row.created_by, row.n);
+  return out;
+}
+
+// --- invites ----------------------------------------------------------------
+
+export interface InviteRow {
+  id: string;
+  trip_id: string;
+  token: string;
+  invited_by: string;
+  created_at: number;
+}
+
+/**
+ * The trip's live invite link, or nothing.
+ *
+ * There is one at a time, and it is reusable: an invite you cannot copy twice
+ * is not a link you can hand to two people, and the whole point of a link
+ * rather than an email is that the inviter sends it however they already talk
+ * to whoever is coming. Revoking it is the explicit act PLAN.md section 5 puts
+ * in place of an expiry.
+ */
+export async function liveInvite(db: D1Database, tripId: string): Promise<InviteRow | null> {
+  return await db
+    .prepare(
+      `SELECT id, trip_id, token, invited_by, created_at FROM trip_invites
+        WHERE trip_id = ? AND revoked_at IS NULL
+        ORDER BY created_at DESC LIMIT 1`,
+    )
+    .bind(tripId)
+    .first<InviteRow>();
+}
+
+/** The live one if there is one, a new one if there is not. */
+export async function ensureInvite(
+  db: D1Database,
+  tripId: string,
+  userId: string,
+): Promise<InviteRow> {
+  const existing = await liveInvite(db, tripId);
+  if (existing) return existing;
+
+  const invite: InviteRow = {
+    id: crypto.randomUUID(),
+    trip_id: tripId,
+    token: inviteToken(),
+    invited_by: userId,
+    created_at: now(),
+  };
+  await db
+    .prepare(
+      `INSERT INTO trip_invites (id, trip_id, token, invited_by, created_at) VALUES (?, ?, ?, ?, ?)`,
+    )
+    .bind(invite.id, invite.trip_id, invite.token, invite.invited_by, invite.created_at)
+    .run();
+  return invite;
+}
+
+/** Turning the switch off. Every link the trip has ever had stops working. */
+export async function revokeInvites(db: D1Database, tripId: string): Promise<void> {
+  await db
+    .prepare(`UPDATE trip_invites SET revoked_at = ? WHERE trip_id = ? AND revoked_at IS NULL`)
+    .bind(now(), tripId)
+    .run();
+}
+
+/** A followed link, resolved. Revoked and unknown are the same answer. */
+export async function inviteByToken(db: D1Database, token: string): Promise<InviteRow | null> {
+  return await db
+    .prepare(
+      `SELECT id, trip_id, token, invited_by, created_at FROM trip_invites
+        WHERE token = ? AND revoked_at IS NULL`,
+    )
+    .bind(token)
+    .first<InviteRow>();
 }

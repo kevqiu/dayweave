@@ -100,6 +100,8 @@ button { font-family: ${SANS}; cursor: pointer; }
 .avatars > span + span { margin-left: -8px; }
 .avatars.small > span { width: 22px; height: 22px; font-size: 8.5px; margin-left: 0; }
 .avatars.small > span + span { margin-left: -7px; }
+/* "+2" when the stack is longer than the bar can hold. design/Main.dc.html. */
+.avatars > span.more { background: #EFE7DA; color: #8C8479; }
 
 .trips-foot {
   position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 14px 18px;
@@ -111,6 +113,150 @@ button { font-family: ${SANS}; cursor: pointer; }
   display: flex; align-items: center; justify-content: center; gap: 8px;
 }
 .btn-dark:disabled { opacity: 0.4; }
+
+/* ---- Sign in (design/SignIn.dc.html) ----
+
+   The artboard's one button reads "Continue with Google", and this screen
+   deliberately does not. Better Auth is not installed and there is no OAuth
+   client to point at (PLAN.md section 5, INFRA.md section 4), so a button
+   carrying Google's name would do everything except sign you in with Google.
+   What is here instead asks for the one thing an invite cannot work without —
+   a name to say "Mika invited you" with — and is the same screen, in the same
+   places, when the real button arrives.
+
+   Two things the artboard draws are also left out: the divider and the "Open
+   it without an account" line under it, which is the view-only share link
+   (PLAN.md section 5). Nothing behind it is built, and CLAUDE.md's rule about
+   furniture with nothing behind it applies to a door as much as to a row. */
+.signin { position: absolute; inset: 0; display: flex; flex-direction: column; background: ${C.paper}; }
+.signin-map {
+  height: 272px; flex-shrink: 0; position: relative; background: ${C.mapFill}; overflow: hidden;
+  /* The artboard pulls the headline 16px up into the map, which is what the
+     fade at the foot of the map is for. It is taken off the map rather than
+     put on the head, because the body scrolls and anything above a scroller's
+     own top is clipped rather than reachable. */
+  margin-bottom: -16px;
+}
+/* 272 of the artboard's 667. On a shorter phone that becomes a proportion
+   rather than a number, so the button underneath stays above the fold instead
+   of the picture pushing it off. Only where the frame fills the screen — on a
+   desktop it is a 667px frame in a taller window, where dvh means nothing. */
+@media (max-width: 420px), (max-height: 700px) {
+  .signin-map { height: min(272px, 40dvh); }
+}
+.signin-pins { position: absolute; inset: 0; }
+.signin-pins > i {
+  position: absolute; border-radius: 50%; border: 3px solid ${C.paper};
+  transform: translate(-50%, -50%);
+}
+.signin-fade {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 90px;
+  background: linear-gradient(to bottom, rgba(251,246,238,0), ${C.paper});
+}
+.signin-body {
+  flex-grow: 1; display: flex; flex-direction: column; padding: 0 26px 26px;
+  overflow-y: auto;
+  /* The map is positioned, so without this it paints over the headline that
+     sits in its fade rather than behind it. */
+  position: relative; z-index: 1;
+}
+.signin-head { flex-shrink: 0; }
+.signin-title {
+  font-family: ${SERIF}; font-size: 31px; font-weight: 500;
+  letter-spacing: -0.015em; line-height: 1.12;
+}
+.signin-sub {
+  font-size: 13px; color: #8C8479; line-height: 1.5; margin-top: 11px;
+  max-width: 280px; text-wrap: pretty;
+}
+.signin-field {
+  height: 48px; border-radius: 12px; border: 1px solid ${C.borderWarm}; background: ${C.card};
+  display: flex; align-items: center; padding: 0 14px; margin-bottom: 10px;
+  box-shadow: 0 1px 3px rgba(80,66,44,0.08);
+}
+.signin-field input {
+  flex-grow: 1; min-width: 0; border: 0; background: none; outline: none;
+  font-family: ${SANS}; font-size: 15px; font-weight: 500; color: ${C.ink};
+}
+.signin-field input::placeholder { color: #B5ACA0; font-weight: 400; }
+.signin-go { height: 48px; border-radius: 12px; font-size: 15px; }
+.signin-promise { display: flex; align-items: flex-start; gap: 8px; margin-top: 13px; }
+.signin-promise span { font-size: 11.5px; color: ${C.grey}; line-height: 1.5; }
+
+/* ---- The pending invite (design/Trips.dc.html, and the same card on sign in) ---- */
+.invite-card {
+  margin: 0 14px 12px; border-radius: 14px; border: 1.5px solid ${C.noticeBorder};
+  background: ${C.noticeBg}; padding: 10px 12px; display: flex; align-items: center; gap: 10px;
+}
+.invite-card > .who {
+  width: 32px; height: 32px; border-radius: 50%; color: #FFF9F0; font-size: 11px;
+  font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.invite-text { display: flex; flex-direction: column; gap: 2px; flex-grow: 1; min-width: 0; }
+.invite-text .line { font-size: 12.5px; font-weight: 600; }
+.invite-text .when { font-size: 10.5px; color: ${C.noticeInk}; }
+.invite-join {
+  height: 30px; border-radius: 8px; border: none; background: ${C.ink}; color: ${C.paper};
+  font-family: ${SANS}; font-size: 12px; font-weight: 600; padding: 0 13px; flex-shrink: 0;
+}
+.invite-join:disabled { opacity: 0.5; }
+/* On sign in the card is not in a scrolling list, so it carries its own gap. */
+.signin .invite-card { margin: 0 0 12px; }
+
+/* ---- Who is on this trip (design/Members.dc.html) ---- */
+.people-screen { z-index: 42; }
+/* The Planner at a desk grows the frame (PLAN.md 4f); this screen is still a
+   phone screen, so it keeps its width there rather than stretching a 52px row
+   across 1440px. */
+#frame.wide .people-screen {
+  left: 50%; right: auto; width: ${FRAME.width}px; transform: translateX(-50%);
+  border-left: 1px solid ${C.border}; border-right: 1px solid ${C.border};
+}
+.people-bar { height: 50px; border-bottom: 1px solid ${C.border}; gap: 10px; }
+.people-bar-text { display: flex; flex-direction: column; flex-grow: 1; min-width: 0; }
+.people-bar-text .t { font-family: ${SERIF}; font-size: 16.5px; font-weight: 500; }
+.people-bar-text .s { font-size: 11px; color: ${C.grey}; }
+.people-scroll { flex-grow: 1; overflow-y: auto; padding-bottom: 16px; }
+.link-card {
+  margin: 13px 14px 0; border-radius: 12px; border: 1px solid ${C.borderWarm};
+  background: ${C.card}; padding: 11px 12px;
+}
+.link-head { display: flex; align-items: center; gap: 10px; }
+.link-head-text { display: flex; flex-direction: column; gap: 1px; flex-grow: 1; min-width: 0; }
+.link-head-text .t { font-size: 13px; font-weight: 600; }
+.link-head-text .s { font-size: 10.5px; color: ${C.grey}; }
+.toggle {
+  width: 42px; height: 25px; border-radius: 999px; background: #E4D9C5; border: 0; padding: 2px;
+  display: flex; align-items: center; justify-content: flex-start; flex-shrink: 0;
+}
+.toggle[aria-pressed="true"] { background: ${C.today}; justify-content: flex-end; }
+.toggle > i { width: 21px; height: 21px; border-radius: 50%; background: ${C.card}; display: block; }
+.link-row {
+  margin-top: 11px; display: flex; align-items: center; gap: 8px;
+  border-radius: 9px; background: ${C.highlight}; padding: 9px 11px;
+}
+.link-row .url {
+  font-size: 11px; color: #8C8479; flex-grow: 1; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.link-row button {
+  background: none; border: 0; padding: 0; flex-shrink: 0;
+  font-family: ${SANS}; font-size: 11px; font-weight: 600; color: ${C.link};
+}
+.link-row button.done { color: ${C.todayInk}; }
+.link-when { margin-top: 7px; font-size: 10.5px; color: ${C.greyer}; }
+.person-row {
+  display: flex; align-items: center; gap: 11px; min-height: 52px; padding: 6px 16px;
+  border-top: 1px solid ${C.line};
+}
+.person-row > .who {
+  width: 32px; height: 32px; border-radius: 50%; color: #FFF9F0; font-size: 12px;
+  font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.person-text { display: flex; flex-direction: column; gap: 1px; flex-grow: 1; min-width: 0; }
+.person-text .n { font-size: 13.5px; font-weight: 600; }
+.person-text .n em { font-size: 11px; font-weight: 400; font-style: normal; color: ${C.greyer}; }
+.person-text .s { font-size: 11px; color: ${C.grey}; }
 
 /* ---- New trip (design/NewTrip.dc.html) ---- */
 .top-bar { display: flex; align-items: center; gap: 10px; height: 48px; flex-shrink: 0; padding: 0 12px; }
@@ -318,7 +464,7 @@ button { font-family: ${SANS}; cursor: pointer; }
 }
 
 /* A collapsed day the stop can be dropped on to. */
-.day-head.droppable { background: #FCF6E6; border-bottom: 1px dashed #C7B98F; }
+.day-head.droppable { background: ${C.noticeBg}; border-bottom: 1px dashed #C7B98F; }
 .day-head .drop-here {
   font-size: 10.5px; font-weight: 700; color: ${C.aheadInk}; letter-spacing: 0.04em; white-space: nowrap;
 }

@@ -18,7 +18,7 @@ That is the map of what exists:
 
 | Artboard | The screen it specifies | Built |
 | --- | --- | --- |
-| `Trips.dc.html` | The trip list: happening now, coming up, past | yes, less the invite banner |
+| `Trips.dc.html` | The trip list: happening now, coming up, past, and the invite waiting at the top | yes |
 | `NewTrip.dc.html` | Starting a trip — name, then the date range (§4d) | yes |
 | `EmptyTrip.dc.html` | A trip with no stops yet | yes |
 | `Main.dc.html` | The phone home screen: map, bottom sheet, days, stops (§4c, §7) | yes |
@@ -28,9 +28,10 @@ That is the map of what exists:
 | `TripMenu.dc.html` | The one dropdown on the trip name (§4h) | yes |
 | `SheetFull.dc.html` | The sheet expanded, and drag-to-reorder | yes, less the title |
 | `AddNote.dc.html` | Only the button reading Add note. See below | n/a |
-| `SignIn.dc.html` | Sign in (§5) | no — needs Better Auth |
+| `SignIn.dc.html` | Sign in (§5) | yes, less the Google button and the view-only door |
 | `Planner.dc.html`, `PlannerStop.dc.html`, `PlannerMobile.dc.html` | The day grid (§4f) | yes, less the travel and lodging rows |
-| `Offline.dc.html`, `Import.dc.html`, `Members.dc.html` | The other states (§4g) | no |
+| `Members.dc.html` | Who is on this trip, and the link that adds one (§5) | yes, less the email half |
+| `Offline.dc.html`, `Import.dc.html` | The other states (§4g) | no |
 | `Desktop.dc.html` | The wide layout | no |
 | `DirectionA/B/C.dc.html` | Rejected directions. Reference only — do not build these | n/a |
 
@@ -81,6 +82,12 @@ grey lines, `#A0978A` the smallest meta.
 
 **Accent**: `#C4826A` is the terracotta used for the caret, the user avatar and
 the bias circle. `#A8663C` is link text.
+
+**Avatars** are dealt terracotta, blue, violet, mauve **in the order people
+joined the trip**, which is the order every artboard draws them in and the only
+way two people are certain to be different circles. A hash of the id was fine
+while a trip had one person on it; it stopped being fine the moment an invite
+could be accepted.
 
 **Status** (pin fill, PLAN.md §7): `#6F9A6B` today, `#E0B355` ahead,
 `#BDB4A7` done. The rings around them are `#E4EEE1`, `#F8EECF`, `#EFE9DF`.
@@ -256,6 +263,50 @@ To be planned bucket is `#94897A`, which is not on the ramp.
   side by side and share every y, so there the x is the whole answer — and a
   hit test that only checked y quietly dropped everything on Monday.
 
+- **An invite is a link, not an email.** `Members.dc.html` draws an address
+  field over a Send invite button, and there is no email service behind it —
+  adding one so four friends can be told about a trip is a whole dependency
+  for one sentence. So the screen makes **one reusable link per trip** instead,
+  and whoever is inviting sends it however they already talk to that person.
+  The artboard's own *Anyone with the link* card is what carries it, switch and
+  copy row and all.
+
+  **That card is drawn for the view-only share link, and it governs the invite
+  link instead.** The read-only door (§5, `trip_share_links`) is a separate
+  thing and is not built, so its switch would be furniture with nothing behind
+  it; the switch that is there turns the invite link on and off, which is the
+  explicit revoke §5 puts in place of an expiry. The second line under it says
+  which door it is: *can join the trip and edit it*.
+
+  The email field, the *Send invite* button and the *INVITED, NOT YET JOINED*
+  list all go with it. Nobody is invited-but-not-listed in a link model: you
+  either hold the link or you are on the trip.
+- **Following a link joins nobody.** `/i/<token>` puts the invite in the
+  visitor's session and hands them the app. Being enrolled on a trip by
+  clicking a URL, before you have seen what it is, is not an invitation. The
+  yes is the **Join** button on the card `Trips.dc.html` draws, and a browser
+  with no account keeps the invite through signing in — which is what the
+  session cookie is for.
+- **The sign-in screen does not say Google, because there is no Google behind
+  it.** §5 picks Better Auth and `SignIn.dc.html` draws its one button reading
+  *Continue with Google*; Better Auth is not installed and there is no OAuth
+  client to point at (INFRA.md §4). A button carrying Google's name that does
+  everything except sign you in with Google is worse than one that says what it
+  does. What is there instead asks for **a name**, which is the one thing an
+  invite cannot work without — *Mika invited you to Korea* needs a Mika — and
+  it sits in the same place, at the same size, for the real button to replace.
+
+  The divider and *Open it without an account* under it are left out for the
+  same reason the share-link switch is: that is the view-only door, and it is
+  not built.
+
+  **Signing in keeps the id already in the cookie.** A browser that has been
+  making trips anonymously carries them through the door rather than meeting
+  its own trips as a stranger.
+- **Membership is now enforced, not just documented.** §5 has always said
+  membership IS the permission, and until there was somebody to invite nothing
+  checked it. Every trip and stop route does now, and a stop route that takes
+  only a stop id reads the stop first to find out whose trip it is.
 - **Nothing is a placeholder.** Where the app does not know something, the
   artboards leave it out rather than filling it with a dash. Two consequences
   worth knowing: the map carries no place labels, because the artboards' own
@@ -322,6 +373,11 @@ note closes the sheet and shows the text immediately; the write follows. PLAN.md
 §2 makes this the shape of every edit, because this gets used on hotel wifi and
 in basements, and a round trip is the slowest part of typing six words.
 
+**Two writes are not optimistic, and both are the same reason.** Turning the
+invite link on has nothing to put on the screen until the Worker mints the
+token, and Join has nothing to show until the trip it hands back has been read.
+A write whose whole result comes from the server cannot be applied first.
+
 When a write fails the screen goes **back to what it said before** and a notice
 in the palette says why. No artboard draws that notice — §4g settles on
 last-writer-wins and never shows a conflict — but a write that failed outright
@@ -331,3 +387,12 @@ still has to be admitted rather than silently dropped.
 
 `npm test`, then `npm run typecheck`, then `npm run deploy`. Verify a UI change
 against the deployed Worker and look at it, rather than trusting the tests.
+
+**When there is no Cloudflare token on the environment there is no deploy**, and
+a session can still run the thing: `src/worker/__tests__/invites.test.ts` stands
+the real Worker up over `node:sqlite` with the actual migrations applied and
+drives it through HTTP. The D1 binding it shims is thirty lines, and the same
+shim behind an `http.createServer` will serve the app on localhost for a real
+browser to open. That is not a substitute for looking at the deployed Worker —
+it has no Places key, no Maps key and no KV — but it is the difference between
+checking a route and guessing at one.

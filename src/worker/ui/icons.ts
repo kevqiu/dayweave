@@ -73,6 +73,14 @@ export const chevron = (o: IconOptions = {}) =>
     'stroke-linecap="round" stroke-linejoin="round"',
   );
 
+/** Back, on a screen that has a bar of its own. `design/Members.dc.html`. */
+export const chevronLeft = (o: IconOptions = {}) =>
+  svg(
+    `<polyline points="15 6 9 12 15 18"></polyline>`,
+    { width: 2.2, ...o },
+    'stroke-linecap="round" stroke-linejoin="round"',
+  );
+
 export const calendar = (o: IconOptions = {}) =>
   svg(
     `<rect x="3" y="4" width="18" height="17" rx="2.5"></rect><path d="M8 2v4M16 2v4M3 10h18"></path>`,
@@ -86,6 +94,14 @@ export const invite = (o: IconOptions = {}) =>
     `<circle cx="9.5" cy="8" r="3.4"></circle><path d="M3.2 19.5a6.6 6.6 0 0 1 12.6 0M18.5 8.5v5M21 11h-5"></path>`,
     { width: 1.9, ...o },
     'stroke-linecap="round" stroke-linejoin="round"',
+  );
+
+/** What we ask for, and no more. `design/SignIn.dc.html`. */
+export const shield = (o: IconOptions = {}) =>
+  svg(
+    `<path d="M12 22s8-3.5 8-10V5.5L12 2 4 5.5V12c0 6.5 8 10 8 10z"></path>`,
+    { width: 1.9, ...o },
+    'stroke-linejoin="round"',
   );
 
 export const navigate = (o: IconOptions = {}) =>
