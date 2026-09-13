@@ -105,27 +105,37 @@ Add at zone level, scoped to `kocho.sh` only, when the custom domain is wired:
 Give the token an expiry. D1: Edit and R2: Edit both include deletion, because
 Cloudflare does not split those into create-only.
 
-## Alchemy state does not survive a session
+## Alchemy state, and why it survives a session now
 
-Alchemy keeps its state in `.alchemy/`, which is gitignored. A cloud session
-clones the repo fresh, so it starts with no state at all and a plain deploy
-fails on the first resource that is already there:
+Alchemy used to keep its state in `.alchemy/`, which is gitignored. A cloud
+session clones the repo fresh, so it started with no state at all and a plain
+deploy failed on the first resource that was already there:
 
 ```
 CloudflareApiError: Failed to create D1 database "yvr-kocho-sh-dev-db"
 - [7502] Database with name: 'yvr-kocho-sh-dev-db' already exists
 ```
 
-`alchemy.run.ts` passes `adopt: true`, which takes over the existing resources
-rather than failing, so `npm run deploy` works from a fresh clone. This is safe
-only because nothing outside this repo creates those resources.
+`adopt: true` took over the existing resources rather than failing, which made
+`npm run deploy` work from a fresh clone. It is still set, and still safe only
+because nothing outside this repo creates those resources — but it is not what
+carries a deploy any more.
 
-**The real fix is a state store that outlives the container**, which Alchemy
-recommends and which its own CI check asks for. `CloudflareStateStore` keeps
-state in a Durable Object and reads `ALCHEMY_STATE_TOKEN`, which **is on the
-environment now** — but `alchemy.run.ts` has not been switched to it, so every
-deploy is still an adopt. INFRA.md item 2 is the change that is left.
+**That is no longer what happens.** `alchemy.run.ts` uses
+`CloudflareStateStore`, which keeps the state in a SQLite Durable Object behind
+a Worker Alchemy provisions on the account — `alchemy-state-service` — so a
+fresh clone reads back the state of resources it has never seen. Verified from
+a clone with no `.alchemy/` at all: four resources skipped as unchanged.
 
-The token has to be the same value for every deploy on the account, forever,
-which is why that switch is a decision about the account rather than about a
-session.
+`adopt: true` stays as the recovery path, not the mechanism. See INFRA.md
+item 2.
+
+Two environment variables carry this, and **both have to be the same value for
+every deploy on the account, forever**:
+
+- `ALCHEMY_STATE_TOKEN` is the bearer token the state service checks. A
+  different value does not make a second store, it makes the existing one
+  answer 401.
+- `ALCHEMY_PASSWORD` decrypts the secrets inside that state. It used to matter
+  only for the life of a container. Now the state outlives the container and
+  the password does not, unless you keep it.

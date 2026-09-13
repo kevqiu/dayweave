@@ -39,26 +39,39 @@ is not reachable from here:
   quota is the only thing that actually stops a loop in a future session from
   spending real money.
 
-### 2. Alchemy state does not survive a session — half done
+### 2. Alchemy state does not survive a session — DONE, verified 2026-09-13
 
-`ALCHEMY_STATE_TOKEN` and `ALCHEMY_PASSWORD` are both on the environment now.
-**`alchemy.run.ts` does not use them.** It is still on the default store,
-which is `.alchemy/`, which is gitignored and dies with the container: a
-deploy from this session announced `[creating]` against every resource that
-has existed for days, and only `adopt: true` stopped it failing.
+It does now. `alchemy.run.ts` uses `CloudflareStateStore`, which keeps the
+state in a SQLite Durable Object behind a Worker Alchemy provisions itself:
+**`alchemy-state-service`**, on the account's workers.dev subdomain, with
+`ALCHEMY_STATE_TOKEN` as its bearer token. Both that token and
+`ALCHEMY_PASSWORD` were already on the environment; nothing read either until
+now.
 
-So the environment half is done and the code half is not. What is left is one
-change in `alchemy.run.ts`:
+Proved rather than assumed, in three deploys:
 
-- Switch it to `CloudflareStateStore`, which keeps the state in a Durable
-  Object on the account instead.
-- Keep `adopt: true` through the first deploy that uses it. The new store
-  starts empty, so that deploy is another adopt — and it is the last one.
+1. The first announced `[CloudflareStateStore] Creating...` and then adopted
+   every resource, because the new store starts empty. That was the last adopt.
+2. The second skipped four resources as unchanged and updated only the Worker
+   — but `.alchemy/` still held yesterday's files, so that proved nothing.
+3. So a **fresh clone with no `.alchemy/` at all** was deployed. It skipped the
+   same four. That is the state coming back off the account, which is the whole
+   of what this item asked for.
 
-Left as your call rather than a session's, because the token has to be the
-**same value for every deploy on the account, forever**, and because a deploy
-that half-switches stores is the one way this repo could lose track of a live
-D1 database.
+Two things to know now that it is on:
+
+- **`ALCHEMY_PASSWORD` is load-bearing.** Secrets go into state as `@secret`
+  ciphertext, and that state now outlives the container. Lose the password and
+  the state store is still there and still unreadable. Keep it with the state
+  token.
+- **The state service is a public URL** — `alchemy-state-service.yvr-kocho.
+  workers.dev` — and the bearer token is the only thing in front of it. Same
+  care as the API token.
+
+`adopt: true` stays. It is no longer the mechanism, it is the recovery path for
+the day the state is lost anyway — a rotated token, a store deleted by hand —
+because without it that day ends with a deploy that cannot proceed and a
+database it will not touch.
 
 ### 3. The custom domain is not wired — NOT done
 
