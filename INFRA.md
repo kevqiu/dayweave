@@ -114,7 +114,7 @@ pair item 4 wants. Drop it when sign-in works on the custom domain.
 403 to the CONNECT, so no session can open it. Everything Cloudflare reports is
 right; the last check is a human with a browser.
 
-### 4. Google sign-in — the console half is DONE, the code half is not
+### 4. Google sign-in — the console half was DONE, and now the code half is too
 
 Both redirect URIs are registered as of 2026-09-13. They were answering
 `redirect_uri_mismatch` in the morning and Google accepts both now:
@@ -125,23 +125,84 @@ https://yvr.kocho.sh/api/auth/callback/google
 ```
 
 `accounts.google.com` and `oauth2.googleapis.com` are on the network allowlist,
-and the client resolves. **There is nothing left to do at a computer.**
+and the client resolves. **There is nothing left to do at a computer** except
+sign in once and see it work — read on.
 
-What is left is to build it. **Better Auth is not a service** — there is no
-account to create, no dashboard, no key. It is an npm library that runs in the
-Worker and keeps users and sessions in this D1. `BETTER_AUTH_SECRET` is a
-string you generated yourself and it is already on the environment.
+**Better Auth is built and deployed**, 2026-09-13. It is a library, so there
+was nothing to sign up for: `better-auth` 1.7.4 is a dependency,
+`src/worker/auth.ts` is the whole configuration, `db/migrations/0003` is its
+schema, and `design/SignIn.dc.html` is on screen.
 
-So: `npm i better-auth`, the routes, a migration for its tables, and then the
-part that is actually work — collapsing the **two stand-ins for a signed-in
-user** into one:
+What that changed, and what is worth knowing about the live system now:
 
-- `app_user`, a table holding a single `local-user` row.
-- A per-browser id in a `yvr_dev_uid` cookie, which is what actually owns trips
-  and stops today.
+- **`app_user` is dropped.** It held one row — `local-user`, "You",
+  you@example.com — and nothing ever read it. `user`, `session`, `account` and
+  `verification` are in the deployed database in its place, and migration
+  0003 is recorded as applied.
+- **The `yvr_dev_uid` cookie is not issued any more**, and does not grant
+  anything: `/api/trips` sent with an old one answers `401 sign in first`,
+  which was checked against the deployed Worker.
+- **A browser still carrying one keeps its trips.** The first request that
+  arrives with both a session and a `dev_…` cookie moves that id's trips,
+  stops, memberships, invites and ops to the account, then clears the cookie.
+  No route, no button, no second chance.
+- **Membership is enforced now.** PLAN.md section 5 made membership the
+  permission and nothing checked it, because every request used to carry a
+  different owner. A trip you are not a member of answers 404, not 403.
+- **KV is finally in use.** `yvr-kocho-sh-dev-sessions` caches the session
+  lookup in front of D1, which stays the durable store — see `auth.ts` for
+  why it is not the only store.
 
-Every trip and stop in the deployed database is owned by a `dev_…` cookie id.
-Whatever section 5 does, it has to decide what happens to those.
+**What a session verified, live, after deploying:**
+
+1. `/api/trips` with no session → `401 {"error":"sign in first"}`.
+2. `POST /api/auth/sign-in/social` → 200, carrying a Google URL whose
+   `client_id` matches the environment, whose `redirect_uri` is the
+   workers.dev one above, whose scope is `email profile openid` — no Drive —
+   and which carries a PKCE challenge and a state.
+3. **Following that URL, Google serves its real "Sign in with Google" page.**
+   That is the strongest check available from here: a wrong client id or an
+   unregistered redirect URI answers with an Error 400 page instead. So
+   everything up to the point where a human types a password is proven.
+4. The sign-in screen itself was loaded from the deployed Worker in a browser
+   and looked at.
+
+**What is left, and it needs you.** Sign in once, with a real Google account,
+in a browser. Only that exercises the callback, the first `user` row, the
+session cookie, and the trips screen behind it — a session cannot, because it
+has no Google account and because writing a session into the live database by
+hand is not a check, it is a forgery of one.
+
+Two things to look at while you are there:
+
+- **Does your old trip come with you?** If you have used the app in that
+  browser before, its trips should appear under your name the moment you land
+  back on the trip list. If they do not, the cookie was already gone, which is
+  not a bug but is worth knowing.
+- **The account menu**, behind the terracotta avatar in the trips header. It
+  names the account and signs out. No artboard draws it; `design/Trips.dc.html`
+  draws that avatar as a button and this is the smallest honest reading of it.
+
+**The trips a dev cookie owns, and what is being left alone.** The deployed
+database holds 65 trips with 65 distinct owners and one member each — one per
+`dev_…` cookie, plus the single `local-user` one. Every name in the list is a
+session's own test litter: `Drag test`, `Planner grid`, `Map test`, `Circle`,
+`Audit`, `Rail probe`, `Infra check`. The largest has five stops and there are
+no `ops` rows at all. None of it is deleted here: a cookie that is gone cannot
+be told from one still in your phone, so throwing it away is your call and not
+a code change. When you want it gone:
+
+```sql
+-- Read it first. This is not reversible and there is no delete-trip endpoint.
+SELECT COUNT(*) FROM trips WHERE owner_id LIKE 'dev_%' OR owner_id = 'local-user';
+DELETE FROM trips WHERE owner_id LIKE 'dev_%' OR owner_id = 'local-user';
+```
+
+Days, stops, places and members go with each trip — `ON DELETE CASCADE` is on
+every one of those foreign keys. Do it **after** you have signed in and
+checked whether anything you care about followed you, because adoption
+rewrites `owner_id` and a trip that came with you no longer matches that
+`LIKE`.
 
 ### 5. The map's browser key — DEPLOYED, and one browser check from done
 
@@ -225,13 +286,32 @@ Protomaps' are Web Mercator drawn from it. A pin lands where it belongs. The
 old Tokyo-datum offset that Japanese mapping is famous for — some 400 m — is
 not in either source.
 
-### 7. Give the API token an expiry
+### 7. The API token's expiry — CHECKED, and it runs out on 19 September 2026
 
-Not checked from here — the token cannot read its own metadata. If it has no
-expiry, set one. `D1: Edit` and `R2: Edit` both include deletion, because
-Cloudflare does not split those into create-only.
+It has one. Checked live on 2026-09-13:
 
----
+```
+GET /accounts/<id>/tokens/verify
+{"id":"49f7be3a…","status":"active","expires_on":"2026-09-19T23:59:59Z"}
+```
+
+**That is six days from the day this was written.** On 20 September every
+`npm run deploy` starts failing, and so does anything else in a session that
+touches the Cloudflare API — with a `1000 Invalid API Token`, which reads like
+a bad secret rather than an expired one. Rotate it before then, or extend it,
+and put the new value on the environment (`ENVIRONMENT.md` section 2). The
+scopes to recreate are in that file, both policies, including the second
+zone-scoped one that is easy to miss.
+
+Keep giving it an expiry when you rotate. `D1: Edit` and `R2: Edit` both
+include deletion, because Cloudflare does not split those into create-only.
+
+**How to check it, since the last note here got this wrong.** The *user*-level
+`/user/tokens/verify` answers `1000 Invalid API Token`, because the token is
+account-scoped and cannot use a user endpoint — which is what made an earlier
+session conclude the token could not read its own metadata. The account-scoped
+`/accounts/<id>/tokens/verify` is the same check on the right path, and it
+returns the id, the status and the expiry.
 
 ## What is already wired
 
@@ -239,25 +319,40 @@ Cloudflare does not split those into create-only.
 | --- | --- | --- |
 | Worker | `yvr-kocho-sh-api-dev` | deployed |
 | URL | `https://yvr-kocho-sh-api-dev.yvr-kocho.workers.dev` | live |
-| D1 | `yvr-kocho-sh-dev-db` (`8c0a0c37-…`) | migrations 0001 and 0002 applied |
-| KV | `yvr-kocho-sh-dev-sessions` | created, unused until auth lands |
+| D1 | `yvr-kocho-sh-dev-db` (`8c0a0c37-…`) | migrations 0001, 0002 and 0003 applied |
+| D1 tables | `user`, `session`, `account`, `verification` | Better Auth's, live and empty until someone signs in |
+| KV | `yvr-kocho-sh-dev-sessions` | in use: the session lookup, D1 behind it |
 | KV | `yvr-kocho-sh-dev-places-cache` | in use, 1 hour TTL |
 | R2 | `yvr-kocho-sh-dev-tiles` | created, empty |
 | Google APIs | Places (New), Maps JavaScript | enabled; Static Maps and Map Tiles are not |
+| Google OAuth | web client, two redirect URIs | registered; Google serves its sign-in page for it |
 | Durable Object | `TripRoom` | deployed, still a stub |
 | Zone | `kocho.sh` | on the account, wildcard DNS |
 | Custom domain | `yvr.kocho.sh` | bound to the Worker, proxied AAAA, no route |
 | State store | `alchemy-state-service` | DO-backed, survives a container |
 
-Checked live on 2026-09-13: `/health`, creating a trip, searching Places with a
-bias, and writing the result as a stop all work against the deployed Worker.
-109 tests and `tsc --noEmit` pass, and `npm run deploy` succeeds from a fresh
-clone.
+Checked live on 2026-09-13: `/health` answers, the front page serves a real
+`__MAPS_KEY__`, `/api/trips` answers 401 without a session, and
+`/api/auth/sign-in/social` hands back a Google URL that Google itself accepts.
+125 tests and `tsc --noEmit` pass, and `npm run deploy` succeeds from a fresh
+clone with the state coming back off the account.
+
+Earlier the same day, before sign-in was required: creating a trip, searching
+Places with a bias, and writing the result as a stop all worked against the
+deployed Worker. Those paths now need a session, so re-checking them from a
+session is not possible — see item 4.
 
 The account's workers.dev subdomain is `yvr-kocho`, which is why the hostname
 reads `…-api-dev.yvr-kocho.workers.dev` and not something with your name in it.
 
 ### Drift that was corrected
+
+**A session cannot write to the deployed database, and should not want to.**
+Minting a `user` and a `session` row by hand to exercise the signed-in half of
+item 4 was refused as a write to a shared resource, which is the right answer:
+a forged session proves the forgery works, not that sign-in does. The check
+that counts is a person signing in.
+
 
 The deployed database had a migration `0002_stub_user.sql` applied that was
 **not in the repo** — a previous session created it and the file was lost with
@@ -275,8 +370,11 @@ loss is possible: anything a session writes and does not commit is gone.
 - **Chromium cannot reach workers.dev from a session.** The TLS tunnel resets.
   Screenshots are taken through a loopback relay instead. Not a deploy problem.
 - **`/user/tokens/verify` returns "Invalid API Token".** The token is
-  account-scoped, so it cannot use a user-level endpoint. It is fine — check it
-  against `/accounts/<id>` instead.
+  account-scoped, so it cannot use a user-level endpoint. It is fine, and the
+  same check does work on the account path:
+  `/accounts/<id>/tokens/verify` returns the token's id, status and
+  `expires_on`. This used to say the token could not read its own metadata at
+  all, which is what left item 7 unchecked for so long.
 - **Fonts no longer fall back in session screenshots.** `fonts.googleapis.com`
   and `fonts.gstatic.com` are on the allowlist now, so Newsreader and Figtree
   load and a screenshot taken from here is typographically honest. This used to

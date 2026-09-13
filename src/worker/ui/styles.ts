@@ -894,10 +894,18 @@ button { font-family: ${SANS}; cursor: pointer; }
   position: absolute; left: 0; right: 0; bottom: 0; height: 90px;
   background: linear-gradient(to bottom, rgba(251,246,238,0), ${C.paper});
 }
+/*
+ * Above the map band, not behind it.
+ *
+ * The artboard pulls the heading up 16px so it sits *in* the fade at the foot
+ * of the map. The map band is positioned and the body is not, so without this
+ * the band paints over those 16px and the first line reads as cut in half —
+ * which is exactly how it came out on the deployed page.
+ */
 .signin-body {
-  flex-grow: 1; display: flex; flex-direction: column; padding: 0 26px 26px;
+  position: relative; flex-grow: 1; display: flex; flex-direction: column;
+  padding: 0 26px 26px;
 }
-/* The heading rides up into the fade, which is where the artboard puts it. */
 .signin-head { margin-top: -16px; }
 .signin-title {
   font-family: ${SERIF}; font-size: 31px; font-weight: 500;

@@ -464,9 +464,19 @@ header.
 
 ## 5. Auth
 
-*Status: not built, and the largest single thing missing. Today every visitor is an anonymous id in
-a cookie, `app_user` holds a stub row, and avatars are two letters derived from that id. Invites and
-share links are in the schema with no API. See §0.*
+*Status: **built and deployed**, 2026-09-13 — Google sign-in, sessions, and one identity where there
+were two stand-ins. The anonymous cookie and the `app_user` stub are both gone, avatars are real
+initials from a real name, and membership is enforced rather than merely described. What a session
+could not do is sign in with a Google account, so the callback and the screen behind it are
+unwitnessed; INFRA.md item 4 says exactly what was verified and what is left to look at. Invites and
+share links are still in the schema with no API, and the Drive plumbing below is not built either.
+See §0.*
+
+*Two things in this section are now out of date and the code is what to read: sessions reach D1
+directly rather than through Drizzle, because Better Auth's Kysely adapter recognises a D1 binding
+on its own; and the KV session store sits in front of D1 rather than replacing it, because KV is
+eventually consistent and a session that misses its own write is a person bounced back to this
+screen. `src/worker/auth.ts` has the reasoning.*
 
 **Better Auth**, which is the right call. Alternatives considered:
 

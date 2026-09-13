@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CLIENT } from "../ui/client.ts";
 import { page } from "../ui/page.ts";
+import { styles } from "../ui/styles.ts";
 
 describe("the embedded client script", () => {
   /**
@@ -16,6 +17,27 @@ describe("the embedded client script", () => {
 
   it("has no template literal substitutions either", () => {
     expect(CLIENT).not.toContain("${");
+  });
+});
+
+/**
+ * The same trap, one file over.
+ *
+ * `styles()` is also one template literal, and a backtick in a comment inside
+ * it ends the template early. `tsc --noEmit` does not mind — the wreckage
+ * parses as valid TypeScript — so typecheck passes and the deploy is what
+ * fails, with esbuild pointing at the line. That has now happened once, which
+ * is once more than it should.
+ */
+describe("the stylesheet", () => {
+  it("carries no backtick of its own", () => {
+    expect(styles()).not.toContain("`");
+  });
+
+  it("is still a stylesheet all the way to the end", () => {
+    // A template that ended early takes the rules after it with it.
+    expect(styles()).toContain(":root { color-scheme: light; }");
+    expect(styles().trimEnd().endsWith("}")).toBe(true);
   });
 });
 

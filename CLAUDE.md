@@ -28,7 +28,7 @@ That is the map of what exists:
 | `TripMenu.dc.html` | The one dropdown on the trip name (§4h) | yes |
 | `SheetFull.dc.html` | The sheet expanded, and drag-to-reorder | yes, less the title |
 | `AddNote.dc.html` | Only the button reading Add note. See below | n/a |
-| `SignIn.dc.html` | Sign in (§5) | no — needs Better Auth |
+| `SignIn.dc.html` | Sign in (§5) | yes, less the share-link line |
 | `Planner.dc.html`, `PlannerStop.dc.html`, `PlannerMobile.dc.html` | The day grid (§4f) | yes, less the travel and lodging rows |
 | `Offline.dc.html`, `Import.dc.html`, `Members.dc.html` | The other states (§4g) | no |
 | `Desktop.dc.html` | The wide layout | no |
@@ -256,6 +256,28 @@ To be planned bucket is `#94897A`, which is not on the ramp.
   side by side and share every y, so there the x is the whole answer — and a
   hit test that only checked y quietly dropped everything on Monday.
 
+- **The sign-in screen leaves out its last line, and the avatar gained a
+  menu.** `SignIn.dc.html` ends with *Someone sent you a link to look at?
+  **Open it without an account***. That is the door for a view-only share link
+  (§5), and `trip_share_links` is a table with no API and no way to make one —
+  so the words describe a door that is not there. A person who was sent a link
+  would also have opened the link rather than arriving at this screen, so the
+  line has nothing to do from here even once the door exists. It comes back
+  when share links do.
+
+  Going the other way: `Trips.dc.html` draws the header avatar as a `<button>`
+  in the terracotta reserved for you, and no artboard draws what it opens. An
+  app you can sign in to and not out of is not finished, so it opens a menu
+  with the account's email and one item, *Sign out* — built like the stop's
+  kebab rather than like the trip menu, because it is a dropdown on a control
+  and not a layer over the screen.
+
+  The `G` on the button stays the artboard's dashed circle. §5 says the mark is
+  a placeholder and that Google ships the real asset; the asset is not in the
+  repo, and drawing our own would be both a worse mark and against Google's
+  branding terms. The words are theirs too — *Continue with Google*, never
+  *Connect with*, which is not on their permitted list.
+
 - **Nothing is a placeholder.** Where the app does not know something, the
   artboards leave it out rather than filling it with a dash. Two consequences
   worth knowing: the map carries no place labels, because the artboards' own
@@ -272,6 +294,16 @@ To be planned bucket is `#94897A`, which is not on the ramp.
   **`client.ts` is one big `String.raw` template, so it must contain no
   backticks at all** — comments included. Use `"a" + b` rather than a template
   literal, and write `design/Main.dc.html` in a comment without quoting it.
+
+  **`styles.ts` is the same trap wearing a different coat.** It returns one
+  template literal, so a backtick in a comment *inside* the function ends the
+  stylesheet there. `tsc --noEmit` does not mind — the wreckage parses — so
+  typecheck passes and the deploy is what fails, with esbuild pointing at a
+  line. `npm test` does catch it, which is the argument for running the
+  checks in the order the last section of this file gives them.
+
+- `src/worker/auth.ts` — Better Auth, and the only place that decides who
+  someone is. PLAN.md §5.
 - `src/worker/index.ts` — Hono routes.
 - `src/worker/store.ts` — D1 reads and writes.
 - `src/lib/` — pure, tested logic: Places client, bias circle, derived text,

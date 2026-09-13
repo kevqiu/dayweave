@@ -53,9 +53,15 @@ ALCHEMY_PASSWORD=...
 ALCHEMY_STATE_TOKEN=...
 ```
 
-Generate the last three with `openssl rand -base64 32`. `ALCHEMY_PASSWORD`
-encrypts the secrets Alchemy writes into its state; `ALCHEMY_STATE_TOKEN` is
-for the state store below and is not used by anything yet.
+Plus `GOOGLE_MAPS_BROWSER_KEY`, which is a *different* key from
+`GOOGLE_PLACES_KEY` and is the one that ends up in the page. INFRA.md item 5
+on why they must never be the same key.
+
+Generate `BETTER_AUTH_SECRET`, `ALCHEMY_PASSWORD` and `ALCHEMY_STATE_TOKEN`
+with `openssl rand -base64 32`. `BETTER_AUTH_SECRET` signs the session cookie
+and is now load-bearing: change it and everyone is signed out.
+`ALCHEMY_PASSWORD` encrypts the secrets Alchemy writes into its state, and
+`ALCHEMY_STATE_TOKEN` is the bearer token for the state store below.
 
 **Sessions read these once, at startup.** Editing them does not reach a session
 that is already running, so save the changes and then start a new session.
@@ -110,8 +116,21 @@ set its scope dropdown from *Entire Account* to **Specified Domains**, pick
 DNS and Workers Routes in it. Changing the existing policy's scope instead
 would take the Workers, KV, R2 and D1 permissions off the token.
 
-Give the token an expiry. D1: Edit and R2: Edit both include deletion, because
-Cloudflare does not split those into create-only.
+Give the token an expiry, and know when it is. The one on the environment
+expires **2026-09-19**, and after that every deploy answers
+`1000 Invalid API Token`, which reads like a wrong secret rather than an
+expired one. Check any token with:
+
+```
+curl -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+  https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/tokens/verify
+```
+
+The *user*-level `/user/tokens/verify` answers `Invalid API Token` for an
+account-scoped token; that is not the token being wrong, it is the wrong path.
+
+D1: Edit and R2: Edit both include deletion, because Cloudflare does not split
+those into create-only.
 
 ## Alchemy state, and why it survives a session now
 
@@ -147,3 +166,20 @@ every deploy on the account, forever**:
 - `ALCHEMY_PASSWORD` decrypts the secrets inside that state. It used to matter
   only for the life of a container. Now the state outlives the container and
   the password does not, unless you keep it.
+
+## Installing better-auth needs a flag, once
+
+`npm install better-auth` fails with `ERESOLVE`. The library declares an
+*optional* peer on `@sveltejs/kit`, npm tries to satisfy it, and SvelteKit's
+own plugin wants a vite this project does not have:
+
+```
+Conflicting peer dependency: vite@8.3.0
+peerOptional @sveltejs/kit@"^2.0.0" from better-auth@1.7.4
+```
+
+Nothing here is SvelteKit, so the peer is noise. It was installed with
+`--legacy-peer-deps`, no `@sveltejs/*` is in the tree, and **`npm ci` from the
+committed lockfile is clean and needs no flag** — the tree is already resolved
+in it. Only reach for the flag if you are adding or upgrading the dependency
+by hand.
