@@ -6,9 +6,9 @@
  * one session rather than one call per keystroke. The caller mints a token
  * when a search opens and discards it when the search closes.
  *
- * Nothing in here runs in the browser. The key is a Worker binding and the
- * responses are reshaped before they are returned, so the browser never sees
- * a raw Google payload either.
+ * Nothing in here runs in the browser. The key is a Worker binding, restricted
+ * by API to Places, and the responses are reshaped before they are returned,
+ * so the browser never sees a raw Google payload either.
  */
 
 import type { Bias, LatLng } from "./geo.ts";
@@ -35,17 +35,15 @@ const DETAILS_FIELDS = PLACE_FIELDS.join(",");
 const SEARCH_FIELDS = PLACE_FIELDS.map((f) => `places.${f}`).join(",");
 
 export interface PlacesConfig {
-  apiKey: string;
   /**
-   * Sent as `Referer`.
+   * A server key, restricted by API to Places and by nothing else.
    *
-   * The provisioned key is restricted by HTTP referrer, which is a browser
-   * restriction: a server sends no referrer and is refused outright. Setting
-   * it here is what makes the proxy work at all. See ENVIRONMENT.md — this
-   * wants to be an IP-restricted server key instead, because a referrer a
-   * server sets itself protects nobody.
+   * An earlier key was restricted by HTTP referrer, which is a browser
+   * restriction, so the proxy had to send a `Referer` of its own to be
+   * allowed through — a header the server writes about itself, which
+   * protects nobody. The key was replaced; the header went with it.
    */
-  referer: string;
+  apiKey: string;
 }
 
 export interface Suggestion {
@@ -90,7 +88,6 @@ function headers(config: PlacesConfig, extra: Record<string, string> = {}) {
   return {
     "Content-Type": "application/json",
     "X-Goog-Api-Key": config.apiKey,
-    Referer: config.referer,
     ...extra,
   };
 }

@@ -16,22 +16,24 @@ package managers* so npm keeps working, and list:
 
 ```
 api.cloudflare.com
-www.google.com
 places.googleapis.com
-```
-
-Add these when the matching feature lands, not before:
-
-```
 accounts.google.com       # Google sign-in, PLAN.md 5
 oauth2.googleapis.com     # token exchange
+maps.googleapis.com       # the Maps JavaScript bootstrap
+fonts.googleapis.com      # so screenshots from a session use the real fonts
+fonts.gstatic.com
 ```
 
-`places.googleapis.com` is listed above rather than below because place search
-(PLAN.md 4b) has landed. Note what it is *not* needed for: the deployed Worker
-reaches Google from Cloudflare's network, not from this VM, so the allowlist
-only governs calling the API from a session for diagnosis. The same is true of
-`www.google.com` and the My Maps fetch.
+That is what was on it as of 2026-09-13. Two more worth knowing about:
+
+- `yvr.kocho.sh` is **not** on it, so the custom domain cannot be opened from a
+  session at all. Add it the day INFRA.md item 3 lands.
+- `www.google.com` came off it, which only affects running the My Maps spike
+  from a session by hand.
+
+Note what the list is *not* needed for: the deployed Worker reaches Google from
+Cloudflare's network, not from this VM, so the allowlist only governs calling
+an API from a session for diagnosis.
 
 GitHub is reachable at every level through its own proxy, so it never needs
 listing.
@@ -47,9 +49,13 @@ GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 GOOGLE_PLACES_KEY=...
 BETTER_AUTH_SECRET=...
+ALCHEMY_PASSWORD=...
+ALCHEMY_STATE_TOKEN=...
 ```
 
-Generate the last one with `openssl rand -base64 32`.
+Generate the last three with `openssl rand -base64 32`. `ALCHEMY_PASSWORD`
+encrypts the secrets Alchemy writes into its state; `ALCHEMY_STATE_TOKEN` is
+for the state store below and is not used by anything yet.
 
 **Sessions read these once, at startup.** Editing them does not reach a session
 that is already running, so save the changes and then start a new session.
@@ -62,24 +68,24 @@ session at all. It has not been tried with Alchemy, which expects
 
 ### GOOGLE_PLACES_KEY has to be a server key
 
-**The key currently on the environment is restricted by HTTP referrer**, which
-is a browser restriction. A Worker sends no referrer, so Google refuses it:
+It is one now. An earlier key was restricted by HTTP referrer, which is a
+browser restriction, so a Worker — which sends no referrer — was refused
+outright:
 
 ```
 403 API_KEY_HTTP_REFERRER_BLOCKED — Requests from referer <empty> are blocked.
 ```
 
-The proxy works around this by sending `Referer: https://yvr.kocho.sh`, which
-is the `PLACES_REFERRER` binding in `alchemy.run.ts`. That is a workaround, not
-a fix, and it should not be left in place: a referrer the server writes itself
-is not a restriction, because anyone holding the key can write the same header.
+The proxy worked around that by sending `Referer: https://yvr.kocho.sh` about
+itself, which protects nobody, since anyone holding the key can write the same
+header. The key was replaced on 2026-09-13 and the workaround went with it:
+there is no `PLACES_REFERRER` binding and no `Referer` header in
+`src/lib/places.ts` any more. If you ever put a referrer-restricted key back
+on the environment, place search will start answering 403 and this is why.
 
-**Replace it with a key restricted by IP or by API instead**, and restrict it
-to the Places API. Then drop `PLACES_REFERRER` and the `Referer` header in
-`src/lib/places.ts` with it.
-
-A key that is genuinely unrestricted is worse than either, because this one is
-a Worker binding that every session on the environment can read.
+Restrict its replacement **by API, to Places**. A key that is genuinely
+unrestricted is worse than either, because this one is a Worker binding that
+every session on the environment can read.
 
 ## Cloudflare token scopes
 
@@ -116,12 +122,10 @@ only because nothing outside this repo creates those resources.
 
 **The real fix is a state store that outlives the container**, which Alchemy
 recommends and which its own CI check asks for. `CloudflareStateStore` keeps
-state in a Durable Object and needs one more environment variable:
+state in a Durable Object and reads `ALCHEMY_STATE_TOKEN`, which **is on the
+environment now** — but `alchemy.run.ts` has not been switched to it, so every
+deploy is still an adopt. INFRA.md item 2 is the change that is left.
 
-```
-ALCHEMY_STATE_TOKEN=...
-```
-
-It has to be the same value for every deploy on the account, so it is a
-decision about the account rather than about a session, and it has not been
-made yet.
+The token has to be the same value for every deploy on the account, forever,
+which is why that switch is a decision about the account rather than about a
+session.

@@ -65,7 +65,6 @@ function identity(c: { req: { header: (k: string) => string | undefined } }): {
 
 const placesConfig = (env: Env) => ({
   apiKey: env.GOOGLE_PLACES_KEY,
-  referer: env.PLACES_REFERRER,
 });
 
 const person = (userId: string) => ({

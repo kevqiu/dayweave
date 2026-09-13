@@ -60,11 +60,10 @@ export const worker = await Worker("api", {
     TRIP_ROOM: tripRoom,
     GOOGLE_CLIENT_ID: alchemy.secret(process.env.GOOGLE_CLIENT_ID),
     GOOGLE_CLIENT_SECRET: alchemy.secret(process.env.GOOGLE_CLIENT_SECRET),
+    // A server key, restricted by API to Places. It replaced a referrer-
+    // restricted one that forced the proxy to send a `Referer` about itself;
+    // that binding is gone with it. See INFRA.md.
     GOOGLE_PLACES_KEY: alchemy.secret(process.env.GOOGLE_PLACES_KEY),
-    // The Places key is restricted by HTTP referrer, so the proxy has to send
-    // one or Google refuses it outright. Not a secret, and not a security
-    // control either — see the note in src/lib/places.ts.
-    PLACES_REFERRER: process.env.PLACES_REFERRER ?? "https://yvr.kocho.sh",
     // A *separate* key for the map in the browser, and deliberately not
     // GOOGLE_PLACES_KEY. A Maps JavaScript key is public by design and is
     // protected only by its HTTP referrer list; the Places key is a server
