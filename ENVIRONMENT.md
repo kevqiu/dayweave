@@ -117,9 +117,11 @@ DNS and Workers Routes in it. Changing the existing policy's scope instead
 would take the Workers, KV, R2 and D1 permissions off the token.
 
 Give the token an expiry, and know when it is. The one on the environment
-expires **2026-09-19**, and after that every deploy answers
+expires **2027-09-13** (extended from 2026-09-19 on 2026-09-13, keeping the
+same secret, so nothing else changed). After it lapses every deploy answers
 `1000 Invalid API Token`, which reads like a wrong secret rather than an
-expired one. Check any token with:
+expired one — the running Worker is unaffected, since its bindings are baked
+in at deploy and it never calls this API. Check any token with:
 
 ```
 curl -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \

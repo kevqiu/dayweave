@@ -286,25 +286,34 @@ Protomaps' are Web Mercator drawn from it. A pin lands where it belongs. The
 old Tokyo-datum offset that Japanese mapping is famous for — some 400 m — is
 not in either source.
 
-### 7. The API token's expiry — CHECKED, and it runs out on 19 September 2026
+### 7. The API token's expiry — DONE, extended to 2027-09-13
 
-It has one. Checked live on 2026-09-13:
+It has one, it is a year out, and it was six days out when this was checked
+the first time. Verified live on 2026-09-13, after you extended it:
 
 ```
 GET /accounts/<id>/tokens/verify
-{"id":"49f7be3a…","status":"active","expires_on":"2026-09-19T23:59:59Z"}
+{"id":"49f7be3a…","status":"active","expires_on":"2027-09-13T23:59:59Z"}
 ```
 
-**That is six days from the day this was written.** On 20 September every
-`npm run deploy` starts failing, and so does anything else in a session that
-touches the Cloudflare API — with a `1000 Invalid API Token`, which reads like
-a bad secret rather than an expired one. Rotate it before then, or extend it,
-and put the new value on the environment (`ENVIRONMENT.md` section 2). The
-scopes to recreate are in that file, both policies, including the second
-zone-scoped one that is easy to miss.
+**Extended, not rolled**: same id, same secret, so `CLOUDFLARE_API_TOKEN` on
+the environment did not change and nothing needed redeploying.
 
-Keep giving it an expiry when you rotate. `D1: Edit` and `R2: Edit` both
-include deletion, because Cloudflare does not split those into create-only.
+All eight permissions were re-checked against the live API afterwards, because
+an edit to a token is a chance to lose one by accident. Both policies are
+intact — account-level `Account Settings: Read`, `D1: Edit`, `Workers KV: Edit`,
+`Workers R2: Edit`, `Workers Scripts: Edit`, and zone-level on `kocho.sh`
+(`72e8cdb9…`) `Zone: Read`, `DNS: Edit`, `Workers Routes: Edit`.
+
+**What an expired token does and does not break.** It breaks deploys and any
+Cloudflare API call from a session. It does **not** break the running app: the
+Worker's bindings are baked in at deploy time and it never calls the Cloudflare
+API, so `yvr.kocho.sh` would keep serving with nobody able to ship to it. The
+failure reads `1000 Invalid API Token`, which looks like a wrong secret rather
+than an expired one — worth recognising in a year.
+
+Keep giving it an expiry when you renew. `D1: Edit` and `R2: Edit` both include
+deletion, because Cloudflare does not split those into create-only.
 
 **How to check it, since the last note here got this wrong.** The *user*-level
 `/user/tokens/verify` answers `1000 Invalid API Token`, because the token is
