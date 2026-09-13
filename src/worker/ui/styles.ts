@@ -186,11 +186,16 @@ button { font-family: ${SANS}; cursor: pointer; }
   background: ${C.card}; box-shadow: 0 1px 3px rgba(80,66,44,0.10);
   display: flex; align-items: center; justify-content: center; padding: 0;
 }
-.pin { position: absolute; transform: translate(-50%, -100%); }
+/* Centred on the point, like the real map's markers. */
+.pin { position: absolute; transform: translate(-50%, -50%); }
 .pin > i {
-  display: block; border-radius: 50%; border: 2.5px solid ${C.card};
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; border: 2.5px solid ${C.card};
   box-shadow: 0 2px 6px rgba(70,58,40,0.22);
+  color: ${C.card}; font-family: ${SANS}; font-weight: 700; line-height: 1;
+  font-style: normal;
 }
+.pin > i > svg { display: block; }
 
 .sheet {
   position: absolute; left: 0; right: 0; bottom: 0; background: ${C.paper};
@@ -278,6 +283,22 @@ button { font-family: ${SANS}; cursor: pointer; }
 }
 .stop.done .stop-author { opacity: 0.45; }
 .stop-dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid; flex-shrink: 0; }
+
+/*
+ * The row's half of the map's numbered pin.
+ *
+ * Transparent, so it reads as a reference to the dot on the map rather than
+ * as a second dot. 17px is the smallest circle two digits still sit in at
+ * 9.5px, which is the size the artboards use for their smallest meta.
+ */
+.stop-index {
+  width: 17px; height: 17px; border-radius: 50%; border: 1.2px solid;
+  background: transparent; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9.5px; font-weight: 700; line-height: 1;
+}
+.stop-index.bed { border-style: solid; }
+.stop-index > svg { display: block; }
 
 /* ---- Dragging a stop (design/SheetFull.dc.html, PLAN.md section 4e) ---- */
 
@@ -923,17 +944,17 @@ button { font-family: ${SANS}; cursor: pointer; }
 .signin-google[disabled] { opacity: 0.6; }
 .signin-google span:last-child { font-size: 15px; font-weight: 600; color: ${C.ink}; }
 /*
- * The G, still a dashed circle.
+ * The G, and it is Google's now.
  *
- * PLAN.md section 5 says the mark in the wireframe is a placeholder and that
- * Google ships the real asset. It is not in the repo, and drawing our own
- * would be both a worse mark and a breach of their branding terms, so the
- * artboard's own stand-in is what stays until the asset is here.
+ * The artboard drew a dashed circle round a letter and PLAN.md section 5 said
+ * so: a placeholder, with the real asset to come from Google. It has come. The
+ * dashed ring goes with the placeholder — a border round their mark is a
+ * restyling of it, which their branding terms do not allow — and what is left
+ * is the artboard's 22px box holding the mark at its own size.
  */
 .signin-g {
-  width: 22px; height: 22px; border-radius: 50%; border: 1.5px dashed #C9BDA6;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 700; color: #A59C90;
+  width: 22px; height: 22px; display: flex;
+  align-items: center; justify-content: center;
 }
 .signin-promise {
   display: flex; align-items: flex-start; gap: 8px; margin-top: 13px;

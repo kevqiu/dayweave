@@ -592,6 +592,15 @@ own hue appears as a small dot next to its header in the list, and on the thin r
 map. Opening a day's accordion dims every other day's pins, which is what actually makes a day's
 cluster readable — dimming, not hue.
 
+*Built differently, 2026-09-13, deliberately.* **Pin fill carries the day**, and the map shows every
+day of the trip rather than the open one alone. The paragraph above is still right that eleven hues
+at once destroys the progress reading — which is why the size and the dimming it identifies are
+doing that work instead: the open day is full size and numbered, every other day is a mini dot, and
+grey still means done. What it got wrong is that the pin and the row beside it were then answering
+different questions in the same channel, one by clock and one by day. Two things are exempt: a stop
+ticked off or a day gone by is grey, and somewhere you sleep is a solid green pin with a roof that
+never dims. CLAUDE.md has the full set of rules; `src/worker/__tests__/pins.test.ts` enforces them.
+
 **Decided.** The alternative — hue = day, status as fill style — makes multi-day clusters legible
 at a glance but makes "what have I done today" harder, and today is what you look at while
 travelling.

@@ -263,6 +263,10 @@ app.get("/api/trips/:tripId", async (c) => {
     listMembers(c.env.DB, tripId),
   ]);
 
+  // The avatar on a card is whoever added it, and it needs their name — the
+  // hash of a user id was standing in for one and reading as somebody else.
+  const authors = await usersById(c.env.DB, stops.map((s) => s.created_by));
+
   return c.json({
     trip,
     me: me(viewer),
@@ -272,9 +276,9 @@ app.get("/api/trips/:tripId", async (c) => {
     days: days.map((day) => ({
       ...day,
       label: dayLabel(day.date),
-      stops: stopsForDay(stops, day.id),
+      stops: stopsForDay(stops, day.id, authors),
     })),
-    unplanned: stopsForDay(stops, null),
+    unplanned: stopsForDay(stops, null, authors),
   });
 });
 

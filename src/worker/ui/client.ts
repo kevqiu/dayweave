@@ -157,6 +157,18 @@ window.addEventListener("resize", () => {
  */
 const backStack = [];
 
+/**
+ * The app's own floor, so a close can never step off it.
+ *
+ * Signing in leaves Google's pages in the history behind us, and closing two
+ * layers used to be two separate calls to history.back() — so a screen that
+ * had one entry of ours and not two walked out of the app and landed back on
+ * the Google consent page. Stamping the entry we boot on means the listener
+ * below can read a depth of 0 for it rather than a null state, and closeTo
+ * below never asks for more steps than we own.
+ */
+history.replaceState({ depth: 0 }, "");
+
 function openLayer(close) {
   backStack.push(close);
   history.pushState({ depth: backStack.length }, "");
@@ -164,13 +176,53 @@ function openLayer(close) {
 
 /** What every X, scrim and Cancel calls. */
 function closeLayer() {
-  if (backStack.length) history.back();
+  closeTo(1);
 }
 
-window.addEventListener("popstate", () => {
-  const close = backStack.pop();
-  // Nothing of ours left: this is the trip list, and back leaves the app.
-  if (close) close();
+/**
+ * Close the innermost count layers, in one traversal.
+ *
+ * Two things this gets right that two back() calls did not. It clamps to what
+ * we actually pushed, so it can never leave the app. And one history.go(-n)
+ * is a single traversal, where back() plus a setTimeout(back) was a race
+ * between a queued popstate and a queued timeout — sometimes two steps,
+ * sometimes one, depending on which task ran first.
+ */
+function closeTo(count) {
+  const steps = Math.min(count, backStack.length);
+  if (steps > 0) history.go(-steps);
+}
+
+/**
+ * Open something once the close has actually landed.
+ *
+ * Closing is a history traversal, so it finishes on a popstate rather than on
+ * the next line. Opening a layer before that lands pushes an entry the pending
+ * traversal is about to walk back over — which used to be papered over with
+ * setTimeout(fn, 0) and a hope about which task ran first.
+ */
+let afterClose = [];
+
+function closeThen(count, then) {
+  const steps = Math.min(count, backStack.length);
+  if (steps === 0) { then(); return; }
+  afterClose.push(then);
+  history.go(-steps);
+}
+
+window.addEventListener("popstate", (event) => {
+  // A traversal of several entries fires one popstate, not one per entry, so
+  // the depth on the entry we landed on is what says how much to unwind —
+  // rather than popping one and hoping the count matches.
+  const depth = event.state && typeof event.state.depth === "number" ? event.state.depth : 0;
+  while (backStack.length > depth) {
+    const close = backStack.pop();
+    if (close) close();
+  }
+
+  const queued = afterClose;
+  afterClose = [];
+  for (const then of queued) then();
 });
 
 /* ---------------------------------------------------------------- trips */
@@ -427,7 +479,7 @@ function screenSignIn() {
         disabled: state.signingIn,
         onclick: signInWithGoogle,
       }, [
-        h("span", { class: "signin-g", text: "G" }, []),
+        icon("googleG", "signin-g"),
         h("span", { text: state.signingIn ? "Taking you to Google…" : "Continue with Google" }, []),
       ]),
       h("div", { class: "signin-promise" }, [
@@ -547,6 +599,140 @@ async function refreshTrip() {
 
 const STATUS_FILL = { done: "#BDB4A7", now: "#6F9A6B", ahead: "#E0B355" };
 const STATUS_RING = { done: "#EFE9DF", now: "#E4EEE1", ahead: "#F8EECF" };
+
+/* ------------------------------------------------------------------ pins */
+
+/**
+ * What every dot on the map looks like, decided in one place.
+ *
+ * The map used to show the open day and nothing else, coloured by status:
+ * green today, amber ahead, grey done (PLAN.md section 7). It now shows the
+ * whole trip, and colour carries the day rather than the status, because the
+ * question a map of a trip answers first is "which of these is today's" and
+ * the list beside it already says the day in exactly that colour. A day hue
+ * IS the ramp from section 7, so the two are the same vocabulary — read off
+ * the day rather than off the clock.
+ *
+ * Status has not been thrown away. A day gone by, or a stop ticked off, still
+ * goes grey; it just goes grey and small and faint rather than grey and loud.
+ *
+ * The rules, in the order they win:
+ *
+ * - **Somewhere you sleep is never dimmed and never recoloured.** A hotel is
+ *   where the day begins and ends, so it stays solid green with a roof on it
+ *   whatever is selected and whatever day is open. It carries a roof instead
+ *   of a number because it is not a stop on the route.
+ * - **The open day is full size and numbered.** Every other day is a mini dot
+ *   of its own colour, so the shape of the whole trip is visible without the
+ *   other days competing with the one being planned.
+ * - **A day in the past is mini, grey and half there.**
+ * - **Selecting a stop pushes everything else back**: the rest of that day to
+ *   75%, every other day to 30%. The selected pin itself stays at full
+ *   strength — dimming the thing you just tapped would be an odd way to point
+ *   at it — and keeps the ink ring and the extra size it already had.
+ */
+const PIN = {
+  full: 22,
+  mini: 12,
+  selected: 28,
+  /**
+   * The one green that never changes. The deepest step of the day ramp, which
+   * is also day one's colour, so a hotel reads as part of the same family
+   * rather than as a fifth colour.
+   */
+  bed: "#3F6B4A",
+};
+
+/** Where a stop sits in the day's route. Beds are not on the route. */
+function routeNumbers(day) {
+  const numbers = {};
+  let n = 0;
+  for (const stop of day.stops) {
+    if (stop.accommodation) continue;
+    numbers[stop.id] = ++n;
+  }
+  return numbers;
+}
+
+/**
+ * The look of one dot: fill, size, opacity, and what is written inside it.
+ *
+ * The open flag is whether this stop's day is the one showing in the sheet,
+ * and anySelected whether anything at all is selected — a pin has to know it
+ * to know whether it is one of the ones being pushed back.
+ */
+function pinLook(day, stop, open, number) {
+  const st = statusOf(day, stop);
+  const selected = stop.id === state.selectedStopId;
+  const anySelected = Boolean(state.selectedStopId);
+
+  if (stop.accommodation) {
+    return {
+      fill: PIN.bed,
+      size: selected ? PIN.selected : open ? PIN.full : PIN.mini,
+      ring: selected ? "#33302B" : "#FFFCF6",
+      opacity: 1,
+      roof: true,
+      number: null,
+      z: selected ? 40 : 30,
+    };
+  }
+
+  const past = st === "done";
+  let opacity = past && !open ? 0.5 : 1;
+  if (anySelected && !selected) opacity = Math.min(opacity, open ? 0.75 : 0.3);
+
+  return {
+    fill: past ? STATUS_FILL.done : day.hue,
+    size: selected ? PIN.selected : open ? PIN.full : PIN.mini,
+    ring: selected ? "#33302B" : "#FFFCF6",
+    opacity,
+    roof: false,
+    // Only the open day is big enough to read a number in.
+    number: open ? (number || null) : null,
+    z: selected ? 40 : open ? 20 : 10,
+  };
+}
+
+/**
+ * A pin as a data URI, for a Google marker.
+ *
+ * Built here rather than in ui/gmap.ts with the rest of the SVGs, because a
+ * pin is no longer one of a fixed handful: it depends on the day's hue, the
+ * number inside it, and how far back the current selection has pushed it.
+ * Only the geometry is fixed, and it is the geometry gmap.ts used to draw.
+ */
+function pinUrl(look) {
+  const stroke = 2.5;
+  const box = look.size + stroke * 2 + 2;
+  const c = box / 2;
+  const r = look.size / 2;
+
+  let inner = "";
+  if (look.roof) {
+    // The roof from icons.ts, scaled from its 24px box on to this one.
+    const k = (look.size * 0.62) / 24;
+    const ox = c - 12 * k;
+    const oy = c - 12 * k;
+    inner =
+      '<g transform="translate(' + ox + " " + oy + ") scale(" + k + ')" fill="none" ' +
+      'stroke="#FFFCF6" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M4 11.5L12 5l8 6.5"/><path d="M6.5 10.5V19h11v-8.5"/></g>';
+  } else if (look.number) {
+    inner =
+      '<text x="' + c + '" y="' + c + '" fill="#FFFCF6" font-family="Figtree, sans-serif" ' +
+      'font-size="' + Math.round(look.size * 0.58) + '" font-weight="700" ' +
+      'text-anchor="middle" dominant-baseline="central">' + look.number + "</text>";
+  }
+
+  const svg =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="' + box + '" height="' + box + '" ' +
+    'viewBox="0 0 ' + box + " " + box + '"><g opacity="' + look.opacity + '">' +
+    '<circle cx="' + c + '" cy="' + c + '" r="' + r + '" fill="' + look.fill + '" ' +
+    'stroke="' + look.ring + '" stroke-width="' + stroke + '"/>' + inner + "</g></svg>";
+
+  return { url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg), box: box };
+}
 
 function statusOf(day, stop) {
   if (stop.status === "visited") return "done";
@@ -697,16 +883,30 @@ function emptyMapChip() {
   ]);
 }
 
+/**
+ * The legend, saying what the dots now mean.
+ *
+ * design/Main.dc.html writes it as today / ahead / done, which was exactly
+ * right when a pin's colour was its status. A pin's colour is its day now, so
+ * those three words describe a scheme the map no longer uses — a green dot is
+ * not today, it is whichever day is that shade of the ramp.
+ *
+ * What is still true, and what this says instead: the big numbered dots are
+ * the day the sheet is open on, the small ones are the rest of the trip, and
+ * grey is done. The first swatch takes the open day's own colour, so the
+ * legend and the pins agree on any day of any trip rather than naming one.
+ */
 function mapLegend() {
-  const key = (color, ink, label) =>
+  const open = state.trip.days.find((d) => d.id === state.openDayId);
+  const key = (color, ink, label, mini) =>
     h("span", { class: "k", style: "color:" + ink }, [
-      h("i", { style: "background:" + color }, []),
+      h("i", { style: "background:" + color + (mini ? ";width:7px;height:7px" : "") }, []),
       label,
     ]);
   return h("div", { class: "map-chip" }, [
-    key("#6F9A6B", "#4E7A4B", "today"),
-    key("#E0B355", "#96752F", "ahead"),
-    key("#BDB4A7", "#9A9184", "done"),
+    key(open ? open.hue : "#6F9A6B", "#4E7A4B", "this day"),
+    key("#8C8C4C", "#96752F", "other days", true),
+    key("#BDB4A7", "#9A9184", "done", true),
   ]);
 }
 
@@ -925,37 +1125,64 @@ async function paintMap() {
   for (const marker of gmarkers) marker.setMap(null);
   gmarkers = [];
 
-  const day = state.trip.days.find((d) => d.id === state.openDayId);
-  const stops = day ? day.stops.filter((s) => s.location) : [];
-  if (!stops.length) return;
-
+  /*
+   * The whole trip, not just the day being planned.
+   *
+   * Every day's stops go on, the open one full size and numbered and the rest
+   * as mini dots in their own colour — so the shape of the trip is there to
+   * see, and a place two days from now is not invisible while you are looking
+   * for somewhere to put lunch. pinLook decides what each one looks like.
+   */
   const bounds = new maps.LatLngBounds();
-  for (const stop of stops) {
-    const status = statusOf(day, stop);
-    const selected = stop.id === state.selectedStopId;
-    const icon = window.__PIN__[status][selected ? "selected" : "plain"];
-    const marker = new maps.Marker({
-      position: stop.location,
-      map: gmap,
-      title: stop.title,
-      icon: { url: icon },
-      zIndex: selected ? 2 : 1,
-    });
-    marker.addListener("click", () => {
-      state.selectedStopId = selected ? null : stop.id;
-      state.menuOpen = false;
-      render();
-    });
-    gmarkers.push(marker);
-    bounds.extend(stop.location);
+  // Only the open day's own pins decide where the map sits. Fitting the whole
+  // trip would zoom out to the country on any trip that moves city.
+  const focus = new maps.LatLngBounds();
+  let focused = 0;
+
+  for (const day of state.trip.days) {
+    const open = day.id === state.openDayId;
+    const numbers = open ? routeNumbers(day) : {};
+
+    for (const stop of day.stops) {
+      if (!stop.location) continue;
+
+      const look = pinLook(day, stop, open, numbers[stop.id]);
+      const pin = pinUrl(look);
+      const marker = new maps.Marker({
+        position: stop.location,
+        map: gmap,
+        title: stop.title,
+        icon: {
+          url: pin.url,
+          // Centred on the coordinate. A dot that hangs by its bottom edge is
+          // pointing a few metres north of where the place is.
+          scaledSize: new maps.Size(pin.box, pin.box),
+          anchor: new maps.Point(pin.box / 2, pin.box / 2),
+        },
+        zIndex: look.z,
+      });
+      marker.addListener("click", () => {
+        // Tapping a pin on another day opens that day, which is the only way
+        // the pin can grow a number and the row it belongs to can be read.
+        if (!open) state.openDayId = day.id;
+        state.selectedStopId = stop.id === state.selectedStopId ? null : stop.id;
+        state.menuOpen = false;
+        render();
+      });
+      gmarkers.push(marker);
+      bounds.extend(stop.location);
+      if (open) { focus.extend(stop.location); focused++; }
+    }
   }
+
+  if (!gmarkers.length) return;
 
   // The sheet covers the lower half, so the pins are fitted into the band
   // above it rather than into the whole viewport.
   const sheet = $("sheet");
   const covered = sheet ? sheet.getBoundingClientRect().height : 0;
-  gmap.fitBounds(bounds, { top: 60, right: 40, bottom: covered + 20, left: 40 });
-  if (stops.length === 1) gmap.setZoom(15);
+  gmap.fitBounds(focused ? focus : bounds, { top: 60, right: 40, bottom: covered + 20, left: 40 });
+  if ((focused ? focused : gmarkers.length) === 1) gmap.setZoom(15);
 }
 
 /**
@@ -1008,20 +1235,32 @@ function mapPins(day) {
   const spanLat = Math.max(maxLat - minLat, 0.004);
   const spanLng = Math.max(maxLng - minLng, 0.004);
 
+  /*
+   * The open day only, where the real map shows the whole trip.
+   *
+   * Not an oversight: this projection is the day's own bounding box stretched
+   * across a band of the drawing, which is truthful about one day's relative
+   * positions and says nothing at all about where the next city is. Putting
+   * another day's stops through it would place them somewhere specific and
+   * wrong, which is worse than leaving them off. The pins that are here get
+   * the same colours, sizes and numbers as the real map's.
+   */
+  const numbers = routeNumbers(day);
+
   return located.map((stop) => {
-    const st = statusOf(day, stop);
-    const selected = stop.id === state.selectedStopId;
-    const size = selected ? 26 : 20;
+    const look = pinLook(day, stop, true, numbers[stop.id]);
     const x = 16 + ((stop.location.lng - minLng) / spanLng) * 68;
     const y = 40 - ((stop.location.lat - minLat) / spanLat) * 26;
     return h("div", {
       class: "pin",
-      style: "left:" + x + "%;top:" + y + "%",
+      style: "left:" + x + "%;top:" + y + "%;opacity:" + look.opacity + ";z-index:" + look.z,
       title: stop.title,
     }, [
       h("i", {
-        style: "width:" + size + "px;height:" + size + "px;background:" + STATUS_FILL[st] +
-          ";border-color:" + (selected ? "#33302B" : "#FFFCF6"),
+        style: "width:" + look.size + "px;height:" + look.size + "px;background:" + look.fill +
+          ";border-color:" + look.ring + ";font-size:" + Math.round(look.size * 0.58) + "px",
+        html: look.roof ? ICONS.houseWhite : null,
+        text: look.roof ? null : (look.number ? String(look.number) : null),
       }, []),
     ]);
   });
@@ -1070,7 +1309,11 @@ function sheetContents(hasStops) {
         // is something to put in it. Many stops never get a time (PLAN.md
         // section 11), and an empty column is just a gap.
         const showTimes = shown.some((s) => s.time);
-        const body = h("div", { class: "day-body" }, shown.map((stop) => stopCard(day, stop, showTimes)));
+        // Numbered over the whole day, not over what is shown: hiding the
+        // visited ones must not renumber the rest out from under the map.
+        const numbers = routeNumbers(day);
+        const body = h("div", { class: "day-body" },
+          shown.map((stop) => stopCard(day, stop, showTimes, numbers[stop.id])));
         body.append(
           h("button", { class: "add-stop", onclick: () => openSearch(day.id) }, [icon("plusGrey")]),
         );
@@ -1116,7 +1359,7 @@ function emptyDayBody() {
   ]);
 }
 
-function stopCard(day, stop, showTimes) {
+function stopCard(day, stop, showTimes, number) {
   const st = statusOf(day, stop);
   const selected = stop.id === state.selectedStopId;
   const done = st === "done";
@@ -1140,6 +1383,19 @@ function stopCard(day, stop, showTimes) {
           render();
         },
       }, [
+        /*
+         * The same mark as the pin on the map, so a row and a dot can be
+         * matched without counting. Outlined rather than filled: the pin is
+         * the thing on the map and this is a reference to it, and two solid
+         * discs of the same colour on one row would compete.
+         */
+        h("span", {
+          class: stop.accommodation ? "stop-index bed" : "stop-index",
+          style: "color:" + (stop.accommodation ? PIN.bed : done ? STATUS_FILL.done : day.hue) +
+            ";border-color:" + (stop.accommodation ? PIN.bed : done ? STATUS_FILL.done : day.hue),
+          html: stop.accommodation ? ICONS.houseHue : null,
+          text: stop.accommodation ? null : String(number),
+        }, []),
         showTimes
           ? h("span", {
               class: "stop-time",
@@ -1761,28 +2017,21 @@ function tripMenu() {
     h("div", { class: "trip-menu" }, [
       item("pinInk", "Map view", {
         on: state.view === "map",
-        // Two entries to unwind when the Plan view is showing: this menu, and
-        // the Plan view itself. Its own close is what puts the map back.
-        onclick: () => {
-          closeLayer();
-          if (state.view === "plan") setTimeout(closeLayer, 0);
-        },
+        // This menu, and the Plan view under it if it is showing. The Plan
+        // layer's own close is what puts the map back.
+        onclick: () => closeTo(state.view === "plan" ? 2 : 1),
       }),
       item("grid", "Plan view", {
         on: state.view === "plan",
-        onclick: () => {
-          closeLayer();
-          if (state.view !== "plan") setTimeout(showPlan, 0);
-        },
+        // Close the menu, and open the Plan view once that has landed rather
+        // than on top of a traversal that is still on its way.
+        onclick: () => (state.view === "plan" ? closeLayer() : closeThen(1, showPlan)),
       }),
       h("div", { class: "rule" }, []),
       item("arrowLeft", "Back to trips", {
-        onclick: () => {
-          // Close the menu, then the trip: two entries, so back and this
-          // button leave the history in the same place. showTrips re-reads.
-          closeLayer();
-          setTimeout(closeLayer, 0);
-        },
+        // The menu and the trip, in one traversal, clamped to what we pushed.
+        // showTrips is the trip layer's own close, so it re-reads the list.
+        onclick: () => closeTo(2),
       }),
     ]),
   ];

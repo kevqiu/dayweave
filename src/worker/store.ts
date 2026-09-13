@@ -8,7 +8,7 @@
  */
 
 import { orderKeyAppend, orderKeyBetween } from "../lib/order.ts";
-import { describeStop, tripCities } from "../lib/derive.ts";
+import { describeStop, isAccommodation, tripCities } from "../lib/derive.ts";
 import type { PlaceDetails } from "../lib/places.ts";
 import type { DayGeo, LatLng } from "../lib/geo.ts";
 import { avatarColor, dayHue } from "./ui/tokens.ts";
@@ -440,6 +440,15 @@ export interface StopView {
   author: string;
   authorColor: string;
   city: string | null;
+  /**
+   * Somewhere you sleep, worked out from the category (`isAccommodation`).
+   *
+   * Not a route stop: it is not numbered, its pin carries a roof rather than a
+   * number, and it keeps its colour when the rest of the day dims. A hotel is
+   * where the day starts and ends, so it stays legible whatever else is
+   * selected.
+   */
+  accommodation: boolean;
   /** Where Navigate goes. Built rather than stored — see navigateUrl. */
   navigateUrl: string | null;
   location: LatLng | null;
@@ -486,6 +495,15 @@ export function initialsForName(name: string): string {
   return `${first[0]}${last[0]}`.toUpperCase();
 }
 
+/** The name if we have it, and the old hash if the account is gone. */
+function authorInitials(
+  userId: string,
+  people?: ReadonlyMap<string, { id: string; name: string }>,
+): string {
+  const user = people?.get(userId);
+  return user?.name ? initialsForName(user.name) : initialsFor(userId);
+}
+
 /**
  * Two letters for someone with no name to read.
  *
@@ -508,7 +526,19 @@ export function initialsFor(userId: string): string {
  * from the stop before it on that day, which is why this is computed over the
  * ordered list rather than per row.
  */
-export function stopsForDay(stops: readonly StopRow[], dayId: string | null): StopView[] {
+export function stopsForDay(
+  stops: readonly StopRow[],
+  dayId: string | null,
+  /**
+   * Who wrote each stop, by id.
+   *
+   * Without it the avatar falls back to two letters hashed out of the user id,
+   * which is what it did when nobody had a name. That is why a stop added by
+   * a signed-in Kevin Qiu was labelled MZ: the hash never knew about the
+   * account, and nothing told it once there was one.
+   */
+  people?: ReadonlyMap<string, { id: string; name: string }>,
+): StopView[] {
   const ordered = stops.filter((s) => s.day_id === dayId);
   // To be planned is a bucket, not a route. Two things sitting in it next to
   // each other are not one after the other, so the walk between them would be
@@ -538,9 +568,10 @@ export function stopsForDay(stops: readonly StopRow[], dayId: string | null): St
       note: stop.note,
       time: stop.start_time ?? "",
       status: stop.status,
-      author: initialsFor(stop.created_by),
+      author: authorInitials(stop.created_by, people),
       authorColor: avatarColor(stop.created_by),
       city: stop.city,
+      accommodation: isAccommodation(stop.category),
       navigateUrl: navigateUrl(location, stop.google_place_id),
       location,
     };

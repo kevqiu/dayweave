@@ -272,11 +272,64 @@ To be planned bucket is `#94897A`, which is not on the ramp.
   kebab rather than like the trip menu, because it is a dropdown on a control
   and not a layer over the screen.
 
-  The `G` on the button stays the artboard's dashed circle. §5 says the mark is
-  a placeholder and that Google ships the real asset; the asset is not in the
-  repo, and drawing our own would be both a worse mark and against Google's
-  branding terms. The words are theirs too — *Continue with Google*, never
-  *Connect with*, which is not on their permitted list.
+  The `G` is Google's own mark now, in `icons.ts`. §5 called the artboard's
+  dashed circle a placeholder and said Google ships the real one, so the
+  dashed ring went with the placeholder — a border drawn around their logo is
+  a restyling of it, which their branding terms do not allow. It is the one
+  icon in `icons.ts` that takes no colour, for the same reason. The words are
+  theirs too: *Continue with Google*, never *Connect with*, which is not on
+  their permitted list.
+
+- **A pin's colour is its day, not its status — and the map shows the whole
+  trip.** This is a deliberate departure from PLAN.md §7, which says pin fill
+  carries status and nothing else, and from `Main.dc.html`, which draws the
+  open day alone and legends it *today / ahead / done*.
+
+  The reason is that the sheet beside the map already colours each day with
+  the §7 ramp, and the map was colouring the same stops by clock instead — so
+  the row said one thing and its pin said another. Colour now answers "which
+  day is this" in the same vocabulary on both sides of the screen. Status did
+  not go away: a day gone by, or a stop ticked off, is still grey, and it is
+  now grey *and* small *and* half-there rather than grey and full size.
+
+  The whole set of rules lives in `pinLook` in `client.ts` and is tested in
+  `src/worker/__tests__/pins.test.ts`, which lifts the function out of the
+  client script the way `plan-client.test.ts` lifts the Plan view's
+  arithmetic. In short:
+
+  - the open day is full size and **numbered**, every other day is a mini dot
+    of its own colour, and a day in the past is mini, grey and at 50%;
+  - selecting a stop pushes the rest of that day to 75% and every other day to
+    30%, and leaves the selected pin itself at full strength — dimming the
+    thing you just tapped would be an odd way to point at it;
+  - the number on a pin is repeated in the row as a small outlined circle, so
+    a dot and a line can be matched without counting.
+
+  The legend was rewritten to match, because *today / ahead / done* now
+  describes a scheme the map does not use. It reads *this day · other days ·
+  done*, and its first swatch takes the open day's own hue rather than naming
+  a colour.
+
+  **The drawn fallback map still shows the open day only.** Its projection is
+  that day's bounding box stretched over a band of the drawing; it is truthful
+  about one day's relative positions and says nothing about where the next
+  city is, so putting another day through it would place those stops somewhere
+  specific and wrong. The pins that are there get the same colours, sizes and
+  numbers.
+
+- **Somewhere you sleep is not a stop on the route.** A place whose category
+  reads as lodging (`isAccommodation` in `src/lib/derive.ts`) is drawn as a
+  solid deep-green pin with a roof in it, takes no number, and is never dimmed
+  or recoloured by the day being over or by something else being selected. A
+  hotel is where the day begins and ends, so it stays legible whatever else is
+  going on.
+
+  It is **derived from the category, not stored in a column**: Places gives
+  `hotel`, `hostel`, `japanese inn` and the app already keeps that word. So a
+  stop added before the rule existed is recognised too — and a hotel Google
+  files under something else is not. The word list is deliberately narrow;
+  `apartment` and `campground` are left out, being as often somewhere you are
+  visiting as somewhere you are staying.
 
 - **Nothing is a placeholder.** Where the app does not know something, the
   artboards leave it out rather than filling it with a dash. Two consequences
