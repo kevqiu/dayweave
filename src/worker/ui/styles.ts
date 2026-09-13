@@ -749,16 +749,21 @@ button { font-family: ${SANS}; cursor: pointer; }
 
 .grid-main { flex-grow: 1; display: flex; min-height: 0; }
 .grid-days { flex-grow: 1; display: flex; flex-direction: column; min-width: 0; }
-.grid-head { height: 58px; flex-shrink: 0; display: flex; border-bottom: 1px solid ${C.border}; }
+/* 58 at the artboard's width. A narrower column puts the TODAY tag on a
+   second line rather than breaking the date into three, and every column
+   grows with it, so the hours below still start level. */
+.grid-head {
+  min-height: 58px; flex-shrink: 0; display: flex; border-bottom: 1px solid ${C.border};
+}
 .grid-gutter-head { width: 56px; flex-shrink: 0; border-right: 1px solid ${C.sheetEdge}; }
 .gcol-head {
   flex: 1 1 0; min-width: 0; border-right: 1px solid ${C.sheetEdge}; padding: 8px 10px;
 }
 .gcol-head.past { opacity: 0.5; }
 .gcol-head.today { background: ${C.highlight}; }
-.gcol-top { display: flex; align-items: baseline; gap: 6px; }
+.gcol-top { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
 .gcol-hue { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-.gcol-label { font-size: 12.5px; font-weight: 600; }
+.gcol-label { font-size: 12.5px; font-weight: 600; white-space: nowrap; }
 .gcol-head.today .gcol-label { font-weight: 700; }
 .gcol-sub {
   font-size: 10.5px; color: ${C.grey}; margin-top: 3px;
@@ -852,7 +857,9 @@ button { font-family: ${SANS}; cursor: pointer; }
 }
 
 .tray-side {
-  width: 252px; flex-shrink: 0; border-left: 1px solid ${C.border};
+  /* 252 at the artboard's width, and a quarter of a narrower one, so the
+     columns keep the room they need on a tablet. */
+  width: min(252px, 26vw); flex-shrink: 0; border-left: 1px solid ${C.border};
   display: flex; flex-direction: column; min-height: 0;
 }
 .tray-side-head {

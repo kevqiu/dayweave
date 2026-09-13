@@ -76,8 +76,16 @@ const state = {
 
 const frame = $("frame");
 
-/** True where the seven-column grid fits. Below this it is one day a screen. */
-const WIDE = "(min-width: 1100px) and (min-height: 700px)";
+/**
+ * Where the grid fits. Below this the Plan view is one day a screen.
+ *
+ * Not the artboard's own 1440: that is the width it was drawn at, not the
+ * width the thing needs. What the grid needs is a readable column per day and
+ * room for the tray beside them, which comes in a little under 800 — a tablet
+ * held either way, and a laptop window that is not full screen. The height
+ * keeps a phone on its side out of it, where a 660px column has nowhere to go.
+ */
+const WIDE = "(min-width: 780px) and (min-height: 560px)";
 const wideNow = () => window.matchMedia(WIDE).matches;
 const planning = () => state.screen === "trip" && state.view === "plan";
 
@@ -105,11 +113,21 @@ function render() {
   if (state.search) paintSearchMap();
   if (state.screen === "trip" && !planning()) paintMap();
   if (planning() && !grid) scrollRailToDay();
+  if (grid) settleGrid();
 }
 
 // The two densities are one view, so crossing the width re-renders into the
 // other one rather than leaving a phone layout stretched across a desk.
 window.matchMedia(WIDE).addEventListener("change", () => { if (planning()) render(); });
+
+// Rotating a tablet changes how many days fit, so the grid is re-dealt. Never
+// mid-drag: a render would throw away the card under the finger.
+let resizeFrame = null;
+window.addEventListener("resize", () => {
+  if (!planning() || state.drag) return;
+  if (resizeFrame) cancelAnimationFrame(resizeFrame);
+  resizeFrame = requestAnimationFrame(() => { resizeFrame = null; render(); });
+});
 
 /* -------------------------------------------------------------- history */
 
@@ -2019,6 +2037,7 @@ function leavePlan() {
 
 function showMap() {
   state.view = "map";
+  gridSettled = null;
   state.selectedStopId = null;
   render();
 }
@@ -2030,7 +2049,8 @@ function planDay() {
   const today = days.find((d) => d.date === todayIso());
   const open = days.find((d) => d.id === state.openDayId);
   state.planDayId = (today || open || days[0] || {}).id || null;
-  state.planPage = Math.floor(Math.max(0, planIndex()) / GRID_DAYS) * GRID_DAYS;
+  const page = gridDays();
+  state.planPage = Math.floor(Math.max(0, planIndex()) / page) * page;
 }
 
 const planIndex = () => state.trip.days.findIndex((d) => d.id === state.planDayId);
@@ -2388,8 +2408,24 @@ function sheetTime() {
 
 /* ------------------------------------------------- the Planner at a desk */
 
-/** design/Planner.dc.html shows a week at a time and pages through the trip. */
-const GRID_DAYS = 7;
+/**
+ * How many days the grid deals at once.
+ *
+ * design/Planner.dc.html shows seven, which is what 1440px holds. Narrower
+ * than that, seven columns would be too thin to read a place name in, so the
+ * grid shows fewer days rather than shrinking them — the same view at another
+ * density, which is the whole idea in PLAN.md 4f. A column is never allowed
+ * below 120px, and never fewer than three days, because two is not a week and
+ * would be better served by the phone's one-day screen.
+ */
+const COLUMN_MIN = 120;
+
+function gridDays() {
+  const wide = Math.min(1440, window.innerWidth);
+  const tray = Math.min(252, wide * 0.26);
+  const columns = Math.floor((wide - 56 - tray) / COLUMN_MIN);
+  return Math.max(3, Math.min(7, columns));
+}
 
 /** The one delete, shared by the sheet's kebab and the Planner's popover. */
 function removeStop(stop) {
@@ -2409,13 +2445,14 @@ function screenGrid() {
   planDay();
   const trip = state.trip;
   const total = trip.days.length;
-  const from = Math.min(state.planPage, Math.max(0, total - GRID_DAYS));
-  const days = trip.days.slice(from, from + GRID_DAYS);
+  const page = gridDays();
+  const from = Math.min(state.planPage, Math.max(0, total - page));
+  const days = trip.days.slice(from, from + page);
   const span = PLAN.gridSpan(gridTimes(days));
   const band = bandHeight(days);
 
   return h("div", { class: "screen desk" }, [
-    gridBar(from, total),
+    gridBar(from, total, page),
     h("div", { class: "grid-main" }, [
       h("div", { class: "grid-days" }, [
         gridHeaders(days),
@@ -2431,6 +2468,42 @@ function screenGrid() {
       : null,
     ...dragLayer(),
   ]);
+}
+
+/**
+ * Where the grid opens.
+ *
+ * A calendar that opens on 08:00 and leaves the day below the fold has hidden
+ * the thing it was opened to see — and on a trip where nothing has a time yet,
+ * everything is in the band under the hours. So the first render of a page
+ * scrolls to what is actually there: the earliest card, or the band, or the
+ * hour it is now. Only the first, because after that the scroll belongs to
+ * whoever is reading it.
+ */
+let gridSettled = null;
+
+function settleGrid() {
+  const scroll = document.querySelector(".grid-scroll");
+  if (!scroll) return;
+  const key = state.trip.trip.id + ":" + state.planPage + ":" + gridDays();
+  if (gridSettled === key) return;
+  gridSettled = key;
+
+  const timed = [...document.querySelectorAll(".gcard:not(.untimed)")];
+  if (timed.length) {
+    const first = Math.min(...timed.map((c) => parseFloat(c.style.top) || 0));
+    scroll.scrollTop = Math.max(0, first - 40);
+    return;
+  }
+
+  const band = document.querySelector(".band-label");
+  if (band) {
+    scroll.scrollTop = Math.max(0, (parseFloat(band.style.top) || 0) - 60);
+    return;
+  }
+
+  const line = document.querySelector(".now-line");
+  if (line) scroll.scrollTop = Math.max(0, (parseFloat(line.style.top) || 0) - 80);
 }
 
 /** Every time on the days showing, so the column covers what the days hold. */
@@ -2450,12 +2523,12 @@ function bandHeight(days) {
   return most ? 20 + most * 42 : 0;
 }
 
-function gridBar(from, total) {
-  const page = (by) => {
-    state.planPage = Math.min(Math.max(0, total - GRID_DAYS), Math.max(0, from + by * GRID_DAYS));
+function gridBar(from, total, page) {
+  const turn = (by) => {
+    state.planPage = Math.min(Math.max(0, total - page), Math.max(0, from + by * page));
     render();
   };
-  const last = Math.min(total, from + GRID_DAYS);
+  const last = Math.min(total, from + page);
 
   return h("div", { class: "desk-bar" }, [
     h("button", {
@@ -2473,14 +2546,14 @@ function gridBar(from, total) {
       h("button", { disabled: true, title: "The list view is not built yet" }, ["List"]),
     ]),
     h("div", { class: "desk-pager" }, [
-      h("button", { class: "sq-btn", onclick: () => page(-1), disabled: from === 0 }, [
+      h("button", { class: "sq-btn", onclick: () => turn(-1), disabled: from === 0 }, [
         h("span", { style: "display:flex;transform:rotate(90deg)", html: ICONS.chevron }, []),
       ]),
       h("span", {
         class: "desk-range",
         text: "day " + (from + 1) + "–" + last + " of " + total,
       }, []),
-      h("button", { class: "sq-btn", onclick: () => page(1), disabled: last >= total }, [
+      h("button", { class: "sq-btn", onclick: () => turn(1), disabled: last >= total }, [
         h("span", { style: "display:flex;transform:rotate(-90deg)", html: ICONS.chevron }, []),
       ]),
     ]),

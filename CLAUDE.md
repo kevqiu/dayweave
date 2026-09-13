@@ -194,9 +194,25 @@ To be planned bucket is `#94897A`, which is not on the ramp.
 - **The Plan view is one view at two densities, not two screens.** PLAN.md §4f:
   a seven-column grid cannot work at 375px, so the phone draws the day as a
   clock and the desk draws the week as a grid. Both read the same trip payload
-  and write the same ops, and crossing 1100px re-renders from one into the
-  other. `#frame` grows to `1440 x 900` while the grid is showing and shrinks
-  back on the way out; every other screen stays the 375px phone.
+  and write the same ops, and crossing 780px re-renders from one into the
+  other. `#frame` fills the viewport up to `1440 x 900` while the grid is
+  showing and shrinks back on the way out; every other screen stays the 375px
+  phone, because `Desktop.dc.html` is not built.
+
+  **780 is where the grid starts working, and it is not the artboard's 1440.**
+  1440 is the width the Planner was drawn at, not the width it needs: what it
+  needs is a column per day wide enough to read a place name in, and room for
+  the tray beside them. So the grid deals **as many days as fit** — seven at
+  1280 and up, fewer below, never a column under 120px and never fewer than
+  three days — rather than squeezing seven columns into a tablet. The height
+  half of the query keeps a phone on its side out of it.
+
+  **It opens where the day is.** A calendar that opens on 08:00 with the day
+  below the fold has hidden what it was opened for, and on a trip where
+  nothing has a time yet everything is in the band under the hours. So the
+  first render of a page scrolls to the earliest card, or the band, or the
+  hour it is now — and only the first, because after that the scroll belongs
+  to whoever is reading it.
 
   **Everything the two densities measure lives in `src/lib/plan.ts`**, where it
   is tested: the row heights, the free slots, the hours a column covers, where
