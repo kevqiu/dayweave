@@ -37,6 +37,13 @@ describe("page", () => {
     expect(html).toContain("function render()");
   });
 
+  it("carries the plane as an inline favicon", () => {
+    const html = page();
+    expect(html).toContain('<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,');
+    // Encoded, because the colour is a "#" and an unencoded one ends the URI.
+    expect(html).not.toMatch(/href="data:image\/svg\+xml,[^"]*#/);
+  });
+
   it("does not leak anything that looks like a key", () => {
     expect(page()).not.toMatch(/AIza[0-9A-Za-z_-]{10}/);
   });

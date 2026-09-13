@@ -56,6 +56,13 @@ function iconSet(): Record<string, string> {
   };
 }
 
+/**
+ * The tab icon, inlined as a data URI so the Worker serves one document and no
+ * second request. A plane, because that is the one thing every trip starts
+ * with.
+ */
+const FAVICON = `data:image/svg+xml,${encodeURIComponent(icons.airplane())}`;
+
 export function page(mapsKey = ""): string {
   const boot = {
     icons: iconSet(),
@@ -70,6 +77,7 @@ export function page(mapsKey = ""): string {
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="${C.paper}">
 <title>yvr.kocho.sh</title>
+<link rel="icon" type="image/svg+xml" href="${FAVICON}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="${FONTS_HREF}">

@@ -170,3 +170,11 @@ export const arrowLeft = (o: IconOptions = {}) =>
     { ...o },
     'stroke-linecap="round" stroke-linejoin="round"',
   );
+
+/**
+ * The tab icon: a plane, flat and filled rather than drawn in line like the
+ * rest of this file. No artboard specifies it — it is browser chrome, not a
+ * screen — so it is the one icon here whose colour is its own.
+ */
+export const airplane = ({ size = 32, color = "#7A4FBF" }: IconOptions = {}) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="${color}"><path d="M12 .9c1.15 0 1.95 1.7 1.95 3.9v4.4l9.35 5.4V17l-9.35-2.7v5l2.75 2.05v1.85L12 21.9l-4.7 1.3v-1.85l2.75-2.05v-5L.7 17v-2.4l9.35-5.4V4.8C10.05 2.6 10.85.9 12 .9z"/></svg>`;
