@@ -143,27 +143,38 @@ user** into one:
 Every trip and stop in the deployed database is owned by a `dev_…` cookie id.
 Whatever section 5 does, it has to decide what happens to those.
 
-### 5. The map's browser key — provisioned, one deploy from on
+### 5. The map's browser key — DEPLOYED, and one browser check from done
 
 `GOOGLE_MAPS_BROWSER_KEY` is on the environment as of 2026-09-13, it is a
 different key from `GOOGLE_PLACES_KEY`, and `maps/api/js` serves 315 KB of
 Maps JavaScript for it rather than an error. Maps JavaScript API is enabled;
 Static Maps and Map Tiles are not, and are not needed.
 
-**The deployed Worker is still serving `__MAPS_KEY__ = ""`.** The binding is
-read from `process.env` at deploy time and the variable arrived after the last
-deploy, so the app is still drawing the fallback map. One `npm run deploy` from
-a session that has the variable turns the real map on. That is the whole of
-what is left.
+**The deploy has happened.** `npm run deploy` ran from a session holding the
+variable on 2026-09-13 and the page now serves a real key: the front page of
+the deployed Worker carries `window.__MAPS_KEY__ = "AIzaSy…"`, and that string
+compares equal to `GOOGLE_MAPS_BROWSER_KEY` and **not** equal to
+`GOOGLE_PLACES_KEY`. So the binding is right and the right key is in the page.
 
-Two things a session cannot check, so check them yourself once it is on:
+The two other `__MAPS_KEY__` hits in the served page are not a second key.
+One reads it, and one is the 8-second fallback clearing it for the rest of the
+session so the drawn map comes back.
 
-- **The referrer list.** A Maps JavaScript key is enforced in the browser at
-  runtime, not on the bootstrap fetch, so a key with the wrong referrer list
-  still serves 200 to `curl`. If the list is wrong you will see
-  `RefererNotAllowedMapError` in the console and the app will fall back to the
-  drawn map after 8 seconds — which is the designed behaviour, and also exactly
-  what a silent misconfiguration looks like.
+That is as far as a session can take this. **The last check is a human with a
+browser**, because a Maps JavaScript key is enforced in the browser at runtime:
+open the deployed app on a trip with stops and see whether the real map draws
+or the drawn one comes back after 8 seconds. Two things only you can see:
+
+- **The referrer list.** The list is not enforced on the bootstrap fetch — a
+  bare `maps/api/js?key=…` from this session still returned 200 and 315 KB
+  after the deploy, which proves the key is live and proves nothing about its
+  referrers. If the list is wrong you will see `RefererNotAllowedMapError` in
+  the console and the app will fall back to the drawn map after 8 seconds —
+  which is the designed behaviour, and also exactly what a silent
+  misconfiguration looks like. **The list needs both hostnames**, because the
+  app is served on both: `yvr-kocho-sh-api-dev.yvr-kocho.workers.dev/*` and
+  `yvr.kocho.sh/*`. A list with only the custom domain on it leaves every
+  session's own check falling back to the drawn map.
 - **The quota.** Dynamic Maps is 10,000 free loads a month and about $7 per
   thousand after. This trip will not reach that, but a loop in a future session
   could. Set one.
