@@ -73,34 +73,45 @@ the day the state is lost anyway — a rotated token, a store deleted by hand �
 because without it that day ends with a deploy that cannot proceed and a
 database it will not touch.
 
-### 3. The custom domain is not wired — NOT done
+### 3. The custom domain is half-wired, and the half that exists is wrong
 
-`yvr.kocho.sh` answers DNS, but that is the zone's **wildcard**, not a record
-for this app: `definitely-not-a-record-9x7.kocho.sh` resolves to the same pair
-of Cloudflare addresses. Nothing is behind it. The account has **no Workers
-custom domain at all** (`/workers/domains` returns an empty list), and
-`domains:` is still commented out in `alchemy.run.ts`.
+The token scopes landed on 2026-09-13 — `dns_records` and `workers/routes`
+both read now, where both answered `10000 Authentication error` the same
+morning. That unblocked the check, and the check found a route already there:
 
-The token is still missing the two zone scopes, and this is now measured
-rather than inferred — both endpoints answer `10000 Authentication error`,
-which is Cloudflare for "your token may not":
+```
+pattern: yvr.kocho.sh    script: yvr-kocho-sh-api-dev
+```
 
-| Scope | Level |
-| --- | --- |
-| Zone: Read | working — the zone lists, `72e8cdb9…`, active |
-| DNS: Edit | **missing** — `/zones/…/dns_records` denied |
-| Workers Routes: Edit | **missing** — `/zones/…/workers/routes` denied |
+**That pattern only matches the root.** A Cloudflare route with no path has an
+implied path of `/`, so it matches `https://yvr.kocho.sh/` and nothing else.
+Every `/api/...` call would miss it and fall through to the origin, which on
+this zone is the wildcard `*.kocho.sh` CNAME to `pixie.porkbun.com`. The page
+would load and then every fetch behind it would come back a parking page. It
+wants to be `yvr.kocho.sh/*`.
 
-Add both, scoped to `kocho.sh` only. Then uncomment `domains: ["yvr.kocho.sh"]`
-in `alchemy.run.ts` and drop `url: true`.
+There is also **no DNS record of its own** for `yvr.kocho.sh`. It resolves
+today because that wildcard is proxied, which is enough for a route to fire,
+but it means the app's hostname is inherited from a record that has nothing to
+do with the app.
 
-If you see `971 Please wait and consider throttling your request speed` while
-checking this, that is not the token. It is Cloudflare rate-limiting the shared
-egress address a cloud session goes out through, and it comes and goes on
-endpoints that work perfectly a minute later. `10000` is the answer that means
-something.
+So there are two ways to finish this, and they conflict — a custom domain and a
+route cannot both hold the same hostname:
 
-Until then the app lives at the workers.dev hostname below.
+- **Let Alchemy own it.** Delete the hand-made route, uncomment
+  `domains: ["yvr.kocho.sh"]` in `alchemy.run.ts`. A Workers custom domain
+  brings its own proxied DNS record, matches every path without a `/*`, and
+  lands in the state store with everything else. This is what this file has
+  always meant by "wired".
+- **Or keep it by hand**, and fix the pattern to `yvr.kocho.sh/*`. One edit,
+  but nothing in the repo then knows the domain exists.
+
+The first is better and is the plan of record.
+
+**Do not drop `url: true` at the same time.** INFRA used to say to. The
+workers.dev hostname is what a session can actually reach — `yvr.kocho.sh` is
+not on the network allowlist — and it is half of the redirect URI pair item 4
+wants registered. Drop it once sign-in works on the custom domain, not before.
 
 ### 4. Google sign-in is not set up — partly done
 
