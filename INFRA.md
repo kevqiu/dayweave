@@ -147,14 +147,49 @@ can spend Places quota into every page load.
 
 Note the cost: PLAN.md section 2 chose a self-hosted Protomaps basemap partly
 to avoid per-load tile charges. Google tiles bill per map load, so set a quota
-on the Maps JavaScript API at the same time.
+on the Maps JavaScript API at the same time. Dynamic Maps is 10,000 free loads
+a month and then about $7 per thousand, so a trip this size will not pay
+anything — which is also why the cost half of section 2's argument is weaker
+than it reads. See item 6.
 
-### 6. The basemap bucket is empty
+### 6. The basemap bucket is empty — and do not fill it yet
 
 The R2 bucket `yvr-kocho-sh-dev-tiles` exists and has **zero objects**. PLAN.md
-section 2 wants a Protomaps `.pmtiles` extract for Japan served from it, which
-is a few hundred MB and has to be uploaded once. Until then the map in the UI is
-the drawn placeholder from the artboards, not real tiles.
+section 2 wants a Protomaps `.pmtiles` extract for Japan served from it. Before
+anyone uploads one, three things that were checked on 2026-09-13 and change the
+decision.
+
+**Protomaps is a file, not a service.** A `.pmtiles` archive carries the tiles
+and a directory index in one object; the browser reads it with HTTP Range
+requests, so object storage is the whole server. R2 is the right host because
+it has no egress fee. The renderer is MapLibre GL JS with the `pmtiles`
+protocol shim, and `@protomaps/basemaps` builds the MapLibre style — about 70
+layers — out of a small colour object it calls a flavour, which is exactly the
+shape `src/worker/ui/tokens.ts` is already in.
+
+**"A few hundred MB" is probably wrong.** The published planet is around 120 GB
+at z0–z15 and a country-sized extract lands in the low gigabytes. Capping
+`maxzoom` at 14 roughly halves it, and vector tiles overzoom cleanly, so z14
+data still draws sharp at z17. Measure it with `pmtiles extract` against the
+remote build — which does not download the planet — before believing any
+figure here, and do it on a real computer: a cloud session has a fixed disk
+allowance and pushes its uploads through the egress proxy.
+
+**And the blocker is not technical.** Google's Maps Platform Service Specific
+Terms forbid using Places content with a non-Google map. Places content may be
+shown with no map at all, given attribution, but not on somebody else's. The
+trip's pins *are* Places content, so "Protomaps underneath, Google Places on
+top" is the one combination the terms name. Moving the basemap therefore means
+moving place search off Google too — losing its ratings and its Japanese POI
+coverage, which is the best thing about the rows in `PlaceSearch.dc.html`.
+That is a product decision, not an infrastructure one, and it has not been
+made.
+
+What is *not* a problem, in case it comes up: **the coordinates line up.**
+Places returns WGS84, OpenStreetMap is WGS84, and both Google's tiles and
+Protomaps' are Web Mercator drawn from it. A pin lands where it belongs. The
+old Tokyo-datum offset that Japanese mapping is famous for — some 400 m — is
+not in either source.
 
 ### 7. Give the API token an expiry
 
