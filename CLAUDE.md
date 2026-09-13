@@ -32,7 +32,7 @@ That is the map of what exists:
 | `Planner.dc.html`, `PlannerStop.dc.html` | The day grid (§4f) | yes, less the travel row |
 | `PlannerMobile.dc.html` | The phone Planner as a list of rows | **superseded** — the phone draws one column of the grid instead. See below |
 | `Offline.dc.html`, `Import.dc.html`, `Members.dc.html` | The other states (§4g) | no |
-| `Desktop.dc.html` | The wide layout | no |
+| `Desktop.dc.html` | The wide layout: bar, itinerary rail, map, detail panel | yes, less the sources block |
 | `DirectionA/B/C.dc.html` | Rejected directions. Reference only — do not build these | n/a |
 
 **Several artboards are Main.dc.html with one state changed**, and diffing them
@@ -192,6 +192,36 @@ To be planned bucket is `#94897A`, which is not on the ramp.
   throws away any pointer capture held on it — nothing moves and nothing
   drops. This has now been the cause of two bugs, the sheet handle and this
   one.
+- **The window is not a phone.** `#frame` used to be 375 x 667 at every size
+  above a phone, so a monitor got a business card of an app floating in an
+  ocean of cream — and the Planner, the one screen that grew, stopped at
+  1440 x 900 and floated too. There is no reading of "the artboards are 375
+  wide" that makes that right: an artboard is drawn at the size of the device
+  it is for, and a desk is a different device.
+
+  Below 780px the frame is the phone. At or above, it fills the window and
+  each screen lays itself out for the room:
+
+  - **The trip** gets `design/Desktop.dc.html`, which was in this table as not
+    built and is the reason the gap existed. Three columns under one bar: the
+    316px itinerary rail on the left, the map taking whatever is left, and the
+    334px panel for the stop being looked at. The rail's rows keep the phone's
+    drag contract — a `drop-zone` with a day id, an `order-row` with a stop id
+    — so dragging between days works without a second implementation. **The
+    panel is absent when nothing is selected**, rather than held open empty.
+  - **The Planner** is the same grid, dealing as many days as fit.
+  - **Trips, New trip and Sign in are one column of content each.** There is
+    no second pane for them to grow into and inventing one would be furniture,
+    so the window holds the column, centred, as a card — which is what it
+    always was, minus the pretence. The card hugs its content, so a trip list
+    with one trip on it does not hold 700px of cream open underneath; sign-in
+    and New trip keep a full height, because their layouts are anchored to the
+    bottom of one.
+
+  The artboard's **"WHERE THIS CAME FROM"** block is not built: `sources` is a
+  table with no importer behind it. Nor is the "Sheet in sync" chip, for the
+  same reason.
+
 - **The Plan view is one grid at every width — one column on a phone.** It was
   two screens: PLAN.md §4f reasoned that a seven-column grid cannot work at
   375px, so the phone drew the day as a clock, a list of rows with the times

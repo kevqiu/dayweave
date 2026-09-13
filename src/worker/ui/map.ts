@@ -65,14 +65,37 @@ export function cardMap(): string {
  * `<svg>`: the artboard positions them the same way.
  */
 export function signInMap(): string {
+  /*
+   * The pins are drawn *inside* the SVG, in its own coordinates.
+   *
+   * The artboard positions them as absolutely-placed divs at `left: 58px;
+   * top: 236px` while the dashed thread is a path at `M58 236` in a viewBox of
+   * `30 60 330 240`. Those are two different coordinate spaces — the viewBox
+   * maps 58 to about 32 screen pixels and 236 to about 200 — so the thread
+   * misses every pin it is supposed to run through, by tens of pixels, and
+   * misses by a different amount at every window size.
+   *
+   * Putting the circles in the path's own space fixes it at every size and for
+   * free. The radii are the artboard's diameters scaled by the same 0.88 the
+   * viewBox applies, so they come out the size it drew them.
+   */
+  const K = 330 / 375;
   const pins = [
-    { left: 58, top: 236, size: 17, hex: "#3F6B4A" },
-    { left: 118, top: 212, size: 15, hex: "#70864D" },
-    { left: 178, top: 214, size: 15, hex: "#AD8A49" },
-    { left: 232, top: 232, size: 15, hex: "#CE8845" },
-    { left: 282, top: 210, size: 15, hex: "#E0B054" },
-    { left: 306, top: 96, size: 14, hex: "#F0DCA6" },
+    { x: 58, y: 236, d: 17, hex: "#3F6B4A" },
+    { x: 118, y: 212, d: 15, hex: "#70864D" },
+    { x: 178, y: 214, d: 15, hex: "#AD8A49" },
+    { x: 232, y: 232, d: 15, hex: "#CE8845" },
+    { x: 282, y: 210, d: 15, hex: "#E0B054" },
+    { x: 306, y: 96, d: 14, hex: "#F0DCA6" },
   ];
+
+  const circles = pins
+    .map(
+      (p) =>
+        `<circle cx="${p.x}" cy="${p.y}" r="${((p.d / 2) * K).toFixed(1)}" fill="${p.hex}" ` +
+        `stroke="${C.paper}" stroke-width="2.65"></circle>`,
+    )
+    .join("\n  ");
 
   return `<svg width="375" height="272" viewBox="30 60 330 240" style="display:block">
   <rect width="390" height="396" fill="${C.mapFill}"></rect>
@@ -87,12 +110,7 @@ export function signInMap(): string {
     <path d="M276 -10 C 272 88, 296 168, 274 248 C 256 306, 272 330, 264 380" stroke-width="6"></path>
   </g>
   <path d="M58 236 C 104 200, 134 250, 178 214 C 218 182, 236 246, 282 210 C 316 184, 330 132, 306 96" fill="none" stroke="#B0A794" stroke-width="1.6" stroke-dasharray="1 6" stroke-linecap="round" opacity="0.8"></path>
+  ${circles}
 </svg>
-${pins
-  .map(
-    (p) =>
-      `<i class="signin-pin" style="left:${p.left}px;top:${p.top}px;width:${p.size}px;height:${p.size}px;background:${p.hex}"></i>`,
-  )
-  .join("\n")}
 <div class="signin-fade"></div>`;
 }

@@ -91,6 +91,23 @@ const state = {
 const frame = $("frame");
 
 /**
+ * A screen that is one column of content, wrapped for a window.
+ *
+ * Trips, New trip and Sign in have nothing to put in a second pane, and
+ * inventing one would be furniture. On a phone they fill it; at a desk the
+ * window holds the column, centred, as a card — which is what it always was,
+ * minus the pretence that a monitor is a phone.
+ */
+function column(children, opts) {
+  const o = opts || {};
+  return h("div", {
+    class: "screen centred" + (o.roomy ? " roomy" : "") + (o.tall ? " tall" : ""),
+  }, [
+    h("div", { class: "card-column" }, children),
+  ]);
+}
+
+/**
  * Where the grid fits. Below this the Plan view is one day a screen.
  *
  * Not the artboard's own 1440: that is the width it was drawn at, not the
@@ -107,17 +124,15 @@ function render() {
   // The Plan view is the grid at every width now — one column on a phone. The
   // frame only grows for the wide one; every other screen stays 375.
   const grid = planning() && wideNow();
-  // The phone frame is 375 wide everywhere else in the app. The Planner at a
-  // desk is the same view at another density (PLAN.md 4f), so the frame grows
-  // to hold the grid and shrinks back on the way out.
-  frame.classList.toggle("wide", grid);
 
   frame.replaceChildren();
   if (state.screen === "signIn") { frame.append(screenSignIn()); return; }
   if (state.screen === "trips") frame.append(screenTrips());
   else if (state.screen === "newTrip") frame.append(screenNewTrip());
   else if (state.screen === "trip") {
-    frame.append(planning() ? screenGrid() : screenTrip());
+    // Three screens, one payload: the Planner, and the trip itself at the two
+    // widths design/Desktop.dc.html and design/Main.dc.html each draw.
+    frame.append(planning() ? screenGrid() : wideNow() ? screenTripDesk() : screenTrip());
   }
   if (state.search) frame.append(sheetSearch());
   if (state.tripMenu) frame.append(...tripMenu());
@@ -129,6 +144,8 @@ function render() {
   if (state.drag) paintDrag();
   if (state.search) paintSearchMap();
   if (state.screen === "trip" && !planning()) paintMap();
+  // A resize can cross the breakpoint while the Plan view is showing; the
+  // paint above only runs for the map, and settleGrid only for the grid.
   if (planning() && !grid) scrollRailToDay();
   if (planning()) settleGrid();
 }
@@ -282,7 +299,7 @@ function screenTrips() {
     );
   }
 
-  return h("div", { class: "screen" }, [
+  return column([
     h("div", { class: "trips-bar" }, [
       h("div", { class: "trips-title", text: "Trips" }, []),
       h("button", {
@@ -296,7 +313,7 @@ function screenTrips() {
     h("div", { class: "trips-foot" }, [
       h("button", { class: "btn-dark", onclick: openNewTrip }, [icon("plus"), "Start a new trip"]),
     ]),
-  ]);
+  ], { roomy: true });
 }
 
 function tripCard(trip) {
@@ -361,7 +378,7 @@ function screenNewTrip() {
     months.append(monthGrid(month, i === 0));
   }
 
-  return h("div", { class: "screen" }, [
+  return column([
     h("div", { class: "top-bar" }, [
       h("button", { class: "icon-btn", onclick: closeLayer }, [icon("close")]),
       h("div", { class: "top-bar-title", text: "New trip" }, []),
@@ -393,7 +410,7 @@ function screenNewTrip() {
       ]),
       h("button", { class: "btn-dark", id: "create", disabled: !ready, onclick: createTrip }, ["Create trip"]),
     ]),
-  ]);
+  ], { tall: true });
 }
 
 const DOW = ["S", "M", "T", "W", "T", "F", "S"];
@@ -480,7 +497,7 @@ async function createTrip() {
  * CLAUDE.md.
  */
 function screenSignIn() {
-  return h("div", { class: "screen signin" }, [
+  return column([
     h("div", { class: "signin-map", html: window.__SIGNIN_MAP__ }, []),
     h("div", { class: "signin-body" }, [
       h("div", { class: "signin-head" }, [
@@ -507,7 +524,7 @@ function screenSignIn() {
         }, []),
       ]),
     ]),
-  ]);
+  ], { tall: true });
 }
 
 /**
@@ -761,6 +778,267 @@ function statusOf(day, stop) {
   if (day.date < today) return "done";
   if (day.date === today) return "now";
   return "ahead";
+}
+
+/* ------------------------------------------------------- the trip at a desk */
+
+/**
+ * design/Desktop.dc.html: the trip on a screen with room on it.
+ *
+ * Three columns under one bar — the itinerary down the left, the map taking
+ * whatever is left, and the stop you are looking at on the right. It is the
+ * same data and the same ops as the phone; what changes is that nothing has to
+ * be stacked or hidden behind a sheet, because there is room to show it.
+ *
+ * This artboard was in the table as "not built", and the consequence was that
+ * every screen but the Planner was a 375px column stranded in the middle of a
+ * monitor.
+ */
+function screenTripDesk() {
+  const trip = state.trip;
+  const selected = state.selectedStopId ? findStop(state.selectedStopId) : null;
+
+  return h("div", { class: "screen desk trip-desk" }, [
+    deskBar("Map"),
+    h("div", { class: "desk-body" }, [
+      deskRail(),
+      h("div", { class: "map desk-map" }, [
+        mapsKey()
+          ? h("div", { id: "gmap", style: "position:absolute;inset:0" }, [])
+          : h("div", { style: "position:absolute;inset:0", html: window.__MAP__ }, []),
+        ...(mapsKey() || state.search ? [] : mapPins(trip.days.find((d) => d.id === state.openDayId), true)),
+        ...searchMapLayer(),
+        state.search ? null : mapLegend(),
+        h("div", { class: "map-controls" }, [
+          h("button", {}, [icon("layers")]),
+          h("button", {}, [icon("locate")]),
+        ]),
+      ]),
+      // No stop selected, no panel: the map takes the room rather than the
+      // screen holding an empty column open in case you tap something.
+      selected ? deskDetail(selected) : null,
+    ]),
+    state.error
+      ? h("div", { class: "toast" }, [
+          h("span", { text: state.error }, []),
+          h("button", { onclick: () => { state.error = null; render(); } }, ["Dismiss"]),
+        ])
+      : null,
+    ...dragLayer(),
+  ]);
+}
+
+/**
+ * The bar across the top of both desk screens.
+ *
+ * The artboard puts the trip name and its line on the left and the people and
+ * the actions on the right. The segmented control in the middle is from
+ * Planner.dc.html and is the only way between the two views at this width —
+ * the phone reaches them through the dropdown on the trip name, which is
+ * still here on the name itself.
+ */
+function deskBar(on) {
+  const trip = state.trip;
+  const tab = (label, active, onclick) =>
+    h("button", { class: active ? "on" : "", onclick: active ? null : onclick, disabled: !onclick && !active }, [label]);
+
+  return h("div", { class: "desk-bar" }, [
+    h("div", { class: "desk-title" }, [
+      h("button", {
+        class: "desk-name",
+        onclick: () => {
+          openLayer(() => { state.tripMenu = false; render(); });
+          state.tripMenu = true;
+          render();
+        },
+        text: trip.trip.name,
+      }, []),
+      h("span", { class: "desk-sub", text: trip.headerSubtitle }, []),
+    ]),
+    h("div", { class: "segmented" }, [
+      tab("Map", on === "Map", () => (state.view === "plan" ? closeLayer() : null)),
+      tab("Planner", on === "Planner", () => showPlan()),
+      h("button", { disabled: true, title: "The list view is not built yet" }, ["List"]),
+    ]),
+    on === "Planner" ? deskPager() : null,
+    h("span", { style: "flex-grow:1" }, []),
+    avatars(trip.members),
+    h("button", {
+      class: "desk-share", disabled: true, title: "Sharing a trip is not built yet",
+      style: "opacity:0.45",
+    }, ["Share"]),
+  ]);
+}
+
+/**
+ * The itinerary rail: every day, and the open one showing its stops.
+ *
+ * The rows keep the drag contract the phone's sheet uses: a drop-zone with a
+ * day id, an order-row with a stop id — so dragging a stop between days works
+ * here without a second implementation.
+ */
+function deskRail() {
+  const trip = state.trip;
+  const today = todayIso();
+  const total = trip.days.reduce((n2, d) => n2 + d.stops.length, 0);
+  const done = trip.days.reduce(
+    (n2, d) => n2 + d.stops.filter((st) => statusOf(d, st) === "done").length, 0);
+
+  const rail = h("div", { class: "desk-rail" }, [
+    h("div", { class: "rail-head" }, [
+      h("span", { class: "rail-title", text: "ITINERARY" }, []),
+      h("span", { style: "flex-grow:1" }, []),
+      h("span", { class: "rail-done", text: total ? done + " of " + total + " done" : "nothing planned" }, []),
+    ]),
+  ]);
+
+  const list = h("div", { class: "rail-list" }, []);
+  for (const day of trip.days) {
+    const open = day.id === state.openDayId;
+    const past = day.date < today;
+    const wrap = h("div", {
+      class: "day-wrap drop-zone" + (open ? " open" : ""),
+      "data-day-id": day.id,
+    }, [
+      h("button", {
+        class: "rail-day" + (open ? " open" : "") + (past ? " past" : ""),
+        "data-day-id": day.id,
+        onclick: () => { state.openDayId = open ? null : day.id; state.selectedStopId = null; render(); },
+      }, [
+        h("span", { class: "rail-hue", style: "background:" + day.hue }, []),
+        h("span", {
+          class: "rail-label",
+          text: day.label + (day.place_label ? " · " + day.place_label : ""),
+        }, []),
+        h("span", { class: "drop-here", text: "DROP HERE", hidden: true }, []),
+        day.date === today
+          ? h("span", { class: "today-tag", text: "TODAY" }, [])
+          : h("span", {
+              class: "rail-count",
+              text: day.stops.filter((st) => statusOf(day, st) === "done").length + "/" + day.stops.length,
+            }, []),
+      ]),
+    ]);
+
+    if (open) {
+      const body = h("div", { class: "rail-stops" }, day.stops.map((stop) => railStop(day, stop)));
+      body.append(
+        h("button", { class: "add-place", onclick: () => openSearch(day.id) }, [
+          icon("plusGrey"), "Add a place",
+        ]),
+      );
+      wrap.append(body);
+    }
+    list.append(wrap);
+  }
+
+  list.append(
+    h("div", { class: "day-wrap drop-zone", "data-day-id": "unplanned" }, [
+      h("div", { class: "rail-day", "data-day-id": "unplanned" }, [
+        h("span", { class: "rail-hue", style: "background:#94897A" }, []),
+        h("span", { class: "rail-label", text: "To be planned" }, []),
+        h("span", { class: "drop-here", text: "DROP HERE", hidden: true }, []),
+        h("span", { class: "rail-count", text: String(trip.unplanned.length) }, []),
+      ]),
+    ]),
+  );
+
+  rail.append(list);
+  return rail;
+}
+
+/** One stop in the rail: the time, the name and its line, the status dot. */
+function railStop(day, stop) {
+  const st = statusOf(day, stop);
+  const selected = stop.id === state.selectedStopId;
+  const dragging = state.drag && state.drag.stopId === stop.id;
+
+  return h("div", {
+    class: "rail-stop order-row" + (selected ? " selected" : "") + (st === "done" ? " done" : "")
+      + (dragging ? " ghost" : ""),
+    "data-stop-id": stop.id,
+  }, [
+    dragHandle(day, stop),
+    h("button", {
+      class: "rail-stop-tap",
+      onclick: () => {
+        if (suppressTap) { suppressTap = false; return; }
+        state.selectedStopId = selected ? null : stop.id;
+        render();
+      },
+    }, [
+      // The artboard keeps a 38px column for the time whether or not there is
+      // one, so the names line up down the rail.
+      h("span", { class: "rail-time" + (stop.time ? "" : " unset"), text: stop.time || "" }, []),
+      h("div", { class: "stop-text" }, [
+        h("span", { class: "rail-name", text: stop.title }, []),
+        h("span", { class: "rail-meta", text: stop.note || stop.description }, []),
+      ]),
+      h("span", {
+        class: "stop-dot",
+        style: "background:" + STATUS_FILL[st] + ";border-color:" + STATUS_RING[st],
+      }, []),
+    ]),
+  ]);
+}
+
+/**
+ * The right panel: the stop being looked at, and what is known about it.
+ *
+ * The artboard also carries a "WHERE THIS CAME FROM" block naming the source
+ * a place was imported from. The sources table has no importer behind it,
+ * so that block is not here — it would be furniture.
+ */
+function deskDetail(stop) {
+  const day = state.trip.days.find((d) => d.stops.some((s2) => s2.id === stop.id));
+  const st = day ? statusOf(day, stop) : "ahead";
+  const done = st === "done";
+  const when = day
+    ? (day.date === todayIso() ? "TODAY" : day.label.toUpperCase()) + (stop.time ? " · " + stop.time : "")
+    : "TO BE PLANNED";
+
+  const panel = h("div", { class: "desk-detail" }, [
+    h("div", { class: "detail-head" }, [
+      h("div", { class: "detail-when" }, [
+        h("span", { class: "detail-dot", style: "background:" + STATUS_FILL[st] }, []),
+        h("span", { text: when }, []),
+      ]),
+      h("div", { class: "detail-name", text: stop.title }, []),
+      stop.description ? h("div", { class: "detail-sub", text: stop.description }, []) : null,
+      h("div", { class: "detail-actions" }, [
+        stop.navigateUrl
+          ? h("a", {
+              class: "detail-btn dark", href: stop.navigateUrl, target: "_blank", rel: "noreferrer",
+            }, ["Navigate"])
+          : null,
+        h("button", {
+          class: done ? "detail-btn on" : "detail-btn",
+          onclick: () => toggleVisited(stop, done),
+        }, ["Visited"]),
+        h("button", {
+          class: "detail-btn square", title: "Remove from the trip",
+          onclick: () => removeStop(stop),
+        }, [icon("trash")]),
+      ]),
+    ]),
+    h("div", { class: "detail-block" }, [
+      h("div", { class: "detail-label", text: "NOTES" }, []),
+      stop.note
+        ? h("div", { class: "detail-note", text: stop.note }, [])
+        : h("div", { class: "detail-empty", text: "Nothing written yet." }, []),
+      h("button", { class: "detail-link", onclick: () => editNote(stop) }, [
+        stop.note ? "Edit note" : "Add a note",
+      ]),
+    ]),
+    h("div", { class: "detail-block" }, [
+      h("div", { class: "detail-label", text: "TIME" }, []),
+      h("div", { class: "detail-note", text: stop.time || "No time yet." }, []),
+      h("button", { class: "detail-link", onclick: () => openTime(stop) }, [
+        stop.time ? "Edit time" : "Set a time",
+      ]),
+    ]),
+  ]);
+  return panel;
 }
 
 function screenTrip() {
@@ -1304,7 +1582,7 @@ function clearLookMarker() {
  * The band is deliberately narrow: the sheet covers the lower half of the map,
  * so a pin placed by a naive 0-100% fit would sit behind it.
  */
-function mapPins(day) {
+function mapPins(day, wide) {
   if (!day) return [];
   const located = day.stops.filter((s) => s.location);
   if (!located.length) return [];
@@ -1330,8 +1608,18 @@ function mapPins(day) {
 
   return located.map((stop) => {
     const look = pinLook(day, stop, true, numbers[stop.id]);
+    /*
+     * The band the pins are fitted into.
+     *
+     * On a phone the sheet covers the lower half, so they go in the strip
+     * above it: 16-84% across, 14-40% down. At a desk there is no sheet over
+     * the map, and squeezing the day into the top quarter of a 1000px map
+     * left the pins in a knot with an ocean of empty ground below them.
+     */
+    const top = wide ? 14 : 14;
+    const depth = wide ? 62 : 26;
     const x = 16 + ((stop.location.lng - minLng) / spanLng) * 68;
-    const y = 40 - ((stop.location.lat - minLat) / spanLat) * 26;
+    const y = top + depth - ((stop.location.lat - minLat) / spanLat) * depth;
     return h("div", {
       class: "pin",
       style: "left:" + x + "%;top:" + y + "%;opacity:" + look.opacity + ";z-index:" + look.z,
@@ -1991,16 +2279,7 @@ function stopActions(stop, done, showTimes) {
         : null,
       h("button", {
         class: done ? "action on" : "action",
-        onclick: () => optimistic(
-          () => {
-            const target = findStop(stop.id);
-            const previous = target ? target.status : null;
-            if (target) target.status = done ? "planned" : "visited";
-            return () => { if (target && previous !== null) target.status = previous; };
-          },
-          () => post("/api/stops/" + stop.id + "/visited", { visited: !done }),
-          done ? "That did not un-tick" : "That did not tick off",
-        ),
+        onclick: () => toggleVisited(stop, done),
       }, [h("span", { style: "display:flex", html: done ? ICONS.checkOn : ICONS.check }, []), "Visited"]),
       h("button", {
         class: "action",
@@ -2112,6 +2391,20 @@ function saveNote() {
 }
 
 /** The stop as the current trip view holds it, day or unplanned. */
+/** Ticking a stop off, from the phone's row or the desk's panel. */
+function toggleVisited(stop, done) {
+  optimistic(
+    () => {
+      const target = findStop(stop.id);
+      const previous = target ? target.status : null;
+      if (target) target.status = done ? "planned" : "visited";
+      return () => { if (target && previous !== null) target.status = previous; };
+    },
+    () => post("/api/stops/" + stop.id + "/visited", { visited: !done }),
+    done ? "That did not un-tick" : "That did not tick off",
+  );
+}
+
 function findStop(stopId) {
   if (!state.trip) return null;
   for (const day of state.trip.days) {

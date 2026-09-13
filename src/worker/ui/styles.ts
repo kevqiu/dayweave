@@ -25,6 +25,20 @@ button { font-family: ${SANS}; cursor: pointer; }
 [hidden] { display: none !important; }
 
 /* Every phone artboard is 375x667 and clips. On a real phone it fills. */
+/*
+ * The frame is the phone, and only while there is a phone to be.
+ *
+ * It used to be 375 x 667 at every size above a phone, so a 2560px monitor got
+ * a business card of an app floating in the middle of an ocean of cream, with
+ * the Planner as the one exception — and even that was capped at 1440 x 900
+ * and floated too. There is no reading of "the artboards are 375 wide" that
+ * makes that right: the artboards are drawn at the size of the device they are
+ * for, and a desk is a different device.
+ *
+ * So: below 780px it is the phone, filling whatever the phone gives it. At or
+ * above, it fills the window, and each screen lays itself out for the room —
+ * see the desk rules below, and design/Desktop.dc.html.
+ */
 #frame {
   position: relative; width: ${FRAME.width}px; height: ${FRAME.height}px;
   overflow: hidden; background: ${C.paper};
@@ -33,8 +47,18 @@ button { font-family: ${SANS}; cursor: pointer; }
   body { display: block; }
   #frame { width: 100vw; height: 100dvh; }
 }
+@media (min-width: 780px) and (min-height: 560px) {
+  body { display: block; }
+  #frame { width: 100vw; height: 100dvh; }
+}
 
 .screen { position: absolute; inset: 0; display: flex; flex-direction: column; background: ${C.paper}; }
+/* A one-column screen. On a phone the column is the screen; the desk rules
+   further down turn it into a card the window holds. */
+.card-column {
+  flex-grow: 1; min-height: 0; width: 100%;
+  display: flex; flex-direction: column; position: relative;
+}
 .serif { font-family: ${SERIF}; font-weight: 500; }
 
 /* ---- Trips (design/Trips.dc.html) ---- */
@@ -624,6 +648,144 @@ button { font-family: ${SANS}; cursor: pointer; }
 }
 
 
+/* ---- The trip at a desk (design/Desktop.dc.html) ---- */
+
+.desk-body { flex-grow: 1; display: flex; min-height: 0; }
+.desk-title { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.desk-sub { font-size: 12.5px; color: ${C.grey}; white-space: nowrap; }
+
+/* The itinerary. 316 at the artboard's width. */
+.desk-rail {
+  width: 316px; flex-shrink: 0; border-right: 1px solid ${C.border};
+  display: flex; flex-direction: column; min-height: 0; background: ${C.paper};
+}
+.rail-head { padding: 14px 16px 10px; display: flex; align-items: center; gap: 8px; }
+.rail-title { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: ${C.greyer}; }
+.rail-done { font-size: 11px; color: ${C.grey}; }
+.rail-list { flex-grow: 1; overflow-y: auto; min-height: 0; }
+
+.rail-day {
+  width: 100%; display: flex; align-items: center; gap: 10px; height: 42px;
+  padding: 0 16px; border-top: 1px solid ${C.line}; background: none; border-left: 0;
+  border-right: 0; border-bottom: 0; text-align: left; font-family: ${SANS};
+}
+.rail-day.open {
+  height: 44px; background: ${C.highlight};
+  border-top: 1px solid ${C.sheetEdge}; border-bottom: 1px solid ${C.sheetEdge};
+}
+.rail-day.past .rail-hue { opacity: 0.45; }
+.rail-day.past .rail-label { color: ${C.greyer}; }
+.rail-day.droppable { background: #FCF6E6; border-bottom: 1px dashed #C7B98F; }
+.rail-hue { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.rail-label {
+  font-size: 13px; color: ${C.inkSoft}; flex-grow: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rail-day.open .rail-label { font-weight: 700; color: ${C.ink}; }
+.rail-count { font-size: 11px; color: ${C.greyer}; font-variant-numeric: tabular-nums; }
+.rail-day .drop-here {
+  font-size: 9px; font-weight: 700; letter-spacing: 0.1em; color: #96752F;
+}
+
+.rail-stops { padding: 6px 10px; }
+.rail-stop { display: flex; align-items: center; gap: 4px; border-radius: 10px; }
+.rail-stop.selected { background: ${C.card}; border: 1px solid ${C.borderWarm}; }
+.rail-stop.ghost { opacity: 0.45; }
+.rail-stop .grip { opacity: 0.35; }
+.rail-stop-tap {
+  flex-grow: 1; min-width: 0; display: flex; align-items: center; gap: 10px;
+  height: 46px; padding: 0 8px 0 2px; background: none; border: 0; text-align: left;
+}
+.rail-time {
+  width: 38px; flex-shrink: 0; font-size: 11.5px; font-weight: 600;
+  color: ${C.todayInk}; font-variant-numeric: tabular-nums;
+}
+.rail-time.unset { color: ${C.faint}; }
+.rail-name {
+  display: block; font-size: 13px; font-weight: 500;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rail-meta {
+  display: block; font-size: 10.5px; color: ${C.meta};
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rail-stop.done .rail-name {
+  color: ${C.greyer}; font-weight: 400; text-decoration: line-through;
+}
+.rail-stop.done .rail-time { color: ${C.faint}; }
+.rail-stops .add-place { margin-top: 4px; }
+
+.desk-map { position: relative; flex-grow: 1; min-width: 0; }
+
+/* The stop being looked at. 334 at the artboard's width. */
+.desk-detail {
+  width: 334px; flex-shrink: 0; border-left: 1px solid ${C.border};
+  background: ${C.paper}; display: flex; flex-direction: column;
+  overflow-y: auto; min-height: 0;
+}
+.detail-head { padding: 18px 18px 14px; border-bottom: 1px solid ${C.sheetEdge}; }
+.detail-when {
+  display: flex; align-items: center; gap: 7px; margin-bottom: 7px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.07em; color: ${C.todayInk};
+}
+.detail-dot { width: 9px; height: 9px; border-radius: 50%; }
+.detail-name {
+  font-family: ${SERIF}; font-size: 25px; font-weight: 500; line-height: 1.2;
+}
+.detail-sub { font-size: 12.5px; color: ${C.grey}; margin-top: 5px; }
+.detail-actions { display: flex; gap: 7px; margin-top: 14px; }
+.detail-btn {
+  flex-grow: 1; height: 40px; border-radius: 10px; border: 1px solid ${C.border};
+  background: ${C.card}; color: ${C.inkSoft}; font-family: ${SANS};
+  font-size: 13px; font-weight: 600; display: flex; align-items: center;
+  justify-content: center; text-decoration: none;
+}
+.detail-btn.dark { border: none; background: ${C.ink}; color: ${C.paper}; }
+.detail-btn.on { background: ${C.todayRing}; border-color: #CBDCC6; color: ${C.todayInk}; }
+.detail-btn.square { flex-grow: 0; width: 40px; }
+.detail-block { padding: 16px 18px; border-bottom: 1px solid ${C.sheetEdge}; }
+.detail-label {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: ${C.greyer};
+  margin-bottom: 9px;
+}
+.detail-note { font-size: 12.5px; color: #55504A; line-height: 1.6; }
+.detail-empty { font-size: 12.5px; color: ${C.faint}; }
+.detail-link {
+  margin-top: 10px; background: none; border: 0; padding: 0;
+  font-family: ${SANS}; font-size: 12px; font-weight: 600; color: ${C.link};
+}
+
+/*
+ * The screens with no desk artboard, given room rather than left stranded.
+ *
+ * Trips, New trip and Sign in are one column of content each; there is no
+ * second pane for them to grow into, and inventing one would be furniture. So
+ * the column keeps its width and the window holds it, centred, on a card —
+ * which is what it always was, minus the pretence that the browser window is
+ * a phone.
+ */
+@media (min-width: 780px) and (min-height: 560px) {
+  .screen.centred {
+    align-items: center; justify-content: center;
+    background: ${C.map};
+  }
+  .screen.centred > .card-column {
+    /* Hugs its content: a trip list with one trip on it should not hold 700px
+       of cream open underneath. */
+    /* flex-grow: 0 undoes the base rule, which stretches the column down the
+       main axis of the screen and was holding the card open to full height. */
+    flex-grow: 0;
+    width: 420px; max-width: 100%; height: auto; max-height: min(760px, 100%);
+    display: flex; flex-direction: column; background: ${C.paper};
+    border: 1px solid ${C.border}; border-radius: 18px; overflow: hidden;
+    box-shadow: 0 12px 40px rgba(84,68,44,0.10);
+  }
+  .screen.centred.roomy > .card-column { width: 560px; }
+  /* Except where the design is anchored to the bottom of a full height — the
+     sign-in button sits under a spacer, and New trip scrolls its months. */
+  .screen.centred.tall > .card-column { height: min(760px, 100%); }
+}
+
 /* ---- The Plan view on a phone: the trip bar, the rail, one column ---- */
 /* Main.dc.html floats the bar over the map. Here it is the first row of a
    column with nothing behind it, so it takes its own space — without this the
@@ -677,7 +839,9 @@ button { font-family: ${SANS}; cursor: pointer; }
 }
 
 /* ---- The Planner at a desk (design/Planner.dc.html) ---- */
-#frame.wide { width: min(1440px, 100vw); height: min(900px, 100dvh); }
+/* The Planner used to be the one screen that grew, to 1440 x 900 and no
+   further, which left a hard-edged box on a bare page. Every screen fills the
+   window now — see the media query at the top — so it needs no class. */
 .screen.desk { background: ${C.paper}; }
 
 .desk-bar {
@@ -924,10 +1088,6 @@ button { font-family: ${SANS}; cursor: pointer; }
 /* ---- Sign in (design/SignIn.dc.html) ---- */
 .signin { justify-content: flex-start; }
 .signin-map { height: 272px; flex-shrink: 0; position: relative; background: ${C.mapFill}; }
-.signin-pin {
-  position: absolute; border-radius: 50%; border: 3px solid ${C.paper};
-  transform: translate(-50%, -50%);
-}
 .signin-fade {
   position: absolute; left: 0; right: 0; bottom: 0; height: 90px;
   background: linear-gradient(to bottom, rgba(251,246,238,0), ${C.paper});
