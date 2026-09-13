@@ -76,29 +76,48 @@ in `alchemy.run.ts` and drop `url: true`.
 
 Until then the app lives at the workers.dev hostname below.
 
-### 4. Google sign-in is not set up
+### 4. Google sign-in is not set up — BLOCKING, the whole app
 
-`GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are on the environment and bound
-into the Worker, but **nothing uses them** — Better Auth is not installed. When
-you get to it you will need, in the Google Cloud console: an OAuth consent
-screen, and authorised redirect URIs for both the workers.dev hostname and
-`yvr.kocho.sh`. The session also needs `accounts.google.com` and
-`oauth2.googleapis.com` added to the network allowlist, which ENVIRONMENT.md
-already lists as not-yet.
+**The code is written and deployed and it cannot work until you do this.**
+Everything in the app is behind signing in, so without an OAuth client nobody
+can get past the first screen — which says so plainly rather than drawing a
+button that fails.
 
-The two stand-ins for a signed-in user have been **collapsed into one**, which
-is what the invite work needed: a `yvr_uid` cookie naming a row in `app_user`,
-where the row holds the name that person typed at the door. The old
-`yvr_dev_uid` cookie is still read, so a browser that owned trips before any of
-this keeps them when it signs in.
+`GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are already on the environment
+and bound into the Worker. In the Google Cloud console, on the project that
+owns them:
 
-**It is a stand-in and not a sign-in.** Nothing verifies anybody: the cookie is
-the whole credential, it is not signed, and anyone who copies one is that
-person. That is fine for a trip planner being walked through by the people
-building it and is not fine in front of anyone else — which is why this item is
-first in PLAN.md section 0. When Better Auth lands it replaces two functions,
-`identity` and `signIn`; every screen, invite and membership check above them
-stays as it is.
+1. **Configure the OAuth consent screen.** External, and it can stay in Testing
+   with your own accounts as test users — the scopes are `openid email profile`,
+   which are non-sensitive, so no verification review is involved. Only Drive
+   would change that, and Drive is a later, separate consent (PLAN.md 5).
+2. **Add the authorised redirect URIs**, both of them, exactly:
+
+   ```
+   https://yvr-kocho-sh-api-dev.yvr-kocho.workers.dev/auth/google/callback
+   https://yvr.kocho.sh/auth/google/callback
+   ```
+
+   The Worker builds the redirect from the host that served the request, so
+   whichever hostname is being used has to be registered. A missing one is the
+   `redirect_uri_mismatch` error on Google's own screen.
+3. **Add the authorised JavaScript origins** — not needed. The flow is
+   server-side; nothing calls Google from the page.
+
+The session also needs `accounts.google.com` and `oauth2.googleapis.com` added
+to the network allowlist if a session is ever to exercise the flow itself;
+ENVIRONMENT.md lists them as not-yet. The deployed Worker reaches Google from
+Cloudflare's network, so the allowlist does not gate the live app.
+
+**What replaced the two stand-ins.** A session is a random token in a
+`yvr_sid` cookie naming an entry in the `sessions` KV namespace, and `app_user`
+plus `account` hold the person and their Google tokens. The old `yvr_dev_uid`
+cookie is read in exactly one place — the first Google sign-in, to bring trips
+made before any of this into the account — and it can no longer sign anybody
+in by itself.
+
+**Better Auth is still not installed**, and PLAN.md 5 explains why the flow was
+written by hand instead and what swapping it in would cost.
 
 ### 5. The map needs its own browser key
 

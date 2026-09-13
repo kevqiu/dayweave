@@ -20,7 +20,9 @@ www.google.com
 places.googleapis.com
 ```
 
-Add these when the matching feature lands, not before:
+Google sign-in has landed, so add these two as well if a session is to walk the
+flow itself. The deployed Worker reaches Google from Cloudflare's network
+rather than from this VM, so the live app does not depend on them:
 
 ```
 accounts.google.com       # Google sign-in, PLAN.md 5

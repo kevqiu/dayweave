@@ -56,6 +56,7 @@ const state = {
   trip: null,
   /* Who you are, and the invitation you are holding (PLAN.md 5). */
   me: null,
+  google: true,
   invite: null,
   people: null,
   openDayId: null,
@@ -168,13 +169,20 @@ window.addEventListener("popstate", () => {
 /* -------------------------------------------------------------- sign in */
 
 /**
- * design/SignIn.dc.html, with two deliberate departures recorded in styles.ts:
- * the button is not Google's, because there is no Google behind it yet, and
- * the view-only link at the foot of the artboard is not drawn, because nothing
- * is behind that either.
+ * design/SignIn.dc.html: one button, and it goes to Google.
  *
- * What it asks for is a name, which is the one thing an invite cannot work
- * without: the card on the next screen has to be able to say who invited you.
+ * PLAN.md section 5 — no email form, no password, no second provider. The
+ * button reads "Continue with Google" rather than anything friendlier because
+ * Google's sign-in branding permits a fixed set of strings and that is one of
+ * them, and the G beside it is Google's own asset rather than the artboard's
+ * dashed placeholder.
+ *
+ * The one thing the artboard draws that is not here is the "Open it without an
+ * account" line at the foot, which is the view-only share link: that door is
+ * not built, and a door with nothing behind it is worse than no door.
+ *
+ * It is a link rather than a fetch, because signing in is a trip through
+ * somebody else's site and back.
  */
 function screenSignIn() {
   const invite = state.invite;
@@ -200,50 +208,27 @@ function screenSignIn() {
             text: "Sign in below to accept it.",
           }, [])
         : null,
-      h("div", { class: "signin-field" }, [
-        h("input", {
-          id: "your-name",
-          placeholder: "What should we call you?",
-          autocomplete: "name",
-          maxlength: "40",
-          onkeydown: (e) => { if (e.key === "Enter") signIn(); },
-          oninput: (e) => { const b = $("go"); if (b) b.disabled = !e.target.value.trim(); },
-        }, []),
-      ]),
-      h("button", { class: "btn-dark signin-go", id: "go", disabled: true, onclick: signIn }, [
-        invite ? "Continue and join" : "Continue",
-      ]),
+      state.google
+        ? h("a", { class: "signin-go", href: "/auth/google" }, [
+            h("span", { class: "g", html: ICONS.googleG, style: "display:flex" }, []),
+            h("span", { class: "label", text: "Continue with Google" }, []),
+          ])
+        // No OAuth client on this deployment (INFRA.md section 4). Saying so is
+        // the only honest thing: a button that cannot sign anybody in is worse
+        // than the sentence explaining why there is not one.
+        : h("div", { class: "signin-unconfigured" }, [
+            "Google sign-in is not set up on this deployment yet.",
+          ]),
       h("div", { class: "signin-promise" }, [
         icon("shield"),
         h("span", {
-          text: "We ask for a name and nothing else. It is what the others on your trip see "
-            + "beside the places you add.",
+          text: "We ask for your name and email, nothing else. Photos and files stay on your "
+            + "device until you attach one.",
         }, []),
       ]),
       noticeToast(),
     ]),
   ]);
-}
-
-async function signIn() {
-  const field = $("your-name");
-  const name = field ? field.value.trim() : "";
-  if (!name) return;
-
-  const button = $("go");
-  if (button) button.disabled = true;
-
-  try {
-    const data = await post("/api/session", { name: name });
-    state.me = data.me;
-    state.invite = data.invite;
-    state.trips = data.trips;
-    state.screen = "trips";
-    state.error = null;
-  } catch (error) {
-    state.error = error.message;
-  }
-  render();
 }
 
 /* ------------------------------------------------------- pending invite */
@@ -709,6 +694,7 @@ function showTrips() {
     if (state.screen !== "trips") return;
     state.trips = data.trips;
     state.me = data.me;
+    state.google = data.google;
     state.invite = data.invite;
     render();
   }).catch(() => {});
@@ -3189,18 +3175,28 @@ function rangeLabel(a, b) {
   const asked = new URLSearchParams(location.search);
   if (asked.get("invite") === "gone") {
     state.error = "That invite link has been turned off. Ask whoever sent it for a new one.";
+  }
+  // Coming back from Google without a session. Each of these is a different
+  // thing to do about it, so each says something different.
+  const AUTH_TROUBLE = {
+    cancelled: "Signing in was cancelled. Nothing happened.",
+    expired: "That took long enough that the sign-in expired. Try it again.",
+    offline: "Google could not be reached. Try again when you have a connection.",
+    failed: "Signing in did not work. Try it again.",
+    unconfigured: "Google sign-in is not set up on this deployment yet.",
+  };
+  if (AUTH_TROUBLE[asked.get("auth")]) state.error = AUTH_TROUBLE[asked.get("auth")];
+  if (asked.get("invite") || asked.get("auth")) {
     history.replaceState(null, "", location.pathname);
   }
 
   // One call: who you are, what is waiting for you, and what you already have.
   const data = await api("/api/session");
   state.me = data.me;
+  state.google = data.google;
   state.invite = data.invite;
   state.trips = data.trips;
   state.screen = data.me ? "trips" : "signIn";
   render();
-
-  const field = $("your-name");
-  if (field) field.focus();
 })();
 `;

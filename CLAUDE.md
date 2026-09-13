@@ -28,7 +28,7 @@ That is the map of what exists:
 | `TripMenu.dc.html` | The one dropdown on the trip name (§4h) | yes |
 | `SheetFull.dc.html` | The sheet expanded, and drag-to-reorder | yes, less the title |
 | `AddNote.dc.html` | Only the button reading Add note. See below | n/a |
-| `SignIn.dc.html` | Sign in (§5) | yes, less the Google button and the view-only door |
+| `SignIn.dc.html` | Sign in with Google (§5) | yes, less the view-only door |
 | `Planner.dc.html`, `PlannerStop.dc.html`, `PlannerMobile.dc.html` | The day grid (§4f) | yes, less the travel and lodging rows |
 | `Members.dc.html` | Who is on this trip, and the link that adds one (§5) | yes, less the email half |
 | `Offline.dc.html`, `Import.dc.html` | The other states (§4g) | no |
@@ -287,22 +287,38 @@ To be planned bucket is `#94897A`, which is not on the ramp.
   yes is the **Join** button on the card `Trips.dc.html` draws, and a browser
   with no account keeps the invite through signing in — which is what the
   session cookie is for.
-- **The sign-in screen does not say Google, because there is no Google behind
-  it.** §5 picks Better Auth and `SignIn.dc.html` draws its one button reading
-  *Continue with Google*; Better Auth is not installed and there is no OAuth
-  client to point at (INFRA.md §4). A button carrying Google's name that does
-  everything except sign you in with Google is worse than one that says what it
-  does. What is there instead asks for **a name**, which is the one thing an
-  invite cannot work without — *Mika invited you to Korea* needs a Mika — and
-  it sits in the same place, at the same size, for the real button to replace.
+- **The sign-in screen is one button and it goes to Google.** §5: no email
+  form, no password, no second provider. The button reads **Continue with
+  Google** because Google's sign-in branding permits a fixed set of strings and
+  that is one of them, and the `G` beside it is Google's own four-colour asset
+  rather than the artboard's dashed placeholder, which §5 already calls a
+  placeholder. The scopes are `openid email profile` and nothing else, which is
+  what the line under the button promises and why Drive is a later, separate
+  consent.
 
   The divider and *Open it without an account* under it are left out for the
   same reason the share-link switch is: that is the view-only door, and it is
   not built.
 
-  **Signing in keeps the id already in the cookie.** A browser that has been
-  making trips anonymously carries them through the door rather than meeting
-  its own trips as a stranger.
+  **Where no OAuth client is configured the screen says so** instead of drawing
+  a button that cannot work. `/api/session` carries a `google` flag for exactly
+  that, and `/auth/google` redirects to `/?auth=unconfigured` rather than
+  bouncing somebody to Google with an empty client id.
+
+  **Signing in keeps the id a browser was already carrying**, so a browser that
+  made trips before there was a door brings them through it rather than meeting
+  its own trips as a stranger. Only an id that has never signed in can be
+  adopted — see `claimableUserId`. The old `yvr_dev_uid` cookie is read there
+  and **nowhere else**: a cookie anybody can write must never open an account.
+- **A session is a random token in a cookie and a lookup in KV**, which is the
+  shape §5 asks for. The cookie names nothing and proves nothing by itself, so
+  signing out deletes the KV entry rather than trusting the browser to forget,
+  and a copy of the cookie taken beforehand is worth nothing afterwards.
+
+  The OAuth round trip is protected twice over: the `state` goes into a cookie
+  on the browser *and* into KV holding the PKCE verifier, and the callback
+  needs both — so a code redirected into somebody else's browser is worth
+  nothing there, and a state can only be spent once.
 - **Membership is now enforced, not just documented.** §5 has always said
   membership IS the permission, and until there was somebody to invite nothing
   checked it. Every trip and stop route does now, and a stop route that takes
@@ -391,8 +407,10 @@ against the deployed Worker and look at it, rather than trusting the tests.
 **When there is no Cloudflare token on the environment there is no deploy**, and
 a session can still run the thing: `src/worker/__tests__/invites.test.ts` stands
 the real Worker up over `node:sqlite` with the actual migrations applied and
-drives it through HTTP. The D1 binding it shims is thirty lines, and the same
-shim behind an `http.createServer` will serve the app on localhost for a real
-browser to open. That is not a substitute for looking at the deployed Worker —
-it has no Places key, no Maps key and no KV — but it is the difference between
-checking a route and guessing at one.
+drives it through HTTP, Google sign-in included — the only call the flow makes
+to Google is the code-for-tokens exchange, so stubbing that one `fetch` is the
+whole of the stand-in. The D1 and KV bindings it shims are forty lines between
+them, and the same shims behind an `http.createServer` will serve the app on
+localhost for a real browser to open. That is not a substitute for looking at
+the deployed Worker — it has no Places key and no Maps key — but it is the
+difference between checking a route and guessing at one.

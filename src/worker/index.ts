@@ -15,6 +15,16 @@ import {
   inviteUrl,
   monthLabel,
 } from "../lib/invite.ts";
+import {
+  authorizeUrl,
+  expiresAt,
+  identityFromIdToken,
+  pkceChallenge,
+  randomToken,
+  tokenRequestBody,
+  TOKEN_ENDPOINT,
+  type GoogleTokens,
+} from "../lib/oauth.ts";
 import { suggestDays, type CandidateDay } from "../lib/suggest.ts";
 import { formatClock, minutesOf } from "../lib/plan.ts";
 import {
@@ -40,7 +50,8 @@ import {
   placeCounts,
   placesOnTrip,
   revokeInvites,
-  signIn,
+  signInWithGoogle,
+  claimableUserId,
   stopsForDay,
   toDayGeo,
   type DayRow,
@@ -52,28 +63,39 @@ import type { worker } from "../../alchemy.run.ts";
 
 type Env = typeof worker.Env;
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<{ Bindings: Env; Variables: { userId: string | null } }>();
 
 app.get("/health", (c) => c.json({ ok: true }));
 
 /**
  * Who is asking.
  *
- * PLAN.md section 5 wants Better Auth and Google, and INFRA.md section 4 is
- * the list of things that have to happen at a computer before that can exist.
- * Until then the session is a per-browser id in a cookie with a name attached
- * to it (see `signIn` in store.ts) — which is not authentication and does not
- * pretend to be, but is enough for the one thing invites cannot work without:
- * somebody to invite, and a name to invite them by.
+ * A session is a random token in a cookie and a lookup in KV, which is the
+ * shape PLAN.md section 5 specifies. The cookie names nothing and proves
+ * nothing on its own: it is 32 random bytes, it is only meaningful next to the
+ * KV entry it points at, and signing out or an expiry deletes that entry.
  *
- * Nothing is minted here. A request with no cookie is signed out, and gets the
- * sign-in screen rather than a new stranger's identity.
+ * Nothing is minted for a visitor with no cookie. A request without a session
+ * is signed out and gets the sign-in screen, not a new stranger's identity.
  */
-const SESSION_COOKIE = "yvr_uid";
-/** What the cookie was called before it carried a name. Read, never written. */
+const SESSION_COOKIE = "yvr_sid";
+
+/**
+ * The cookie from before there was any sign-in, which named a user id outright.
+ *
+ * It is **not** a way in. It is read in exactly one place — the Google
+ * callback, through `claimableUserId` — so that a browser which has been
+ * making trips anonymously brings them into the account it signs in to. A
+ * cookie anybody can write must never be able to open one.
+ */
 const LEGACY_COOKIE = "yvr_dev_uid";
+
 /** An invite a signed-out visitor is holding, until they are through the door. */
 const INVITE_COOKIE = "yvr_invite";
+/** The state parameter, held browser-side so the callback can match it. */
+const OAUTH_COOKIE = "yvr_oauth";
+
+const SESSION_DAYS = 30;
 
 type Req = { req: { header: (k: string) => string | undefined } };
 
@@ -87,30 +109,55 @@ function readCookie(c: Req, name: string): string | null {
   return null;
 }
 
-/** The signed-in user, or null. */
-const identity = (c: Req): string | null =>
-  readCookie(c, SESSION_COOKIE) ?? readCookie(c, LEGACY_COOKIE);
+/**
+ * Cookies are Secure everywhere but localhost, where a browser refuses to keep
+ * a Secure cookie sent over http and the whole thing silently fails to work.
+ */
+const cookieOptions = (c: Ctx, maxAge: number | null) => {
+  const secure = new URL(c.req.url).protocol === "https:" ? "; Secure" : "";
+  const age = maxAge === null ? "" : `; Max-Age=${maxAge}`;
+  return `; Path=/${age}; SameSite=Lax; HttpOnly${secure}`;
+};
 
-const sessionCookie = (userId: string) =>
-  `${SESSION_COOKIE}=${userId}; Path=/; Max-Age=31536000; SameSite=Lax; HttpOnly`;
+const kvSessionKey = (token: string) => `session:${token}`;
+
+/** A signed-in session, written to KV and named by the cookie it hands back. */
+async function startSession(c: Ctx, userId: string): Promise<string> {
+  const token = randomToken();
+  await c.env.SESSIONS.put(kvSessionKey(token), userId, {
+    expirationTtl: SESSION_DAYS * 24 * 60 * 60,
+  });
+  return `${SESSION_COOKIE}=${token}${cookieOptions(c, SESSION_DAYS * 24 * 60 * 60)}`;
+}
 
 /**
  * The invite rides in a session cookie rather than a row, because a visitor
  * holding one is not yet a person we can write anything against. It lasts as
  * long as the browser is open, which is as long as "I clicked Mika's link and
- * then signed in" takes.
+ * then signed in with Google" takes.
  */
-const inviteCookie = (token: string) =>
-  `${INVITE_COOKIE}=${encodeURIComponent(token)}; Path=/; SameSite=Lax; HttpOnly`;
+const inviteCookie = (c: Ctx, token: string) =>
+  `${INVITE_COOKIE}=${encodeURIComponent(token)}${cookieOptions(c, null)}`;
 
-const clearInviteCookie = () =>
-  `${INVITE_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax; HttpOnly`;
+const clearCookie = (c: Ctx, name: string) => `${name}=${cookieOptions(c, 0)}`;
 
 const SIGN_IN_FIRST = { error: "sign in first" } as const;
 /** Membership IS the permission (PLAN.md section 5), now that it can be held. */
 const NOT_YOURS = { error: "that trip is not yours" } as const;
 
-type Ctx = Context<{ Bindings: Env }>;
+type Ctx = Context<{ Bindings: Env; Variables: { userId: string | null } }>;
+
+/**
+ * One KV read a request, at the front, so every route below can ask who is
+ * asking without being async about it.
+ */
+app.use("*", async (c, next) => {
+  const token = readCookie(c, SESSION_COOKIE);
+  c.set("userId", token ? await c.env.SESSIONS.get(kvSessionKey(token)) : null);
+  await next();
+});
+
+const identity = (c: Ctx): string | null => c.get("userId");
 
 const placesConfig = (env: Env) => ({
   apiKey: env.GOOGLE_PLACES_KEY,
@@ -140,7 +187,7 @@ app.get("/i/:token", async (c) => {
   const invite = await inviteByToken(c.env.DB, c.req.param("token"));
   if (!invite) return c.redirect("/?invite=gone", 302);
 
-  c.header("set-cookie", inviteCookie(invite.token), { append: true });
+  c.header("set-cookie", inviteCookie(c, invite.token), { append: true });
   return c.redirect("/", 302);
 });
 
@@ -161,26 +208,123 @@ app.get("/api/session", async (c) => {
   const me = userId ? await getUser(c.env.DB, userId) : null;
   return c.json({
     me,
+    // The sign-in screen has one button and it goes to Google. Where no OAuth
+    // client is configured (INFRA.md section 4) it says so rather than drawing
+    // a button that cannot work.
+    google: Boolean(c.env.GOOGLE_CLIENT_ID),
     invite: await pendingInvite(c),
     trips: me ? await tripsFor(c.env.DB, me.id) : [],
   });
 });
 
-const NAME_LIMIT = 40;
+/**
+ * "Continue with Google", which is the only thing on `design/SignIn.dc.html`.
+ *
+ * PLAN.md section 5: one provider, one button, no email form and no password.
+ * The state parameter goes two places at once — a cookie on this browser and
+ * an entry in KV holding the PKCE verifier — and the callback needs both, so a
+ * code redirected into somebody else's browser is worth nothing there.
+ */
+app.get("/auth/google", async (c) => {
+  if (!c.env.GOOGLE_CLIENT_ID) return c.redirect("/?auth=unconfigured", 302);
 
-app.post("/api/session", async (c) => {
-  const body = await c.req.json<{ name?: string }>();
-  const name = (body.name ?? "").trim().replace(/\s+/g, " ").slice(0, NAME_LIMIT);
-  if (!name) return c.json({ error: "what should we call you?" }, 400);
+  const state = randomToken();
+  const verifier = randomToken(48);
 
-  const me = await signIn(c.env.DB, { userId: identity(c), name });
-  c.header("set-cookie", sessionCookie(me.id), { append: true });
-
-  return c.json({
-    me,
-    invite: await pendingInvite(c, me.id),
-    trips: await tripsFor(c.env.DB, me.id),
+  await c.env.SESSIONS.put(`oauth:${state}`, verifier, { expirationTtl: OAUTH_TTL_SECONDS });
+  c.header("set-cookie", `${OAUTH_COOKIE}=${state}${cookieOptions(c, OAUTH_TTL_SECONDS)}`, {
+    append: true,
   });
+
+  return c.redirect(
+    authorizeUrl({
+      clientId: c.env.GOOGLE_CLIENT_ID,
+      redirectUri: redirectUri(c),
+      state,
+      challenge: await pkceChallenge(verifier),
+    }),
+    302,
+  );
+});
+
+/** Ten minutes is longer than anyone spends on Google's consent screen. */
+const OAUTH_TTL_SECONDS = 600;
+
+/**
+ * Where Google sends the browser back to. Built from the host that served the
+ * request, because the app answers on a workers.dev name and on yvr.kocho.sh,
+ * and the redirect has to match whichever one is being used — both are
+ * registered on the OAuth client (INFRA.md section 4).
+ */
+const redirectUri = (c: Ctx) => `${new URL(c.req.url).origin}/auth/google/callback`;
+
+app.get("/auth/google/callback", async (c) => {
+  const failed = (why: string) => {
+    // Whatever went wrong, the state is spent and the cookie goes with it.
+    c.header("set-cookie", clearCookie(c, OAUTH_COOKIE), { append: true });
+    return c.redirect(`/?auth=${why}`, 302);
+  };
+
+  // Someone declining on Google's own screen is not an error; it is an answer.
+  if (c.req.query("error")) return failed("cancelled");
+
+  const state = c.req.query("state") ?? "";
+  const code = c.req.query("code") ?? "";
+  if (!state || !code) return failed("failed");
+  // The state has to be the one this browser was given, not merely one we
+  // issued to somebody.
+  if (readCookie(c, OAUTH_COOKIE) !== state) return failed("failed");
+
+  const verifier = await c.env.SESSIONS.get(`oauth:${state}`);
+  if (!verifier) return failed("expired");
+  // Spent, so a replayed callback cannot be spent twice.
+  await c.env.SESSIONS.delete(`oauth:${state}`);
+
+  let tokens: GoogleTokens;
+  try {
+    const response = await fetch(TOKEN_ENDPOINT, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: tokenRequestBody({
+        clientId: c.env.GOOGLE_CLIENT_ID,
+        clientSecret: c.env.GOOGLE_CLIENT_SECRET,
+        redirectUri: redirectUri(c),
+        code,
+        verifier,
+      }),
+    });
+    if (!response.ok) return failed("failed");
+    tokens = (await response.json()) as GoogleTokens;
+  } catch {
+    return failed("offline");
+  }
+
+  const who = tokens.id_token ? identityFromIdToken(tokens.id_token) : null;
+  if (!who) return failed("failed");
+
+  const me = await signInWithGoogle(c.env.DB, {
+    identity: who,
+    tokens: {
+      accessToken: tokens.access_token ?? null,
+      refreshToken: tokens.refresh_token ?? null,
+      scope: tokens.scope ?? null,
+      expiresAt: expiresAt(tokens, Date.now()),
+    },
+    // The trips this browser made before there was a door to come through.
+    adoptUserId: await claimableUserId(c.env.DB, readCookie(c, LEGACY_COOKIE)),
+  });
+
+  c.header("set-cookie", await startSession(c, me.id), { append: true });
+  c.header("set-cookie", clearCookie(c, OAUTH_COOKIE), { append: true });
+  return c.redirect("/", 302);
+});
+
+/** Signing out drops the KV entry, so the cookie left behind names nothing. */
+app.post("/api/session/out", async (c) => {
+  const token = readCookie(c, SESSION_COOKIE);
+  if (token) await c.env.SESSIONS.delete(kvSessionKey(token));
+  c.header("set-cookie", clearCookie(c, SESSION_COOKIE), { append: true });
+  return c.json({ ok: true });
 });
 
 /**
@@ -225,7 +369,7 @@ app.post("/api/invite/accept", async (c) => {
   if (!invite) return c.json({ error: "that invite link has been revoked" }, 404);
 
   await joinTrip(c.env.DB, invite.trip_id, me.id);
-  c.header("set-cookie", clearInviteCookie(), { append: true });
+  c.header("set-cookie", clearCookie(c, INVITE_COOKIE), { append: true });
   return c.json({ tripId: invite.trip_id });
 });
 

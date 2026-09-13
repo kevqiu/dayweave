@@ -32,20 +32,18 @@ code.*
 | The Plan view, phone and desk, with times, free slots and the tray | §4f |
 | The real Google map, styled to the palette, with the drawn map as fallback | §7 |
 | Optimistic writes on every edit, with a revert and a notice on failure | §2 |
-| Signing in — a name, held in a cookie. A stand-in for Better Auth, not it | §5 |
+| Sign in with Google — PKCE, sessions in KV, the `account` row Drive will need | §5 |
 | Invites — one copyable link a trip, the card that waits on the trips list, Join | §5 |
 | Who is on this trip, and membership actually enforced on every route | §5 |
 
 ### Next, in the order it is worth doing
 
-1. **Real sign-in (§5).** `design/SignIn.dc.html` is now built, and what is
-   behind it is a name in a cookie, not authentication: anyone who copies the
-   cookie is that person, and nothing verifies that Mika is Mika. That was
-   enough to unblock invites — an invitation needs a name to be from — and it
-   is not enough to ship to people. Better Auth on D1 with Google replaces the
-   two functions `signIn` and `identity` and nothing else; the screens, the
-   invites and the membership checks all stay as they are. It needs the Google
-   OAuth client in INFRA.md §4.
+1. **The Google OAuth client (INFRA.md §4).** Sign-in is built and it cannot
+   work until somebody makes the client: a consent screen, and the two
+   redirect URIs `<workers.dev host>/auth/google/callback` and
+   `https://yvr.kocho.sh/auth/google/callback`. Until then **nobody can sign
+   in**, so nobody can use the app — the screen says as much rather than
+   drawing a dead button. This is at a computer, not in a session.
 2. **The view-only link (§5).** `trip_share_links` is still in the schema with
    no API. It is the other half of `design/Members.dc.html` — the switch drawn
    for it now governs the invite link instead — and it is the one door that
@@ -72,8 +70,9 @@ code.*
    and unbuilt, and the trip menu has no item for any of it.
 
 Infrastructure has its own backlog in **INFRA.md** — the Places key, the custom
-domain, the Maps browser key, Alchemy state. None of it blocks the list above
-except sign-in, which needs the Google OAuth client in INFRA.md §4.
+domain, the Maps browser key, Alchemy state. One item now blocks the whole app
+rather than a feature in it: **without the Google OAuth client in INFRA.md §4
+there is no way to sign in**, and everything is behind signing in.
 
 ### Known bugs
 
@@ -98,9 +97,11 @@ except sign-in, which needs the Google OAuth client in INFRA.md §4.
    control that responds to nothing is worse than one that is not there, so
    either wire them or take them out.
 
-   The account avatar is the one that changed shape: it now carries your real
-   initials and your name as its title, and there is still nothing behind a
-   tap. What belongs there is signing out, which no artboard draws.
+   The account avatar is the one worth deciding: it carries your Google name
+   and initials now, and a tap does nothing. `POST /api/session/out` exists and
+   works, so signing out is a menu on that avatar and nothing else — but no
+   artboard draws that menu, so what it holds is a design question rather than
+   a missing line.
 4. **A failed write is announced and then forgotten.** The revert is right, but
    there is no retry and nothing is queued, so an edit made on bad hotel wifi
    is simply lost. §2 promised better than this; see *Offline* above.
@@ -484,22 +485,36 @@ header.
 
 ## 5. Auth
 
-*Status: half built. The screens are all there — `design/SignIn.dc.html`, the invite card on
-`design/Trips.dc.html`, `design/Members.dc.html` — and so are invites, membership and the checks that
-enforce it. What is behind the sign-in screen is **a name in a cookie, not authentication**: it asks
-who you are and believes you. That was the smallest thing that unblocked invites, because an
-invitation has to be from somebody, and it is not something to ship to people. Better Auth replaces
-`signIn` and `identity` in `src/worker/index.ts` and touches nothing else. See §0.*
+*Status: built. Google sign-in, sessions in KV, invites, membership and the checks that enforce it,
+and all three screens — `design/SignIn.dc.html`, the invite card on `design/Trips.dc.html`,
+`design/Members.dc.html`. What is **not** here is Better Auth: the flow below is the Authorization
+Code flow with PKCE written out by hand in `src/lib/oauth.ts`, for the reason in that file's own
+comment. What is also not here is the view-only share link. It needs the Google OAuth client in
+INFRA.md §4 to work at all; without one the screen says so rather than drawing a dead button.*
 
 **Better Auth**, which is the right call. Alternatives considered:
 
 | | |
 |---|---|
-| **Better Auth** | Runs on workerd with no Node shims, has first-class D1 support through Drizzle, and stores per-provider `access_token` and `refresh_token` with refresh handled for you. That last part is what makes Drive possible later. |
+| **Better Auth** | Runs on workerd with no Node shims, has first-class D1 support through Drizzle, and stores per-provider `access_token` and `refresh_token` with refresh handled for you. That last part is what makes Drive possible later. **Still the right answer eventually, and not what is built** — see below. |
 | Auth.js (`@auth/core`) | Works on Workers with the D1 adapter, but you write invitations, roles and token refresh yourself. |
 | Lucia | No longer a library. It became a learning resource, so there is nothing to install. |
 | Clerk, WorkOS, Stack Auth | Hosted, good, and a third party plus a bill for a trip app for your friends. |
-| Hand-rolled OAuth | About 200 lines and genuinely viable, but you own session rotation, CSRF, token refresh and invite tokens forever. |
+| Hand-rolled OAuth | About 200 lines and genuinely viable, but you own session rotation, CSRF, token refresh and invite tokens forever. **This is what is built**, at 180 lines across `src/lib/oauth.ts` and four routes. |
+
+**Why the hand-rolled one won, for now.** Three of those four liabilities were already ours: invite
+tokens are §5's own design, the `state` parameter and the single-use PKCE verifier are the CSRF
+story, and a random session token in KV with a 30-day TTL is the rotation story. The fourth, token
+refresh, is needed by nothing until Drive, and the refresh token is stored from the first sign-in so
+it is there when it is.
+
+What actually decided it: **Better Auth cannot be exercised from a session with no Cloudflare token
+and no OAuth client**, so installing it would have meant shipping a sign-in nobody had ever run. The
+flow that is here is small enough to test, and it is tested — `src/worker/__tests__/invites.test.ts`
+walks the whole round trip against a stubbed Google, including the two ways the state check refuses.
+Everything above it is indifferent to which of the two is underneath: swapping in Better Auth
+replaces `identity`, the two `/auth/google` routes and `signInWithGoogle`, and no screen, invite or
+membership check changes. The `account` table is already the shape Better Auth uses.
 
 The sign-in screen is one button and nothing else: no email form, no password, no second provider.
 The button reads **"Continue with Google"** rather than "Connect with", because Google's sign-in
@@ -509,8 +524,15 @@ in the wireframe is a placeholder; Google ships the real asset.
 The screen also says, in one line, that we ask for a name and an email and nothing else. That is a
 promise §5 has to keep, and it is why Drive is a separate later consent.
 
-**Setup**: Google as the only social provider, sessions in a cookie with the lookup in KV, Better
-Auth's tables in D1 alongside ours through Drizzle.
+**Setup**: Google as the only social provider, sessions in a cookie with the lookup in KV, and the
+tables in D1 alongside ours. That is what is built, including the KV part: the cookie is 32 random
+bytes naming a KV entry, so it asserts nothing on its own and signing out deletes the entry rather
+than trusting a browser to forget. `app_user` and `account` stand in for Better Auth's `user` and
+`account` and use its column names.
+
+**A browser that made trips before there was a door keeps them.** The first Google sign-in adopts
+the id in the old `yvr_dev_uid` cookie, but only when nobody has ever signed in as it — a cookie
+anybody can write may add trips to an account and must never open one.
 
 **There are no roles.** Inviting someone to a trip means you want them editing it, so membership
 itself is the permission: if you are in `trip_members`, you can change anything — and as of the
@@ -682,14 +704,19 @@ spend a Directions call if you ask for the real walking time.
 D1, SQLite. Abbreviated; timestamps and audit columns omitted.
 
 ```sql
--- Better Auth owns these four. Do not hand-edit them.
--- Until it lands, `app_user` stands in for `user` and holds the name typed at
---   the door; email is optional there because nothing asks for one (§5)
+-- Better Auth owns these four when it lands. Two of them exist now, under its
+--   own column names, so that day is a rename rather than a reshape (§5)
 user             id, email, name, image
+                 -- built, as `app_user`. filled from Google's id token
 session          id, user_id, token, expires_at
-account          id, user_id, provider_id, access_token, refresh_token, scope
-verification     id, identifier, value, expires_at
+                 -- NOT a table. A session is a random token in a cookie naming
+                 --   a KV entry with a 30-day TTL, which is what §5 asks for
+account          id, user_id, provider_id, provider_account_id,
+                 access_token, refresh_token, scope, expires_at
+                 -- built. provider_account_id is Google's `sub`
                  -- account.scope is how we know whether Drive was ever granted (§5)
+verification     id, identifier, value, expires_at
+                 -- not built, and nothing needs it: there is no email to verify
 
 -- ours
 trips            id, name, slug, start_date, end_date, timezone, owner_id, cover_color
@@ -762,7 +789,7 @@ what makes dragging onto a day a single field update and keeps drag-back-off fre
 | Conflicts | Last writer wins, silently. Deliberate for v1 | §4g |
 | Stop actions | Navigate, Visited, note on the phone. Edit, note, delete in the Planner | §4e |
 | Trip name | Typed and required. Cities under it are derived, and hidden when empty | §4d |
-| Auth | **Better Auth** on D1, Google only, no roles, invites never expire | §5 |
+| Auth | **Google only, no roles, invites never expire.** Hand-rolled OAuth rather than Better Auth, with the reasoning in §5 | §5 |
 | Invites | **A link you copy**, one a trip, revocable. No email service | §5 |
 | Drive | Plumbed but unused in v1. `drive.file`, asked incrementally | §5 |
 | Flights | **Out of v1.** Hand-entered in the Planner travel row | §5b |

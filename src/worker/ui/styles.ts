@@ -116,18 +116,11 @@ button { font-family: ${SANS}; cursor: pointer; }
 
 /* ---- Sign in (design/SignIn.dc.html) ----
 
-   The artboard's one button reads "Continue with Google", and this screen
-   deliberately does not. Better Auth is not installed and there is no OAuth
-   client to point at (PLAN.md section 5, INFRA.md section 4), so a button
-   carrying Google's name would do everything except sign you in with Google.
-   What is here instead asks for the one thing an invite cannot work without —
-   a name to say "Mika invited you" with — and is the same screen, in the same
-   places, when the real button arrives.
-
-   Two things the artboard draws are also left out: the divider and the "Open
-   it without an account" line under it, which is the view-only share link
-   (PLAN.md section 5). Nothing behind it is built, and CLAUDE.md's rule about
-   furniture with nothing behind it applies to a door as much as to a row. */
+   One button, and it goes to Google (PLAN.md section 5). Two things the
+   artboard draws are left out: the divider and the "Open it without an
+   account" line under it, which is the view-only share link. Nothing behind it
+   is built, and CLAUDE.md's rule about furniture with nothing behind it
+   applies to a door as much as to a row. */
 .signin { position: absolute; inset: 0; display: flex; flex-direction: column; background: ${C.paper}; }
 .signin-map {
   height: 272px; flex-shrink: 0; position: relative; background: ${C.mapFill}; overflow: hidden;
@@ -169,17 +162,17 @@ button { font-family: ${SANS}; cursor: pointer; }
   font-size: 13px; color: #8C8479; line-height: 1.5; margin-top: 11px;
   max-width: 280px; text-wrap: pretty;
 }
-.signin-field {
+.signin-go {
   height: 48px; border-radius: 12px; border: 1px solid ${C.borderWarm}; background: ${C.card};
-  display: flex; align-items: center; padding: 0 14px; margin-bottom: 10px;
-  box-shadow: 0 1px 3px rgba(80,66,44,0.08);
+  display: flex; align-items: center; justify-content: center; gap: 11px; padding: 0;
+  box-shadow: 0 1px 3px rgba(80,66,44,0.08); text-decoration: none; flex-shrink: 0;
 }
-.signin-field input {
-  flex-grow: 1; min-width: 0; border: 0; background: none; outline: none;
-  font-family: ${SANS}; font-size: 15px; font-weight: 500; color: ${C.ink};
+.signin-go .label { font-size: 15px; font-weight: 600; color: ${C.ink}; }
+.signin-go:active { background: ${C.highlight}; }
+.signin-unconfigured {
+  border-radius: 12px; border: 1px dashed ${C.borderWarm}; background: ${C.card};
+  padding: 14px; font-size: 12.5px; line-height: 1.5; color: ${C.grey}; text-align: center;
 }
-.signin-field input::placeholder { color: #B5ACA0; font-weight: 400; }
-.signin-go { height: 48px; border-radius: 12px; font-size: 15px; }
 .signin-promise { display: flex; align-items: flex-start; gap: 8px; margin-top: 13px; }
 .signin-promise span { font-size: 11.5px; color: ${C.grey}; line-height: 1.5; }
 

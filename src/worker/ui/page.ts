@@ -58,6 +58,7 @@ function iconSet(): Record<string, string> {
     // design/SignIn.dc.html's shield beside what we promise to ask for.
     chain: icons.link({ size: 17, color: C.inkSoft }),
     shield: icons.shield({ size: 14, color: C.greyStroke }),
+    googleG: icons.googleG(20),
   };
 }
 

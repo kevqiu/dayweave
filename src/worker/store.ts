@@ -9,6 +9,7 @@
 
 import { orderKeyAppend, orderKeyBetween } from "../lib/order.ts";
 import { initialsOfName, inviteToken } from "../lib/invite.ts";
+import type { GoogleIdentity } from "../lib/oauth.ts";
 import { describeStop, tripCities } from "../lib/derive.ts";
 import type { PlaceDetails } from "../lib/places.ts";
 import type { DayGeo, LatLng } from "../lib/geo.ts";
@@ -637,31 +638,117 @@ export async function peopleFor(
 }
 
 /**
- * Signing in, such as it is.
+ * Signing in with Google.
  *
- * PLAN.md section 5 wants Better Auth and Google, and neither is installed —
- * there is no OAuth client to point at (INFRA.md section 4). What this does
- * instead is give the browser's existing id a name, which is the one thing
- * an invite cannot work without: `Mika invited you to Korea` needs a Mika.
+ * Three things have to line up, in this order, and the order is the whole
+ * function: the Google account if we have seen it before, then the email
+ * address if this is the same person arriving through a second Google account,
+ * then a new person. Matching on the account first is what makes a changed
+ * email address harmless; matching on email at all is what stops one person
+ * ending up with two piles of trips.
  *
- * `userId` is the id already in the cookie when there is one, so a browser
- * that has been making trips anonymously keeps every one of them on the way
- * through the door rather than starting again as a stranger.
+ * `adoptUserId` is the id a browser was already carrying — see `claimable` in
+ * `src/worker/index.ts`. A browser that has been making trips since before
+ * there was any sign-in brings them through the door rather than meeting its
+ * own trips as a stranger.
  */
-export async function signIn(
+export async function signInWithGoogle(
   db: D1Database,
-  input: { userId: string | null; name: string },
+  input: {
+    identity: GoogleIdentity;
+    tokens: { accessToken: string | null; refreshToken: string | null; scope: string | null; expiresAt: number | null };
+    adoptUserId?: string | null;
+  },
 ): Promise<Person> {
-  const id = input.userId ?? `u_${crypto.randomUUID()}`;
+  const { identity, tokens } = input;
+
+  const linked = await db
+    .prepare(`SELECT user_id FROM account WHERE provider_id = 'google' AND provider_account_id = ?`)
+    .bind(identity.sub)
+    .first<{ user_id: string }>();
+
+  const byEmail = linked
+    ? null
+    : identity.email
+      ? await db
+          .prepare(`SELECT id FROM app_user WHERE email = ?`)
+          .bind(identity.email)
+          .first<{ id: string }>()
+      : null;
+
+  const userId = linked?.user_id ?? byEmail?.id ?? input.adoptUserId ?? `u_${crypto.randomUUID()}`;
+
   await db
     .prepare(
-      `INSERT INTO app_user (id, name, created_at) VALUES (?, ?, ?)
-         ON CONFLICT (id) DO UPDATE SET name = excluded.name`,
+      `INSERT INTO app_user (id, email, name, image, created_at) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT (id) DO UPDATE SET
+           email = excluded.email, name = excluded.name, image = excluded.image`,
     )
-    .bind(id, input.name, now())
+    .bind(userId, identity.email, identity.name, identity.picture, now())
     .run();
 
-  return { id, name: input.name, initials: initialsOfName(input.name), color: avatarColor(id) };
+  await db
+    .prepare(
+      `INSERT INTO account (id, user_id, provider_id, provider_account_id,
+                            access_token, refresh_token, scope, expires_at, created_at, updated_at)
+       VALUES (?, ?, 'google', ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (provider_id, provider_account_id) DO UPDATE SET
+           access_token = excluded.access_token,
+           -- Google sends a refresh token once, on the first consent. A later
+           -- sign-in comes back without one, and overwriting the stored token
+           -- with that null is how an app quietly loses its own Drive access.
+           refresh_token = COALESCE(excluded.refresh_token, account.refresh_token),
+           scope = excluded.scope,
+           expires_at = excluded.expires_at,
+           updated_at = excluded.updated_at`,
+    )
+    .bind(
+      crypto.randomUUID(),
+      userId,
+      identity.sub,
+      tokens.accessToken,
+      tokens.refreshToken,
+      tokens.scope,
+      tokens.expiresAt,
+      now(),
+      now(),
+    )
+    .run();
+
+  return {
+    id: userId,
+    name: identity.name,
+    initials: initialsOfName(identity.name),
+    color: avatarColor(userId),
+  };
+}
+
+/**
+ * Whether an id a browser is carrying is one we may adopt into a new account.
+ *
+ * Only an id that has never signed in: the moment there is an `app_user` row
+ * for it, the cookie naming it is a claim about who somebody is, and a claim
+ * is exactly what the old cookie could not make. This is the one place the
+ * pre-sign-in cookie is still read, and it can only ever add trips to an
+ * account, never open one.
+ */
+export async function claimableUserId(
+  db: D1Database,
+  userId: string | null,
+): Promise<string | null> {
+  if (!userId) return null;
+
+  const known = await db
+    .prepare(`SELECT 1 AS ok FROM app_user WHERE id = ?`)
+    .bind(userId)
+    .first<{ ok: number }>();
+  if (known) return null;
+
+  const owns = await db
+    .prepare(`SELECT 1 AS ok FROM trip_members WHERE user_id = ? LIMIT 1`)
+    .bind(userId)
+    .first<{ ok: number }>();
+  return owns ? userId : null;
 }
 
 // --- membership -------------------------------------------------------------
