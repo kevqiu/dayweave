@@ -114,68 +114,66 @@ pair item 4 wants. Drop it when sign-in works on the custom domain.
 403 to the CONNECT, so no session can open it. Everything Cloudflare reports is
 right; the last check is a human with a browser.
 
-### 4. Google sign-in is not set up — partly done
+### 4. Google sign-in — the console half is DONE, the code half is not
 
-What is done: `accounts.google.com` and `oauth2.googleapis.com` are on the
-network allowlist and reachable from a session, and the OAuth client resolves
-— Google answers for `GOOGLE_CLIENT_ID` rather than `invalid_client`.
-
-What is not: **no redirect URI is registered.** Both of the two the app will
-want come back `redirect_uri_mismatch`:
+Both redirect URIs are registered as of 2026-09-13. They were answering
+`redirect_uri_mismatch` in the morning and Google accepts both now:
 
 ```
 https://yvr-kocho-sh-api-dev.yvr-kocho.workers.dev/api/auth/callback/google
 https://yvr.kocho.sh/api/auth/callback/google
 ```
 
-That path is Better Auth's own convention, so it is the pair to register, and
-registering them costs nothing before the code exists. The consent screen was
-not checked from here; a mismatch is refused before consent is ever reached.
+`accounts.google.com` and `oauth2.googleapis.com` are on the network allowlist,
+and the client resolves. **There is nothing left to do at a computer.**
 
-And **nothing uses any of it** — Better Auth is not in `package.json` and
-PLAN.md section 5 is unbuilt. That is not a thing you can do at a computer, it
-is a thing to build.
+What is left is to build it. **Better Auth is not a service** — there is no
+account to create, no dashboard, no key. It is an npm library that runs in the
+Worker and keeps users and sessions in this D1. `BETTER_AUTH_SECRET` is a
+string you generated yourself and it is already on the environment.
 
-There are still **two different stand-ins for a signed-in user**, and
-section 5 has to collapse them into one:
+So: `npm i better-auth`, the routes, a migration for its tables, and then the
+part that is actually work — collapsing the **two stand-ins for a signed-in
+user** into one:
 
 - `app_user`, a table holding a single `local-user` row.
 - A per-browser id in a `yvr_dev_uid` cookie, which is what actually owns trips
   and stops today.
 
-### 5. The map needs its own browser key
+Every trip and stop in the deployed database is owned by a `dev_…` cookie id.
+Whatever section 5 does, it has to decide what happens to those.
 
-The app can draw the real Google map with the trip's stops on it, and the code
-is deployed, but it is **switched off** until you provision a key for it. Until
-then the screen shows the drawn map from the artboards, which is a real
-fallback rather than a placeholder.
+### 5. The map's browser key — provisioned, one deploy from on
 
-Three things, in the Google Cloud console on the same project:
+`GOOGLE_MAPS_BROWSER_KEY` is on the environment as of 2026-09-13, it is a
+different key from `GOOGLE_PLACES_KEY`, and `maps/api/js` serves 315 KB of
+Maps JavaScript for it rather than an error. Maps JavaScript API is enabled;
+Static Maps and Map Tiles are not, and are not needed.
 
-1. **Maps JavaScript API is already enabled** — no action. Maps Static API and
-   Map Tiles API are **not**, and are not needed by this approach.
-2. **Create a second key**, restricted by HTTP referrer to the app's hosts:
+**The deployed Worker is still serving `__MAPS_KEY__ = ""`.** The binding is
+read from `process.env` at deploy time and the variable arrived after the last
+deploy, so the app is still drawing the fallback map. One `npm run deploy` from
+a session that has the variable turns the real map on. That is the whole of
+what is left.
 
-   ```
-   https://yvr-kocho-sh-api-dev.yvr-kocho.workers.dev/*
-   https://yvr.kocho.sh/*
-   ```
+Two things a session cannot check, so check them yourself once it is on:
 
-   Restrict it by API to the Maps JavaScript API only.
-3. Put it on the environment as `GOOGLE_MAPS_BROWSER_KEY` and start a new
-   session.
+- **The referrer list.** A Maps JavaScript key is enforced in the browser at
+  runtime, not on the bootstrap fetch, so a key with the wrong referrer list
+  still serves 200 to `curl`. If the list is wrong you will see
+  `RefererNotAllowedMapError` in the console and the app will fall back to the
+  drawn map after 8 seconds — which is the designed behaviour, and also exactly
+  what a silent misconfiguration looks like.
+- **The quota.** Dynamic Maps is 10,000 free loads a month and about $7 per
+  thousand after. This trip will not reach that, but a loop in a future session
+  could. Set one.
 
 **It must not be the Places key.** A Maps JavaScript key is public by design —
 it is in the page, and its referrer list is all that protects it. The Places
 key is a server credential. Sharing one key between them would put a key that
 can spend Places quota into every page load.
 
-Note the cost: PLAN.md section 2 chose a self-hosted Protomaps basemap partly
-to avoid per-load tile charges. Google tiles bill per map load, so set a quota
-on the Maps JavaScript API at the same time. Dynamic Maps is 10,000 free loads
-a month and then about $7 per thousand, so a trip this size will not pay
-anything — which is also why the cost half of section 2's argument is weaker
-than it reads. See item 6.
+On cost, and on why the basemap decision is still open, see item 6.
 
 ### 6. The basemap bucket is empty — and do not fill it yet
 
