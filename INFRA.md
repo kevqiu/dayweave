@@ -73,45 +73,46 @@ the day the state is lost anyway — a rotated token, a store deleted by hand �
 because without it that day ends with a deploy that cannot proceed and a
 database it will not touch.
 
-### 3. The custom domain is half-wired, and the half that exists is wrong
+### 3. The custom domain — DONE on the Cloudflare side, 2026-09-13
 
-The token scopes landed on 2026-09-13 — `dns_records` and `workers/routes`
-both read now, where both answered `10000 Authentication error` the same
-morning. That unblocked the check, and the check found a route already there:
+`yvr.kocho.sh` is a **Workers custom domain** bound to `yvr-kocho-sh-api-dev`,
+created by `alchemy deploy` from `domains: ["yvr.kocho.sh"]`, and held in the
+state store with everything else.
+
+How it got here, because the intermediate state is worth remembering. The token
+scopes landed first — `dns_records` and `workers/routes` both read now, where
+both answered `10000 Authentication error` the same morning. That unblocked the
+check, and the check found a hand-made route already there:
 
 ```
 pattern: yvr.kocho.sh    script: yvr-kocho-sh-api-dev
 ```
 
-**That pattern only matches the root.** A Cloudflare route with no path has an
-implied path of `/`, so it matches `https://yvr.kocho.sh/` and nothing else.
-Every `/api/...` call would miss it and fall through to the origin, which on
-this zone is the wildcard `*.kocho.sh` CNAME to `pixie.porkbun.com`. The page
-would load and then every fetch behind it would come back a parking page. It
-wants to be `yvr.kocho.sh/*`.
+**That pattern matched the front page and nothing else.** A Cloudflare route
+with no path has an implied path of `/`, so every `/api/...` call would have
+fallen through to the origin — which on this zone is the wildcard `*.kocho.sh`
+CNAME to `pixie.porkbun.com`. The app would have loaded and then failed at its
+first fetch, against a parking page.
 
-There is also **no DNS record of its own** for `yvr.kocho.sh`. It resolves
-today because that wildcard is proxied, which is enough for a route to fire,
-but it means the app's hostname is inherited from a record that has nothing to
-do with the app.
+A custom domain has no path to get wrong. The route was deleted to make room,
+because the two cannot both hold a hostname, and the deploy then created the
+domain and its own DNS record:
 
-So there are two ways to finish this, and they conflict — a custom domain and a
-route cannot both hold the same hostname:
+```
+AAAA  yvr.kocho.sh -> 100::   proxied
+```
 
-- **Let Alchemy own it.** Delete the hand-made route, uncomment
-  `domains: ["yvr.kocho.sh"]` in `alchemy.run.ts`. A Workers custom domain
-  brings its own proxied DNS record, matches every path without a `/*`, and
-  lands in the state store with everything else. This is what this file has
-  always meant by "wired".
-- **Or keep it by hand**, and fix the pattern to `yvr.kocho.sh/*`. One edit,
-  but nothing in the repo then knows the domain exists.
+That `100::` is Cloudflare's placeholder for a proxied-only record and is
+correct — the hostname no longer borrows the wildcard.
 
-The first is better and is the plan of record.
+**`url: true` stays**, against what this file used to say. `yvr.kocho.sh` is not
+on the session network allowlist, so the workers.dev hostname is the only one a
+session can reach to check its own work, and it is half of the redirect URI
+pair item 4 wants. Drop it when sign-in works on the custom domain.
 
-**Do not drop `url: true` at the same time.** INFRA used to say to. The
-workers.dev hostname is what a session can actually reach — `yvr.kocho.sh` is
-not on the network allowlist — and it is half of the redirect URI pair item 4
-wants registered. Drop it once sign-in works on the custom domain, not before.
+**Not verified from here**: that the domain actually serves. The proxy answers
+403 to the CONNECT, so no session can open it. Everything Cloudflare reports is
+right; the last check is a human with a browser.
 
 ### 4. Google sign-in is not set up — partly done
 
@@ -235,7 +236,9 @@ Cloudflare does not split those into create-only.
 | R2 | `yvr-kocho-sh-dev-tiles` | created, empty |
 | Google APIs | Places (New), Maps JavaScript | enabled; Static Maps and Map Tiles are not |
 | Durable Object | `TripRoom` | deployed, still a stub |
-| Zone | `kocho.sh` | on the account, wildcard DNS, not pointed at the Worker |
+| Zone | `kocho.sh` | on the account, wildcard DNS |
+| Custom domain | `yvr.kocho.sh` | bound to the Worker, proxied AAAA, no route |
+| State store | `alchemy-state-service` | DO-backed, survives a container |
 
 Checked live on 2026-09-13: `/health`, creating a trip, searching Places with a
 bias, and writing the result as a stop all work against the deployed Worker.

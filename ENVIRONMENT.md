@@ -99,8 +99,16 @@ Account-level, scoped to the one account:
 | Workers R2 Storage: Edit | Tiles and uploads |
 | Account Settings: Read | Alchemy resolves the account first |
 
-Add at zone level, scoped to `kocho.sh` only, when the custom domain is wired:
-**Zone: Read**, **DNS: Edit**, **Workers Routes: Edit**.
+At zone level, scoped to `kocho.sh` only — **Zone: Read**, **DNS: Edit**,
+**Workers Routes: Edit**. All three are on the token as of 2026-09-13 and the
+custom domain is wired.
+
+In Cloudflare's current token UI these are not in the account permission list
+at all, which is where you will look for them first. Add a **second policy**,
+set its scope dropdown from *Entire Account* to **Specified Domains**, pick
+`kocho.sh`, and the list underneath becomes the domain permission set that has
+DNS and Workers Routes in it. Changing the existing policy's scope instead
+would take the Workers, KV, R2 and D1 permissions off the token.
 
 Give the token an expiry. D1: Edit and R2: Edit both include deletion, because
 Cloudflare does not split those into create-only.
