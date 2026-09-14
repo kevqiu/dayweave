@@ -135,7 +135,7 @@ export function gridSpan(times: readonly (string | null)[]): GridSpan {
 export function gridY(span: GridSpan, minutes: number): number {
   // Multiply before dividing: 13.25 hours of PX_PER_MINUTE lands on
   // 230.99999999999997, and a card top is compared against in tests.
-  return ((minutes - span.from) * PX_PER_HOUR) / 60;
+  return ((minutes - span.from) * span.height) / (span.to - span.from);
 }
 
 /**
@@ -144,7 +144,7 @@ export function gridY(span: GridSpan, minutes: number): number {
  * after it.
  */
 export function gridTime(span: GridSpan, y: number): number {
-  const raw = span.from + (y * 60) / PX_PER_HOUR;
+  const raw = span.from + (y * (span.to - span.from)) / span.height;
   const snapped = Math.round(raw / 15) * 15;
   return Math.min(span.to, Math.max(span.from, snapped));
 }
@@ -173,7 +173,7 @@ export function cardBox(
   const natural = hasSubtitle ? 38 : 30;
   const height =
     until !== null && until > from
-      ? Math.max(natural, ((until - from) * PX_PER_HOUR) / 60)
+      ? Math.max(natural, ((until - from) * span.height) / (span.to - span.from))
       : natural;
   return { top: gridY(span, from), height };
 }

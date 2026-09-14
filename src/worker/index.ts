@@ -303,7 +303,7 @@ const NO_SUCH_TRIP = { error: "no such trip" } as const;
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
-app.get("/", (c) => {
+app.on("GET", ["/", "/trips/:tripId", "/trips/:tripId/plan"], (c) => {
   c.header("X-Deploy-Commit", c.env.DEPLOY_COMMIT);
   // The browser key is public by design; the Places key stays server-side.
   return c.html(page(c.env.GOOGLE_MAPS_BROWSER_KEY));
@@ -447,10 +447,11 @@ async function tripsFor(db: D1Database, userId: string) {
 
   const trips = [];
   for (const trip of results ?? []) {
-    const [days, stops, people] = await Promise.all([
+    const [days, stops, people, lodging] = await Promise.all([
       listDays(db, trip.id),
       listStops(db, trip.id),
       peopleOfTrip(db, trip.id),
+      listLodging(db, trip.id),
     ]);
     const cities = citiesForTrip(days, stops);
     const range = dateRangeLabel(trip.start_date, trip.end_date);
@@ -460,7 +461,13 @@ async function tripsFor(db: D1Database, userId: string) {
       cities,
       // One node a day for the card's map strip, already fitted into it:
       // src/lib/preview.ts does the arithmetic so the browser does none.
-      dayNodes: previewNodes(toDayGeo(days, stops), todayIso()),
+      dayNodes: previewNodes(toDayGeo(days, stops).map((day) => ({
+        ...day,
+        stops: [...day.stops, ...lodging.filter((stay) =>
+          stay.lat !== null && stay.lng !== null && Number.isFinite(stay.lat) && Number.isFinite(stay.lng) &&
+          stay.check_in <= day.date && stay.check_out >= day.date,
+        ).map((stay) => ({ lat: stay.lat!, lng: stay.lng! }))],
+      })), todayIso()).map((node) => ({ ...node, hue: days.find((day) => day.date === node.date)?.hue })),
       // Dates, then the cities. With no stops the cities half is absent
       // rather than empty — section 4d is explicit about that.
       subtitle: cities.length ? `${range} · ${cities.join(", ")}` : range,

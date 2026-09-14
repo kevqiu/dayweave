@@ -4,7 +4,7 @@ import { cardMap, mapBackground, signInMap } from "./map.ts";
 import { lookPinIcon, mapStyle, meIcon } from "./gmap.ts";
 import { PLAN_CLIENT } from "./plan-client.ts";
 import { styles } from "./styles.ts";
-import { COLOR as C, DAY_PALETTE, DAY_WHITE, FONTS_HREF } from "./tokens.ts";
+import { COLOR as C, DAY_PALETTE, DAY_BLACK, FONTS_HREF } from "./tokens.ts";
 
 /**
  * The document.
@@ -122,7 +122,7 @@ window.__MAP_STYLE__ = ${JSON.stringify(mapStyle())};
 window.__LOOK_PIN__ = ${JSON.stringify(lookPinIcon())};
 window.__ME_PIN__ = ${JSON.stringify(meIcon())};
 // The nine swatches a day's pencil offers: the palette, then white.
-window.__DAY_SWATCHES__ = ${JSON.stringify([...DAY_PALETTE, DAY_WHITE])};
+window.__DAY_SWATCHES__ = ${JSON.stringify([...DAY_PALETTE, DAY_BLACK])};
 </script>
 <!-- The Plan view's arithmetic, checked against src/lib/plan.ts by a test. -->
 <script>${PLAN_CLIENT}</script>

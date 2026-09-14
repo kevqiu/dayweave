@@ -651,6 +651,16 @@ describe("who is on this trip", () => {
 });
 
 describe("membership is the permission", () => {
+  it("serves trip routes as the app shell while keeping trip data authenticated", async () => {
+    const signedOut = browser(env);
+    for (const path of ["/trips/private-trip", "/trips/private-trip/plan"]) {
+      const response = await signedOut.get(path);
+      expect(response.status).toBe(200);
+      expect(await response.text()).toContain('id="frame"');
+    }
+    expect((await signedOut.get("/api/trips/private-trip")).status).toBe(401);
+  });
+
   async function plannerFixture() {
     const { mika, tripId } = await mikaWithATrip();
     const trip = await (await mika.get(`/api/trips/${tripId}`)).json() as {

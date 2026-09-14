@@ -16,7 +16,7 @@
  * geography, which is the one thing a map must never do.
  */
 
-import { COLOR as C } from "./tokens.ts";
+import { COLOR as C, DAY_PALETTE } from "./tokens.ts";
 
 export function mapBackground(): string {
   return `<svg width="100%" height="100%" viewBox="0 0 390 520" preserveAspectRatio="xMidYMid slice" style="display:block">
@@ -81,12 +81,12 @@ export function signInMap(): string {
    */
   const K = 330 / 375;
   const pins = [
-    { x: 58, y: 236, d: 17, hex: "#3F6B4A" },
-    { x: 118, y: 212, d: 15, hex: "#70864D" },
-    { x: 178, y: 214, d: 15, hex: "#AD8A49" },
-    { x: 232, y: 232, d: 15, hex: "#CE8845" },
-    { x: 282, y: 210, d: 15, hex: "#E0B054" },
-    { x: 306, y: 96, d: 14, hex: "#F0DCA6" },
+    { x: 58, y: 236, d: 17, hex: DAY_PALETTE[0] },
+    { x: 118, y: 212, d: 15, hex: DAY_PALETTE[1] },
+    { x: 178, y: 214, d: 15, hex: DAY_PALETTE[2] },
+    { x: 232, y: 232, d: 15, hex: DAY_PALETTE[3] },
+    { x: 282, y: 210, d: 15, hex: DAY_PALETTE[4] },
+    { x: 306, y: 96, d: 14, hex: DAY_PALETTE[6] },
   ];
 
   const circles = pins

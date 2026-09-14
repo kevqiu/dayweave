@@ -49,7 +49,7 @@ function lift(names: readonly string[]) {
   return { api: new Function(body)(state) as any, state };
 }
 
-const { api, state } = lift(["STATUS_FILL", "PIN", "statusOf", "routeNumbers", "pinLook", "pinUrl"]);
+const { api, state } = lift(["STATUS_FILL", "PIN", "statusOf", "routeNumbers", "mutedHue", "pinLook", "pinUrl"]);
 
 const bed = { id: "bed", status: "planned", accommodation: true };
 const stop = (id: string, extra = {}) => ({ id, status: "planned", accommodation: false, ...extra });
@@ -85,18 +85,19 @@ describe("pinLook", () => {
     expect(look.opacity).toBe(1);
   });
 
-  it("greys a day gone by and leaves it half there", () => {
+  it("desaturates a day gone by while keeping its hue", () => {
     state.selectedStopId = null;
     const look = api.pinLook(past, stop("d"), false, undefined);
-    expect(look.fill).toBe(api.STATUS_FILL.done);
+    expect(look.fill).toBe("#4b5f50");
     expect(look.size).toBe(api.PIN.mini);
     expect(look.opacity).toBe(0.5);
   });
 
-  it("greys a stop ticked off, even on the day being planned", () => {
+  it("desaturates a visited stop on the open day", () => {
     state.selectedStopId = null;
     const look = api.pinLook(today, stop("a", { status: "visited" }), true, 1);
-    expect(look.fill).toBe(api.STATUS_FILL.done);
+    expect(look.fill).not.toBe(api.STATUS_FILL.done);
+    expect(look.fill).not.toBe(today.hue);
     // Still full size and numbered: it is on the day you are looking at.
     expect(look.size).toBe(api.PIN.full);
     expect(look.number).toBe(1);

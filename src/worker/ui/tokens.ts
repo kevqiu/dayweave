@@ -66,36 +66,19 @@ export const COLOR = {
   unplanned: "#94897A",
 } as const;
 
-/**
- * The day palette, PLAN.md section 7: a colour per day, so a pin's hue says
- * which day it belongs to.
- *
- * This used to be a green-to-yellow ramp interpolated out of the four days
- * `design/Main.dc.html` pins exactly. A ramp encodes a sequence, which is what
- * section 7 asked for, but it only has one usable axis: past about day six the
- * steps between neighbouring days are smaller than the eye separates, and on a
- * three-week trip half the map is the same olive. A day is now a thing a
- * person names and colours (see `dayColor` and the day's own pencil), so the
- * eight below are handed out in order and are as far apart on the wheel as
- * the palette allows, while staying in its register — nothing here is more
- * saturated than the terracotta accent already on the screen.
- *
- * `#3F6B4A` is still first, because it is the green every artboard draws on
- * day one and on the today pin.
- */
+/** The day palette follows red, orange, yellow, green, blue, indigo, violet. */
 export const DAY_PALETTE = [
-  "#3F6B4A",
-  "#2F7D86",
-  "#3F6BA6",
-  "#6A5FA6",
-  "#9C5E8E",
-  "#C4826A",
-  "#C0913C",
-  "#7E8C42",
+  "#E53935",
+  "#EF6C00",
+  "#D4A000",
+  "#239447",
+  "#1976D2",
+  "#4936B5",
+  "#963DB8",
 ] as const;
 
-/** White, the ninth swatch: a day deliberately left uncoloured. */
-export const DAY_WHITE = "#FFFFFF";
+/** A dark neutral swatch with room for a white label and perimeter. */
+export const DAY_BLACK = "#202124";
 
 const hslHex = (h: number, s: number, l: number): string => {
   const k = (n: number) => (n + h / 30) % 12;
@@ -111,7 +94,7 @@ const hslHex = (h: number, s: number, l: number): string => {
 /**
  * The colour day `index` is born with.
  *
- * The first eight come out of the palette in order. Past that a trip is long
+ * The first seven come out of the palette in order. Past that a trip is long
  * enough that no fixed list would cover it, so the hue is stepped by the
  * golden angle — which is the standard way of picking colours that keep
  * landing far from the ones already used rather than clumping, and is stable
@@ -123,7 +106,7 @@ export function dayColor(index: number): string {
   const at = Math.max(0, Math.floor(index));
   if (at < DAY_PALETTE.length) return DAY_PALETTE[at] as string;
   const hue = (152 + (at - DAY_PALETTE.length + 1) * 137.508) % 360;
-  return hslHex(hue, 0.36, 0.45);
+  return hslHex(hue, 0.7, 0.43);
 }
 
 /**

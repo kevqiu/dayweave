@@ -28,14 +28,14 @@ describe("dateRangeLabel", () => {
 });
 
 describe("dayColor", () => {
-  it("starts on the green every artboard draws on day one", () => {
-    expect(dayColor(0)).toBe("#3F6B4A");
+  it("starts the spectrum with red", () => {
+    expect(dayColor(0)).toBe("#E53935");
   });
 
   it("hands out the palette in order, and nothing twice", () => {
-    const eight = [0, 1, 2, 3, 4, 5, 6, 7].map(dayColor);
-    expect(eight).toEqual([...DAY_PALETTE]);
-    expect(new Set(eight).size).toBe(8);
+    const colors = DAY_PALETTE.map((_, i) => dayColor(i));
+    expect(colors).toEqual([...DAY_PALETTE]);
+    expect(new Set(colors).size).toBe(7);
   });
 
   it("keeps going past the palette, without repeating what it just used", () => {

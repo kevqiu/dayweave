@@ -17,6 +17,15 @@ function loadBrowserCopy() {
 describe("the browser copy of the plan arithmetic", () => {
   const browser = loadBrowserCopy();
 
+  it("keeps times and duration aligned when a tall desktop stretches the hours", () => {
+    const span = { from: 480, to: 1440, height: 960 };
+    for (const implementation of [plan, browser]) {
+      expect(implementation.gridY(span, 720)).toBe(240);
+      expect(implementation.gridTime(span, 240)).toBe(720);
+      expect(implementation.cardBox(span, "12:00", "13:00", true)).toEqual({ top: 240, height: 60 });
+    }
+  });
+
   it("defines everything the client uses", () => {
     for (const name of [
       "minutesOf", "formatClock", "formatFree", "planRows",

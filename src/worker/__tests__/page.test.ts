@@ -100,9 +100,8 @@ describe("the sign-in screen", () => {
 
   it("draws its own quiet map rather than borrowing the trip card's", () => {
     expect(html).toContain("window.__SIGNIN_MAP__");
-    // The six pins of the artboard's ramp, first and last.
-    expect(html).toContain("#3F6B4A");
-    expect(html).toContain("#F0DCA6");
+    expect(html).toContain("#E53935");
+    expect(html).toContain("#963DB8");
   });
 
   it("leaves out the share-link line, which has nothing to open yet", () => {

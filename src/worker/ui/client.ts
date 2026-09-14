@@ -116,7 +116,7 @@ const frame = $("frame");
 function column(children, opts) {
   const o = opts || {};
   return h("div", {
-    class: "screen centred" + (o.roomy ? " roomy" : "") + (o.tall ? " tall" : ""),
+    class: "screen centred" + (o.roomy ? " roomy" : "") + (o.tall ? " tall" : "") + (state.screen === "signIn" ? " splash" : ""),
   }, [
     h("div", { class: "card-column" }, children),
   ]);
@@ -150,15 +150,19 @@ function render() {
     frame.append(planning() ? screenGrid() : wideNow() ? screenTripDesk() : screenTrip());
   }
   if (state.people) frame.append(screenPeople());
-  if (state.search) frame.append(sheetSearch());
+  if (state.search && !$("search-sheet")) {
+    if (wideNow()) frame.append(h("div", { class: "scrim light", onclick: closeSearch }, []));
+    frame.append(sheetSearch());
+  }
   if (state.tripMenu) frame.append(...tripMenu());
   if (state.move) frame.append(...sheetMove());
   if (state.noteFor) frame.append(...sheetNote());
   if (state.timeFor) frame.append(...sheetTime());
   if (state.tripEdit) frame.append(...sheetTripEdit());
-  if (state.stayEdit) frame.append(...sheetStay());
+  if (state.stayEdit && !$("stay-editor")) frame.append(...sheetStay());
   // Last, so the calendar sits over the sheet whose field opened it.
   if (state.picker) frame.append(...sheetCalendar());
+  if (wideNow()) positionEditors();
   const mapHost = $("gmap");
   if (mapHost && gmap && gmap.getDiv() !== mapHost) mapHost.replaceWith(gmap.getDiv());
   // The lifted card is created by the render that starts a drag, so it has to
@@ -174,7 +178,7 @@ function render() {
 
 // The two densities are one view, so crossing the width re-renders into the
 // other one rather than leaving a phone layout stretched across a desk.
-window.matchMedia(WIDE).addEventListener("change", () => { if (planning()) render(); });
+window.matchMedia(WIDE).addEventListener("change", () => { if (!state.drag) render(); });
 
 // Rotating a tablet changes how many days fit, so the grid is re-dealt. Never
 // mid-drag: a render would throw away the card under the finger.
@@ -225,6 +229,68 @@ const backStack = [];
  * below never asks for more steps than we own.
  */
 history.replaceState({ depth: 0 }, "");
+let renderedPath = location.pathname;
+let routeTicket = 0;
+let editorAnchor = null;
+document.addEventListener("click", (event) => {
+  const target = event.target.closest("button, .gcol, .stay-lane");
+  if (target && !target.closest(".sheet, .inline-search")) {
+    const rect = target.getBoundingClientRect();
+    editorAnchor = { left: rect.left, top: rect.top, bottom: rect.bottom };
+    if (target.classList.contains("gcol")) editorAnchor = { left: event.clientX, top: event.clientY, bottom: event.clientY };
+  }
+}, true);
+
+function tripPath(id, view) {
+  return "/trips/" + encodeURIComponent(id) + (view === "plan" ? "/plan" : "");
+}
+
+function clearLayers() {
+  backStack.length = 0;
+  afterClose = [];
+  for (const key of ["people", "search", "move", "noteFor", "timeFor", "tripEdit", "stayEdit", "picker", "newTrip", "preview"]) state[key] = null;
+  state.tripMenu = false;
+  state.menuOpen = false;
+  state.selectedStopId = null;
+  state.dayEdit = null;
+  state.view = "map";
+  state.trayOpen = false;
+}
+
+function setRoute(path, replace) {
+  clearLayers();
+  renderedPath = path;
+  history[replace ? "replaceState" : "pushState"]({ depth: 0 }, "", path);
+}
+
+async function restoreRoute() {
+  const match = location.pathname.match(/^\/trips\/([^/]+)(\/plan)?\/?$/);
+  const view = match && match[2] ? "plan" : "map";
+  if (!match) { showTrips(); return; }
+  let id;
+  try { id = decodeURIComponent(match[1]); } catch { setRoute("/", true); showTrips(); return; }
+  await openTrip(id, true, view);
+}
+
+function goTrips() {
+  routeTicket++;
+  setRoute("/", backStack.length > 0);
+  showTrips();
+}
+
+function positionEditors() {
+  const bounds = frame.getBoundingClientRect();
+  for (const el of frame.querySelectorAll(":scope > .sheet")) {
+    const width = Math.min(420, bounds.width - 32);
+    const anchor = editorAnchor || { left: bounds.left + (bounds.width - width) / 2, top: bounds.top + 72, bottom: bounds.top + 72 };
+    el.style.width = width + "px";
+    el.style.height = "auto";
+    el.style.maxHeight = Math.max(200, bounds.height - 32) + "px";
+    el.style.left = Math.max(16, Math.min(anchor.left - bounds.left, bounds.width - width - 16)) + "px";
+    const height = el.getBoundingClientRect().height;
+    el.style.top = Math.max(16, Math.min(anchor.bottom - bounds.top + 8, bounds.height - height - 16)) + "px";
+  }
+}
 
 function openLayer(close) {
   backStack.push(close);
@@ -235,6 +301,12 @@ function openLayer(close) {
 function closeLayer() {
   closeTo(1);
 }
+
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  if (backStack.length) closeLayer();
+  else if (state.trayOpen && !wideNow()) toggleTray(false);
+});
 
 /**
  * Close the innermost count layers, in one traversal.
@@ -268,10 +340,18 @@ function closeThen(count, then) {
 }
 
 window.addEventListener("popstate", (event) => {
+  if (location.pathname !== renderedPath) {
+    clearLayers();
+    renderedPath = location.pathname;
+    history.replaceState({ depth: 0 }, "");
+    restoreRoute();
+    return;
+  }
   // A traversal of several entries fires one popstate, not one per entry, so
   // the depth on the entry we landed on is what says how much to unwind —
   // rather than popping one and hoping the count matches.
   const depth = event.state && typeof event.state.depth === "number" ? event.state.depth : 0;
+  if (depth > backStack.length) history.replaceState({ depth: backStack.length }, "");
   while (backStack.length > depth) {
     const close = backStack.pop();
     if (close) close();
@@ -553,11 +633,11 @@ function screenTrips() {
   }
   if (upcoming.length) {
     scroll.append(h("div", { class: "section-label" + (current.length ? " spaced" : ""), text: "COMING UP" }, []));
-    for (const trip of upcoming) scroll.append(tripRow(trip, false));
+    for (const trip of upcoming) scroll.append(tripCard(trip));
   }
   if (past.length) {
     scroll.append(h("div", { class: "section-label spaced", text: "PAST" }, []));
-    for (const trip of past) scroll.append(tripRow(trip, true));
+    for (const trip of past) scroll.append(tripCard(trip));
   }
   if (!state.trips.length && !state.invite) {
     scroll.append(
@@ -593,7 +673,7 @@ function tripCard(trip) {
   return h("button", { class: "trip-card", onclick: () => openTrip(trip.id) }, [
     h("div", { class: "trip-card-map", html: window.__CARD_MAP__ }, [
       ...cardNodes(trip),
-      h("span", { class: "trip-card-day", text: "DAY " + dayOf + " OF " + total }, []),
+      h("span", { class: "trip-card-day", text: dayOf > 0 && dayOf <= total ? "DAY " + dayOf + " OF " + total : total + " DAYS" }, []),
     ]),
     h("div", { class: "trip-card-body" }, [
       h("div", { class: "trip-card-name", text: trip.name }, []),
@@ -626,7 +706,7 @@ function cardNodes(trip) {
   return (trip.dayNodes || []).map((node) =>
     h("i", {
       class: node.status === "now" ? "trip-card-node now" : "trip-card-node",
-      style: "left:" + node.x + "%;top:" + node.y + "%;background:" + STATUS_FILL[node.status],
+      style: "left:" + node.x + "%;top:" + node.y + "%;background:" + (node.hue ? node.status === "done" ? mutedHue(node.hue) : node.hue : STATUS_FILL[node.status]),
       title: nodeDate(node.date),
     }, []),
   );
@@ -908,7 +988,7 @@ function screenSignIn() {
         h("div", { class: "signin-title", html: "Your trip,<br>on one map" }, []),
         h("div", {
           class: "signin-sub",
-          text: "Everywhere you mean to go, grouped by day, greying out as you get there. Shared with whoever is coming.",
+          text: "Everywhere you mean to go, in a color for each day. Plan together, find your way, and mark the places you visit.",
         }, []),
       ]),
       h("span", { style: "flex-grow:1" }, []),
@@ -954,7 +1034,7 @@ async function signInWithGoogle() {
   state.error = null;
   render();
   try {
-    const data = await post("/api/auth/sign-in/social", { provider: "google", callbackURL: "/" });
+    const data = await post("/api/auth/sign-in/social", { provider: "google", callbackURL: location.pathname });
     if (!data.url) throw new Error("sign-in did not come back with anywhere to go");
     window.location.href = data.url;
   } catch (error) {
@@ -987,6 +1067,8 @@ function meMenu() {
 
 /** The screen every 401 lands on, whichever call met it. */
 function showSignIn() {
+  routeTicket++;
+  clearLayers();
   state.screen = "signIn";
   state.signingIn = false;
   state.trip = null;
@@ -1028,6 +1110,7 @@ async function signOut() {
  * city that has appeared under the name, a count that has moved.
  */
 function showTrips() {
+  routeTicket++;
   state.screen = "trips";
   state.trip = null;
   render();
@@ -1040,31 +1123,46 @@ function showTrips() {
   }).catch(() => {});
 }
 
-async function openTrip(tripId) {
+async function openTrip(tripId, restoring, view) {
+  const ticket = ++routeTicket;
   // Read first, then push the history entry: a trip that is not ours any more
   // must not leave a layer behind for back to unwind.
   let trip;
   try {
     trip = await api("/api/trips/" + tripId);
   } catch (error) {
+    if (ticket !== routeTicket) return;
+    if (restoring && error.status !== 401) {
+      setRoute("/", true);
+      state.screen = "trips";
+      state.trip = null;
+    }
     state.error = error.message;
     render();
     return;
   }
 
-  openLayer(showTrips);
+  if (ticket !== routeTicket) return;
+  if (!restoring) setRoute(tripPath(tripId, view));
   state.trip = trip;
+  state.view = view || "map";
+  state.planDayId = null;
+  state.planPage = 0;
   const today = todayIso();
   const todayDay = state.trip.days.find((d) => d.date === today);
   state.openDayId = todayDay ? todayDay.id : (state.trip.days[0] || {}).id || null;
   state.selectedStopId = null;
   state.screen = "trip";
+  if (state.view === "plan") planDay();
   render();
 }
 
 async function refreshTrip() {
   if (!state.trip) return;
-  state.trip = await api("/api/trips/" + state.trip.trip.id);
+  const id = state.trip.trip.id;
+  const trip = await api("/api/trips/" + id);
+  if (!state.trip || state.trip.trip.id !== id) return;
+  state.trip = trip;
   settleOpenDay();
   render();
 }
@@ -1148,6 +1246,12 @@ function routeNumbers(day) {
  * and anySelected whether anything at all is selected — a pin has to know it
  * to know whether it is one of the ones being pushed back.
  */
+function mutedHue(hex) {
+  const rgb = hex.replace("#", "").match(/.{2}/g).map((part) => parseInt(part, 16));
+  const middle = (Math.max(...rgb) + Math.min(...rgb)) / 2;
+  return "#" + rgb.map((value) => Math.round(middle + (value - middle) * 0.45).toString(16).padStart(2, "0")).join("");
+}
+
 function pinLook(day, stop, open, number) {
   const st = statusOf(day, stop);
   const selected = stop.id === state.selectedStopId;
@@ -1173,7 +1277,7 @@ function pinLook(day, stop, open, number) {
   if (anySelected && !selected) opacity = Math.min(opacity, open ? 0.75 : 0.3);
 
   return {
-    fill: past ? STATUS_FILL.done : day.hue,
+    fill: past ? mutedHue(day.hue) : day.hue,
     size: selected ? PIN.selected : open ? PIN.full : PIN.mini,
     ring: selected ? "#33302B" : "#FFFCF6",
     opacity,
@@ -1260,7 +1364,6 @@ function screenTripDesk() {
           : h("div", { style: "position:absolute;inset:0", html: window.__MAP__ }, []),
         ...(mapsKey() || state.search ? [] : mapPins(trip.days.find((d) => d.id === state.openDayId), true)),
         ...searchMapLayer(),
-        state.search ? null : mapLegend(),
         ...mapControls(),
       ]),
       // No stop selected, no panel: the map takes the room rather than the
@@ -1302,20 +1405,16 @@ function deskBar(on) {
         },
         text: trip.trip.name,
       }, []),
-      h("span", { class: "desk-sub", text: trip.headerSubtitle }, []),
+      h("span", { class: "desk-sub", text: trip.dateRange }, []),
     ]),
     h("div", { class: "segmented" }, [
-      tab("Map", on === "Map", () => (state.view === "plan" ? closeLayer() : null)),
+      tab("Map", on === "Map", leavePlan),
       tab("Planner", on === "Planner", () => showPlan()),
-      h("button", { disabled: true, title: "The list view is not built yet" }, ["List"]),
     ]),
     on === "Planner" ? deskPager() : null,
     h("span", { style: "flex-grow:1" }, []),
     avatars(trip.members),
-    h("button", {
-      class: "desk-share", disabled: true, title: "Sharing a trip is not built yet",
-      style: "opacity:0.45",
-    }, ["Share"]),
+    h("button", { class: "round-btn", title: "Invite someone", onclick: openPeople }, [icon("invite")]),
   ]);
 }
 
@@ -1329,17 +1428,8 @@ function deskBar(on) {
 function deskRail() {
   const trip = state.trip;
   const today = todayIso();
-  const total = trip.days.reduce((n2, d) => n2 + d.stops.length, 0);
-  const done = trip.days.reduce(
-    (n2, d) => n2 + d.stops.filter((st) => statusOf(d, st) === "done").length, 0);
 
-  const rail = h("div", { class: "desk-rail" }, [
-    h("div", { class: "rail-head" }, [
-      h("span", { class: "rail-title", text: "ITINERARY" }, []),
-      h("span", { style: "flex-grow:1" }, []),
-      h("span", { class: "rail-done", text: total ? done + " of " + total + " done" : "nothing planned" }, []),
-    ]),
-  ]);
+  const rail = h("div", { class: "desk-rail" }, []);
 
   rail.append(sheetTabs());
   if (state.sheetTab === "stays") {
@@ -1380,7 +1470,7 @@ function deskRail() {
     if (open) {
       const body = h("div", { class: "rail-stops" }, day.stops.map((stop) => railStop(day, stop)));
       body.append(
-        h("button", { class: "add-place", onclick: () => openSearch(day.id) }, [
+        state.search && state.search.dayId === day.id ? sheetSearch(true) : h("button", { class: "add-place", onclick: () => openSearch(day.id) }, [
           icon("plusGrey"), "Add a place",
         ]),
       );
@@ -1426,7 +1516,7 @@ function railStop(day, stop) {
     }, [
       // The artboard keeps a 38px column for the time whether or not there is
       // one, so the names line up down the rail.
-      h("span", { class: "rail-time" + (stop.time ? "" : " unset"), text: stop.time || "" }, []),
+      h("span", { class: "rail-time" + (stop.time ? "" : " unset"), style: "color:" + day.hue, text: stop.time || "" }, []),
       h("div", { class: "stop-text" }, [
         h("span", { class: "rail-name", text: stop.title }, []),
         h("span", { class: "rail-meta", text: stop.note || stop.description }, []),
@@ -1535,7 +1625,7 @@ function screenTrip() {
       // a pin already says done or not, the day list beside it says which day
       // is open, and three words of glossary on top of a small map cost more
       // room than they explain.
-      state.search || hasStops ? null : emptyMapChip(),
+      state.search || hasStops || locatedStays().length ? null : emptyMapChip(),
       ...mapControls(),
     ]),
     h("div", { class: "sheet stops" + (full ? " full" : ""), id: "sheet" }, [
@@ -1761,6 +1851,7 @@ async function fitWholeTrip() {
     for (const stop of day.stops) if (stop.location) located.push(stop.location);
   }
   for (const stop of state.trip.unplanned) if (stop.location) located.push(stop.location);
+  for (const stay of locatedStays()) located.push({ lat: stay.lat, lng: stay.lng });
 
   if (!located.length) {
     state.error = "Nothing on this trip has a place on it yet";
@@ -2047,8 +2138,8 @@ async function paintMap() {
 
   if (!gmap || gmap.getDiv() !== host) {
     gmap = new maps.Map(host, {
-      center: { lat: 33.5904, lng: 130.4017 },
-      zoom: 13,
+      center: { lat: 20, lng: 0 },
+      zoom: 2,
       styles: window.__MAP_STYLE__,
       disableDefaultUI: true,
       clickableIcons: false,
@@ -2110,6 +2201,24 @@ async function paintMap() {
     }
   }
 
+  const openDay = state.trip.days.find((day) => day.id === state.openDayId);
+  for (const stay of locatedStays()) {
+    const position = { lat: stay.lat, lng: stay.lng };
+    const pin = pinUrl(pinLook(openDay || {}, { id: stay.id, accommodation: true }, false));
+    const marker = new maps.Marker({
+      position, map: gmap, title: stay.name,
+      icon: { url: pin.url, scaledSize: new maps.Size(pin.box, pin.box), anchor: new maps.Point(pin.box / 2, pin.box / 2) },
+      zIndex: 30,
+    });
+    marker.addListener("click", () => openStay(stay));
+    gmarkers.push(marker);
+    bounds.extend(position);
+    if (openDay && stay.check_in <= openDay.date && stay.check_out >= openDay.date) {
+      focus.extend(position);
+      focused++;
+    }
+  }
+
   if (!gmarkers.length) return;
 
   // The sheet covers the lower half, so the pins are fitted into the band
@@ -2131,7 +2240,11 @@ async function paintMap() {
 function dayFitKey() {
   const day = state.trip.days.find((d) => d.id === state.openDayId);
   const stops = day ? day.stops.filter((s) => s.location) : [];
-  return state.trip.trip.id + ":" + state.openDayId + ":" + stops.map((s) => s.id + ":" + s.location.lat + ":" + s.location.lng).join(",");
+  return state.trip.trip.id + ":" + state.openDayId + ":" + stops.map((s) => s.id + ":" + s.location.lat + ":" + s.location.lng).join(",") + ":" + (state.trip.lodging || []).map((s) => [s.id, s.lat, s.lng, s.check_in, s.check_out].join(":")).join(",");
+}
+
+function locatedStays() {
+  return (state.trip.lodging || []).filter((stay) => Number.isFinite(stay.lat) && Number.isFinite(stay.lng));
 }
 
 /**
@@ -2173,8 +2286,8 @@ function clearLookMarker() {
  * so a pin placed by a naive 0-100% fit would sit behind it.
  */
 function mapPins(day, wide) {
-  if (!day) return [];
-  const located = day.stops.filter((s) => s.location);
+  const stays = locatedStays().map((stay) => ({ ...stay, accommodation: true, title: stay.name, location: { lat: stay.lat, lng: stay.lng } }));
+  const located = (day ? day.stops.filter((s) => s.location) : []).concat(stays);
   if (!located.length) return [];
 
   const lats = located.map((s) => s.location.lat);
@@ -2194,10 +2307,10 @@ function mapPins(day, wide) {
    * wrong, which is worse than leaving them off. The pins that are here get
    * the same colours, sizes and numbers as the real map's.
    */
-  const numbers = routeNumbers(day);
+  const numbers = day ? routeNumbers(day) : {};
 
   return located.map((stop) => {
-    const look = pinLook(day, stop, true, numbers[stop.id]);
+    const look = pinLook(day || {}, stop, true, numbers[stop.id]);
     /*
      * The band the pins are fitted into.
      *
@@ -2210,10 +2323,15 @@ function mapPins(day, wide) {
     const depth = wide ? 62 : 26;
     const x = 16 + ((stop.location.lng - minLng) / spanLng) * 68;
     const y = top + depth - ((stop.location.lat - minLat) / spanLat) * depth;
-    return h("div", {
+    return h("button", {
       class: "pin",
       style: "left:" + x + "%;top:" + y + "%;opacity:" + look.opacity + ";z-index:" + look.z,
       title: stop.title,
+      onclick: () => {
+        if (stays.includes(stop)) { openStay(stop); return; }
+        state.selectedStopId = stop.id;
+        render();
+      },
     }, [
       h("i", {
         style: "width:" + look.size + "px;height:" + look.size + "px;background:" + look.fill +
@@ -2235,17 +2353,16 @@ function mapPins(day, wide) {
  * sheet has two lists and the stays get their own, with the dates on them.
  */
 function sheetTabs() {
-  const tab = (key, label) =>
+  const tab = (key, label, name) =>
     h("button", {
       class: "sheet-tab" + (state.sheetTab === key ? " on" : ""),
       "aria-pressed": state.sheetTab === key ? "true" : "false",
       onclick: () => { state.sheetTab = key; state.dayEdit = null; render(); },
-      text: label,
-    }, []);
+    }, [icon(name), label]);
 
   return h("div", { class: "sheet-tabs" }, [
-    tab("stops", "📍 Destinations"),
-    tab("stays", "🏨 Accommodations"),
+    tab("stops", "Destinations", "pinInk"),
+    tab("stays", "Accommodations", "houseInk"),
   ]);
 }
 
@@ -2370,6 +2487,7 @@ function sheetContents(hasStops) {
 function staysPanel() {
   const stays = state.trip.lodging || [];
   const out = [];
+  const editing = wideNow() && state.stayEdit;
 
   if (!stays.length) {
     out.push(
@@ -2381,6 +2499,7 @@ function staysPanel() {
   }
 
   for (const stay of stays) {
+    if (editing && editing.id === stay.id) { out.push(...sheetStay(true)); continue; }
     out.push(
       h("div", { class: "stay-row" }, [
         h("span", { class: "stay-icon", html: ICONS.house, style: "display:flex" }, []),
@@ -2398,7 +2517,7 @@ function staysPanel() {
   }
 
   out.push(
-    h("div", { style: "padding:10px 14px 4px" }, [
+    editing && !editing.id ? sheetStay(true)[0] : h("div", { style: "padding:10px 14px 4px" }, [
       h("button", { class: "add-place", onclick: () => openStay(null) }, [
         icon("plusGrey"), "Add a stay",
       ]),
@@ -2451,6 +2570,7 @@ const tripStays = () => (state.trip.lodging || []).map(asStay);
  * and only a picked result carries a coordinate.
  */
 function openStay(stay) {
+  if (wideNow() && !planning()) state.sheetTab = "stays";
   openLayer(() => { state.stayEdit = null; render(); });
   const trip = state.trip.trip;
   state.stayEdit = stay
@@ -2461,7 +2581,7 @@ function openStay(stay) {
   if (field) field.focus();
 }
 
-function sheetStay() {
+function sheetStay(inline) {
   const draft = state.stayEdit;
   const close = closeLayer;
 
@@ -2485,22 +2605,23 @@ function sheetStay() {
   }
 
   return [
-    h("div", { class: "scrim", onclick: close }, []),
-    h("div", { class: "sheet modal", style: "height:auto" }, [
+    ...(inline ? [] : [h("div", { class: "scrim", onclick: close }, [])]),
+    h("div", { id: "stay-editor", class: inline ? "inline-search inline-stay" : "sheet modal", style: "height:auto" }, [
       h("div", { class: "grabber", onclick: close }, [h("i", {}, [])]),
       h("div", { class: "modal-head" }, [
         h("div", { class: "modal-title", text: draft.id ? "Change this stay" : "Where are you staying?" }, []),
         h("div", { class: "modal-sub", text: "A hotel, or an address, and the nights it covers" }, []),
       ]),
       h("div", { class: "trip-edit" }, [
-        h("div", { class: "underlined" }, [
+        h("div", { class: "underlined stay-search-field", "aria-busy": String(Boolean(draft.busy)) }, [
           h("input", {
             id: "stay-name",
-            placeholder: "Hotel, ryokan or address",
+            placeholder: "Hotel, rental or address",
             value: draft.name,
             autocomplete: "off",
             oninput: onStayInput,
           }, []),
+          h("span", { id: "stay-loading", class: "stay-skeleton", hidden: !draft.busy, role: "status", "aria-label": "Searching for accommodations" }, []),
         ]),
         draft.rows.length ? results : null,
         dateFields(draft, null),
@@ -2524,23 +2645,33 @@ function onStayInput(event) {
   draft.placeId = null;
   const query = draft.name.trim();
   clearTimeout(stayTimer);
+  const ticket = ++stayTicket;
+  draft.rows = [];
+  draft.busy = query.length >= MIN_CHARS;
+  const loading = $("stay-loading");
+  if (loading) loading.hidden = !draft.busy;
+  if (loading) loading.parentElement.setAttribute("aria-busy", String(draft.busy));
+  const results = document.querySelector(".stay-results");
+  if (results) results.replaceChildren();
   if (query.length < MIN_CHARS) {
     draft.rows = [];
     return;
   }
   stayTimer = setTimeout(async () => {
-    const ticket = ++stayTicket;
     try {
       const data = await api(
         "/api/trips/" + state.trip.trip.id + "/place-search?q=" + encodeURIComponent(query),
       );
-      if (ticket !== stayTicket || !state.stayEdit) return;
+      if (ticket !== stayTicket || state.stayEdit !== draft) return;
+      draft.busy = false;
       state.stayEdit.rows = data.results || [];
       render();
       const field = $("stay-name");
       if (field) { field.focus(); field.setSelectionRange(field.value.length, field.value.length); }
     } catch (error) {
-      if (ticket !== stayTicket || !state.stayEdit) return;
+      if (ticket !== stayTicket || state.stayEdit !== draft) return;
+      draft.busy = false;
+      if ($("stay-loading")) $("stay-loading").hidden = true;
       state.stayEdit.rows = [];
     }
   }, DEBOUNCE_MS);
@@ -2651,15 +2782,15 @@ function stopCard(day, stop, showTimes, number) {
          */
         h("span", {
           class: stop.accommodation ? "stop-index bed" : "stop-index",
-          style: "color:" + (stop.accommodation ? PIN.bed : done ? STATUS_FILL.done : day.hue) +
-            ";border-color:" + (stop.accommodation ? PIN.bed : done ? STATUS_FILL.done : day.hue),
+          style: "color:" + (stop.accommodation ? PIN.bed : done ? mutedHue(day.hue) : day.hue) +
+            ";border-color:" + (stop.accommodation ? PIN.bed : done ? mutedHue(day.hue) : day.hue),
           html: stop.accommodation ? ICONS.houseHue : null,
           text: stop.accommodation ? null : String(number),
         }, []),
         showTimes
           ? h("span", {
               class: "stop-time",
-              style: "color:" + (done ? "#BDB4A7" : st === "now" ? "#4E7A4B" : "#96752F"),
+              style: "color:" + day.hue,
               text: stop.time,
             }, [])
           : null,
@@ -2821,7 +2952,7 @@ function reachForDrawer(x) {
   if (now - drawerReach < DRAWER_DWELL) return;
 
   drawerReach = 0;
-  state.trayOpen = true;
+  toggleTray(true);
   // The drag is live, so this cannot go through render(): that would replace
   // the handle and the card in the air. The class is the whole of the change.
   dock.classList.add("open");
@@ -3390,7 +3521,7 @@ function tripMenu() {
         on: state.view === "map",
         // This menu, and the Plan view under it if it is showing. The Plan
         // layer's own close is what puts the map back.
-        onclick: () => closeTo(state.view === "plan" ? 2 : 1),
+        onclick: () => state.view === "plan" ? closeThen(1, leavePlan) : closeLayer(),
       }),
       item("grid", "Plan view", {
         on: state.view === "plan",
@@ -3402,12 +3533,12 @@ function tripMenu() {
       // PLAN.md section 4d's "changing the dates later", which was written
       // and unbuilt: there was no way to rename a trip or move its dates.
       item("pencilInk", "Change trip", {
-        onclick: () => { closeLayer(); setTimeout(openTripEdit, 0); },
+        onclick: () => closeThen(1, openTripEdit),
       }),
       item("arrowLeft", "Back to trips", {
         // The menu and the trip, in one traversal, clamped to what we pushed.
         // showTrips is the trip layer's own close, so it re-reads the list.
-        onclick: () => closeTo(2),
+        onclick: goTrips,
       }),
     ]),
   ];
@@ -3764,7 +3895,7 @@ const DEBOUNCE_MS = 250;
 const MIN_CHARS = 3;
 
 function openSearch(dayId, atTime) {
-  openLayer(() => { state.search = null; clearLookMarker(); render(); });
+  openLayer(() => { searchTicket++; clearTimeout(debounceTimer); state.search = null; clearLookMarker(); render(); });
   state.search = {
     dayId: dayId === "unplanned" ? null : dayId,
     // The Plan view searches into a gap, so whatever it finds lands on the
@@ -3783,14 +3914,14 @@ const closeSearch = closeLayer;
 let debounceTimer = null;
 let searchTicket = 0;
 
-function sheetSearch() {
+function sheetSearch(inline) {
   const s = state.search;
 
   const results = h("div", { class: "results", id: "results" }, []);
   renderResults(results);
 
-  return h("div", { class: "sheet", id: "search-sheet", style: "height:529px" }, [
-    dismissGrabber("search-sheet", closeSearch),
+  return h("div", { class: inline ? "inline-search" : "sheet", id: "search-sheet", style: inline ? "" : "height:529px" }, [
+    wideNow() ? h("button", { class: "search-close", title: "Close search", onclick: closeSearch }, [icon("close")]) : dismissGrabber("search-sheet", closeSearch),
     h("div", { class: "search-head" }, [
       searchTarget(),
       h("div", { class: "search-field" }, [
@@ -3846,6 +3977,7 @@ function onSearchInput(event) {
   s.query = event.target.value;
   const query = s.query.trim();
   clearTimeout(debounceTimer);
+  searchTicket++;
 
   if (query.length < MIN_CHARS) {
     s.rows = [];
@@ -3866,7 +3998,7 @@ async function runSearch(query) {
   s.busy = true;
   try {
     const data = await api("/api/trips/" + state.trip.trip.id + "/place-search?" + params);
-    if (ticket !== searchTicket) return;
+    if (ticket !== searchTicket || state.search !== s) return;
     // Defensive: a reply without results is not something the Worker sends,
     // and a client that throws on one shows the stack where the rows go.
     s.rows = data.results || [];
@@ -3876,7 +4008,7 @@ async function runSearch(query) {
     if (!s.rows.some((r) => r.placeId === s.lookingAt)) s.lookingAt = null;
     s.note = s.rows.length ? null : "Nothing found for that.";
   } catch (error) {
-    if (ticket !== searchTicket) return;
+    if (ticket !== searchTicket || state.search !== s) return;
     s.rows = [];
     s.note = error.message;
   }
@@ -4071,7 +4203,7 @@ const PLAN = window.__PLAN__;
 
 function showPlan() {
   if (state.view === "plan") return;
-  openLayer(showMap);
+  setRoute(tripPath(state.trip.trip.id, "plan"));
   state.view = "plan";
   state.selectedStopId = null;
   state.trayOpen = false;
@@ -4081,7 +4213,9 @@ function showPlan() {
 
 /** The way out of the Plan view, through the history rather than around it. */
 function leavePlan() {
-  if (state.view === "plan") closeLayer();
+  if (state.view !== "plan") return;
+  setRoute(tripPath(state.trip.trip.id, "map"));
+  showMap();
 }
 
 function showMap() {
@@ -4513,10 +4647,10 @@ function gridBar(from, total, page) {
       },
       text: state.trip.trip.name,
     }, []),
+    h("span", { class: "desk-trip-date", text: state.trip.dateRange }, []),
     h("div", { class: "segmented" }, [
       h("button", { onclick: leavePlan }, ["Map"]),
       h("button", { class: "on" }, ["Planner"]),
-      h("button", { disabled: true, title: "The list view is not built yet" }, ["List"]),
     ]),
     h("div", { class: "desk-pager" }, [
       h("button", { class: "sq-btn", onclick: () => turn(-1), disabled: from === 0 }, [
@@ -4532,10 +4666,7 @@ function gridBar(from, total, page) {
     ]),
     h("span", { style: "flex-grow:1" }, []),
     avatars(state.trip.members),
-    h("button", {
-      class: "desk-share", disabled: true, title: "Sharing a trip is not built yet",
-      style: "opacity:0.45",
-    }, ["Share"]),
+    h("button", { class: "round-btn", title: "Invite someone", onclick: openPeople }, [icon("invite")]),
   ]);
 }
 
@@ -4613,7 +4744,26 @@ function lodgingRow(days) {
   ]);
 }
 
+let gridObserver = null;
+
 function gridScroll(days, span, band, wide) {
+  if (gridObserver) gridObserver.disconnect();
+  const baseHeight = span.height;
+  const scroll = h("div", { class: "grid-scroll" }, [gridContent(days, span, band)]);
+  if (wide) {
+    gridObserver = new ResizeObserver(() => {
+      if (!scroll.isConnected || state.drag) return;
+      const height = Math.max(baseHeight, scroll.clientHeight - (band ? band + 12 : 0) - 18);
+      if (Math.abs(height - span.height) < 1) return;
+      span.height = height;
+      scroll.replaceChildren(gridContent(days, span, band));
+    });
+    gridObserver.observe(scroll);
+  } else swipeDays(scroll);
+  return scroll;
+}
+
+function gridContent(days, span, band) {
   const height = span.height + (band ? band + 12 : 0);
 
   const gutter = h("div", { class: "grid-gutter", style: "height:" + height + "px" },
@@ -4629,8 +4779,7 @@ function gridScroll(days, span, band, wide) {
     PLAN.hourLines(span).map((y) => h("i", { style: "top:" + y + "px" }, [])));
   if (band) lines.append(h("i", { class: "band-rule", style: "top:" + (span.height + 6) + "px" }, []));
 
-  const scroll = h("div", { class: "grid-scroll" }, [
-    h("div", { class: "grid-inner", style: "height:" + height + "px" }, [
+  return h("div", { class: "grid-inner", style: "height:" + height + "px" }, [
       gutter,
       lines,
       // The last columns hang their popover to the left, where there is room.
@@ -4638,13 +4787,7 @@ function gridScroll(days, span, band, wide) {
       // its right. With one column there is no room either side, so it goes
       // below the card instead — see .screen.desk.narrow .gpop.
       ...days.map((day, i) => gridColumn(day, span, band, days.length > 2 && i >= days.length - 2)),
-    ]),
-  ]);
-
-  // One column is one day, so sideways across it means the next one. A desk
-  // showing a week has a pager instead, and a swipe there would be ambiguous.
-  if (!wide) swipeDays(scroll);
-  return scroll;
+    ]);
 }
 
 function gridColumn(day, span, band, flip) {
@@ -4659,6 +4802,7 @@ function gridColumn(day, span, band, flip) {
     "data-grid": "1",
     "data-from": String(span.from),
     "data-to": String(span.to),
+    "data-height": String(span.height),
     onclick: (event) => {
       // A click on the empty grid plans something into that hour. A click on
       // a card is the card's own.
@@ -4696,7 +4840,7 @@ function gridColumn(day, span, band, flip) {
   let row = 0;
   for (const stop of day.stops) {
     if (stop.accommodation) continue;
-    if (PLAN.minutesOf(stop.time)) continue;
+    if (PLAN.minutesOf(stop.time) !== null) continue;
     col.append(gridCard(day, stop, { top: span.height + 20 + row * 42, height: 38 }, "untimed"));
     row++;
   }
@@ -4765,7 +4909,7 @@ function gridCard(day, stop, box, kind) {
     class: "gcard order-row " + st + (kind ? " " + kind : "") + (selected ? " selected" : "")
       + (dragging ? " ghost" : ""),
     "data-stop-id": stop.id,
-    style: "top:" + box.top + "px;height:" + box.height + "px",
+    style: "top:" + box.top + "px;height:" + box.height + "px;--day-color:" + day.hue + ";--visited-color:" + mutedHue(day.hue),
     onclick: () => {
       if (suppressTap) { suppressTap = false; return; }
       state.selectedStopId = selected ? null : stop.id;
@@ -4786,8 +4930,11 @@ function gridCard(day, stop, box, kind) {
       sub || stop.time
         ? h("span", {
             class: "gcard-sub",
-            text: kind === "untimed" ? sub : [stop.time, sub].filter(Boolean).join(" · "),
-          }, [])
+          }, [
+            kind !== "untimed" && stop.time ? h("span", { class: "gcard-time", style: "color:" + day.hue, text: stop.time }, []) : null,
+            kind !== "untimed" && stop.time && sub ? " · " : null,
+            sub,
+          ])
         : null,
     ]),
   ]);
@@ -4861,15 +5008,15 @@ function trayDrawer(wide) {
         : h("button", {
             class: "tray-close",
             title: "Close",
-            onclick: () => { state.trayOpen = false; render(); },
+            onclick: () => toggleTray(false),
           }, [icon("close")]),
     ]),
     h("div", { class: "tray-side-list drop-zone open", "data-day-id": "unplanned" },
       all.length
         ? all.map((stop) => trayCard(stop, true))
-        : [h("span", { class: "tray-empty", text: "Nothing waiting. Anything you add without a date lands here." }, [])]),
+        : [h("span", { class: "tray-empty", text: "Put your ideas for destinations here" }, [])]),
     h("div", { class: "tray-side-foot" }, [
-      h("button", { class: "add-place", onclick: () => openSearch("unplanned") }, [
+      wide && state.search && !state.search.dayId ? sheetSearch(true) : h("button", { class: "add-place", onclick: () => openSearch("unplanned") }, [
         icon("plusGrey"), "Add a place",
       ]),
     ]),
@@ -4882,17 +5029,29 @@ function trayDrawer(wide) {
     h("button", {
       class: "tray-tab",
       id: "tray-tab",
-      onclick: () => { state.trayOpen = !state.trayOpen; render(); },
+      "aria-expanded": String(open),
+      "aria-controls": "tray-drawer",
+      onclick: () => toggleTray(!state.trayOpen),
     }, [
       h("span", { class: "tray-tab-count", text: String(all.length) }, []),
       h("span", { class: "tray-tab-label", text: "TO BE PLANNED" }, []),
     ]),
-    open ? h("div", { class: "tray-scrim", onclick: () => { state.trayOpen = false; render(); } }, []) : null,
+    h("div", { class: "tray-scrim", onclick: () => toggleTray(false) }, []),
     panel,
   ]);
 }
 
 /* ------------------------------------------------ dropping on to an hour */
+function toggleTray(open) {
+  state.trayOpen = open;
+  const dock = document.querySelector(".tray-dock");
+  if (dock) dock.classList.toggle("open", open);
+  const panel = $("tray-drawer");
+  if (panel) { panel.classList.toggle("open", open); panel.inert = !open; }
+  const tab = $("tray-tab");
+  if (tab) tab.setAttribute("aria-expanded", String(open));
+  if (!open && tab) tab.focus({ preventScroll: true });
+}
 
 /**
  * The grid's own drop resolution.
@@ -4933,7 +5092,7 @@ function resolveGridDrop(col, y) {
 function spanOf(col) {
   const from = Number(col.dataset.from);
   const to = Number(col.dataset.to);
-  return { from: from, to: to, height: ((to - from) * PLAN.PX_PER_HOUR) / 60 };
+  return { from: from, to: to, height: Number(col.dataset.height) || ((to - from) * PLAN.PX_PER_HOUR) / 60 };
 }
 
 /** The green bar the artboard draws across the column, and the time on it. */
@@ -5014,7 +5173,8 @@ function rangeLabel(a, b) {
     state.me = data.me;
     state.trips = data.trips;
     state.invite = data.invite;
-    render();
+    if (location.pathname.startsWith("/trips/")) await restoreRoute();
+    else render();
   } catch (error) {
     // A 401 has already put the sign-in screen up, in api(). Anything else is
     // a real failure, and the trips screen says so rather than staying blank.

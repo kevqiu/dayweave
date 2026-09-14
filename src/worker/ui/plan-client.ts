@@ -70,11 +70,11 @@ export const PLAN_CLIENT = String.raw`
   }
 
   function gridY(span, minutes) {
-    return ((minutes - span.from) * PX_PER_HOUR) / 60;
+    return ((minutes - span.from) * span.height) / (span.to - span.from);
   }
 
   function gridTime(span, y) {
-    var raw = span.from + (y * 60) / PX_PER_HOUR;
+    var raw = span.from + (y * (span.to - span.from)) / span.height;
     var snapped = Math.round(raw / 15) * 15;
     return Math.min(span.to, Math.max(span.from, snapped));
   }
@@ -85,7 +85,7 @@ export const PLAN_CLIENT = String.raw`
     var until = minutesOf(end);
     var natural = hasSubtitle ? 38 : 30;
     var height = until !== null && until > from
-      ? Math.max(natural, ((until - from) * PX_PER_HOUR) / 60)
+      ? Math.max(natural, ((until - from) * span.height) / (span.to - span.from))
       : natural;
     return { top: gridY(span, from), height: height };
   }
