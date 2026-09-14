@@ -93,6 +93,9 @@ const state = {
   tripEdit: null,
   /* Adding or changing one stay. */
   stayEdit: null,
+  selectedStayId: null,
+  stayMenu: null,
+  stayNote: null,
   /* The calendar hanging off whichever date field was tapped. */
   picker: null,
   hideVisited: false,
@@ -142,7 +145,7 @@ function render() {
 
   frame.replaceChildren();
   if (state.screen === "signIn") { frame.append(screenSignIn()); return; }
-  if (state.screen === "trips") frame.append(screenTrips());
+  if (state.screen === "trips") { frame.append(screenTrips()); paintTripMaps(); }
   else if (state.screen === "newTrip") frame.append(screenNewTrip());
   else if (state.screen === "trip") {
     // Three screens, one payload: the Planner, and the trip itself at the two
@@ -248,7 +251,7 @@ function tripPath(id, view) {
 function clearLayers() {
   backStack.length = 0;
   afterClose = [];
-  for (const key of ["people", "search", "move", "noteFor", "timeFor", "tripEdit", "stayEdit", "picker", "newTrip", "preview"]) state[key] = null;
+  for (const key of ["people", "search", "move", "noteFor", "timeFor", "tripEdit", "stayEdit", "picker", "newTrip", "preview", "selectedStayId", "stayMenu", "stayNote"]) state[key] = null;
   state.tripMenu = false;
   state.menuOpen = false;
   state.selectedStopId = null;
@@ -666,16 +669,13 @@ function screenTrips() {
 }
 
 function tripCard(trip) {
-  const dayOf = daysBetween(trip.start_date, todayIso()) + 1;
-  const total = daysBetween(trip.start_date, trip.end_date) + 1;
   const pct = trip.stopCount ? Math.round((trip.visitedCount / trip.stopCount) * 100) : 0;
 
-  return h("button", { class: "trip-card", onclick: () => openTrip(trip.id) }, [
-    h("div", { class: "trip-card-map", html: window.__CARD_MAP__ }, [
-      ...cardNodes(trip),
-      h("span", { class: "trip-card-day", text: dayOf > 0 && dayOf <= total ? "DAY " + dayOf + " OF " + total : total + " DAYS" }, []),
+  return h("article", { class: "trip-card" }, [
+    h("div", { class: "trip-card-map", "data-trip-map": trip.id }, [
+      h("span", { class: "map-preview-empty", text: (trip.mapPoints || []).length ? "Loading map…" : "Add a place to see this trip on the map" }, []),
     ]),
-    h("div", { class: "trip-card-body" }, [
+    h("button", { class: "trip-card-body", onclick: () => openTrip(trip.id) }, [
       h("div", { class: "trip-card-name", text: trip.name }, []),
       h("div", { class: "trip-card-sub", text: trip.subtitle }, []),
       h("div", { class: "trip-card-foot" }, [
@@ -691,31 +691,59 @@ function tripCard(trip) {
   ]);
 }
 
-/**
- * A node per day on the card's map strip, from design/Trips.dc.html.
- *
- * The server hands over percentages it has already fitted into the strip, so
- * every day of the trip is in view at once and nothing here reasons about
- * coordinates. A day with nothing located on it has no node.
- *
- * Painted in date order, so a day that happens later sits over an earlier one
- * where two of them are in the same place, and today's sits over both: on a
- * card that says DAY 3 OF 11 the green one is the thing being looked for.
- */
-function cardNodes(trip) {
-  return (trip.dayNodes || []).map((node) =>
-    h("i", {
-      class: node.status === "now" ? "trip-card-node now" : "trip-card-node",
-      style: "left:" + node.x + "%;top:" + node.y + "%;background:" + (node.hue ? node.status === "done" ? mutedHue(node.hue) : node.hue : STATUS_FILL[node.status]),
-      title: nodeDate(node.date),
-    }, []),
-  );
+const tripMapCache = new Map();
+let tripMapObserver = null;
+
+function paintTripMaps() {
+  if (tripMapObserver) tripMapObserver.disconnect();
+  tripMapObserver = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      tripMapObserver.unobserve(entry.target);
+      paintTripMap(entry.target);
+    }
+  }, { root: document.querySelector(".trips-scroll"), rootMargin: "100px" });
+  for (const placeholder of document.querySelectorAll("[data-trip-map]")) {
+    const cached = tripMapCache.get(placeholder.dataset.tripMap);
+    const host = cached ? cached.host : placeholder;
+    if (cached) placeholder.replaceWith(host);
+    tripMapObserver.observe(host);
+  }
 }
 
-/** Oct 3, for the title on a node. */
-function nodeDate(iso) {
-  const date = new Date(iso + "T00:00:00Z");
-  return MONTHS[date.getUTCMonth()] + " " + date.getUTCDate();
+async function paintTripMap(host) {
+  const trip = state.trips.find((trip) => trip.id === host.dataset.tripMap);
+  if (!trip) return;
+  const points = (trip.mapPoints || []).filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng));
+  if (!points.length) {
+    const cached = tripMapCache.get(trip.id);
+    if (cached) { for (const marker of cached.markers) marker.setMap(null); tripMapCache.delete(trip.id); }
+    host.replaceChildren(h("span", { class: "map-preview-empty", text: "Add a place to see this trip on the map" }, []));
+    return;
+  }
+  const maps = await loadMaps();
+  if (!host.isConnected) return;
+  if (!maps) { host.textContent = "Map preview unavailable"; return; }
+  let cached = tripMapCache.get(trip.id);
+  if (!cached) {
+    host.replaceChildren();
+    const map = new maps.Map(host, { center: points[0], zoom: 12, styles: window.__MAP_STYLE__, disableDefaultUI: true, gestureHandling: "none", keyboardShortcuts: false, clickableIcons: false });
+    cached = { host, map, markers: [], key: null };
+    tripMapCache.set(trip.id, cached);
+  }
+  const key = JSON.stringify(points);
+  if (cached.key === key) return;
+  cached.key = key;
+  for (const marker of cached.markers) marker.setMap(null);
+  cached.markers = [];
+  const bounds = new maps.LatLngBounds();
+  for (const point of points) {
+    const position = { lat: point.lat, lng: point.lng };
+    bounds.extend(position);
+    cached.markers.push(new maps.Marker({ position, map: cached.map, clickable: false, icon: { path: maps.SymbolPath.CIRCLE, scale: 5, fillColor: point.hue, fillOpacity: 1, strokeColor: "#FFFCF6", strokeWeight: 2 } }));
+  }
+  cached.map.fitBounds(bounds, 24);
+  maps.event.addListenerOnce(cached.map, "idle", () => { if (cached.map.getZoom() > 14) cached.map.setZoom(14); });
 }
 
 function tripRow(trip, past) {
@@ -1012,12 +1040,6 @@ function screenSignIn() {
         icon("googleG", "signin-g"),
         h("span", { text: state.signingIn ? "Taking you to Google…" : "Continue with Google" }, []),
       ]),
-      h("div", { class: "signin-promise" }, [
-        icon("shield"),
-        h("span", {
-          text: "We ask for your name and email, nothing else. Photos and files stay on your device until you attach one.",
-        }, []),
-      ]),
     ]),
   ], { tall: true });
 }
@@ -1273,12 +1295,12 @@ function pinLook(day, stop, open, number) {
   }
 
   const past = st === "done";
-  let opacity = past && !open ? 0.5 : 1;
+  let opacity = 1;
   if (anySelected && !selected) opacity = Math.min(opacity, open ? 0.75 : 0.3);
 
   return {
-    fill: past ? mutedHue(day.hue) : day.hue,
-    size: selected ? PIN.selected : open ? PIN.full : PIN.mini,
+    fill: day.hue,
+    size: selected ? PIN.selected : past ? (open ? 20 : 12) : open ? PIN.full : PIN.mini,
     ring: selected ? "#33302B" : "#FFFCF6",
     opacity,
     roof: false,
@@ -1425,6 +1447,12 @@ function deskBar(on) {
  * day id, an order-row with a stop id — so dragging a stop between days works
  * here without a second implementation.
  */
+function switchMapDay(dayId) {
+  const change = () => { state.openDayId = dayId; state.selectedStopId = null; render(); };
+  if (state.search) closeThen(1, change);
+  else change();
+}
+
 function deskRail() {
   const trip = state.trip;
   const today = todayIso();
@@ -1448,7 +1476,7 @@ function deskRail() {
       h("button", {
         class: "rail-day" + (open ? " open" : "") + (past ? " past" : ""),
         "data-day-id": day.id,
-        onclick: () => { state.openDayId = open ? null : day.id; state.selectedStopId = null; render(); },
+        onclick: () => switchMapDay(open ? null : day.id),
       }, [
         h("span", { class: "rail-hue", style: "background:" + day.hue }, []),
         h("span", {
@@ -1494,7 +1522,7 @@ function deskRail() {
   return rail;
 }
 
-/** One stop in the rail: the time, the name and its line, the status dot. */
+/** One stop in the rail: the time, the name and its line. */
 function railStop(day, stop) {
   const st = statusOf(day, stop);
   const selected = stop.id === state.selectedStopId;
@@ -1521,10 +1549,6 @@ function railStop(day, stop) {
         h("span", { class: "rail-name", text: stop.title }, []),
         h("span", { class: "rail-meta", text: stop.note || stop.description }, []),
       ]),
-      h("span", {
-        class: "stop-dot",
-        style: "background:" + STATUS_FILL[st] + ";border-color:" + STATUS_RING[st],
-      }, []),
     ]),
   ]);
 }
@@ -1556,12 +1580,12 @@ function deskDetail(stop) {
         stop.navigateUrl
           ? h("a", {
               class: "detail-btn dark", href: stop.navigateUrl, target: "_blank", rel: "noreferrer",
-            }, ["Navigate"])
+            }, [icon("navigateLight"), "Navigate"])
           : null,
         h("button", {
           class: done ? "detail-btn on" : "detail-btn",
           onclick: () => toggleVisited(stop, done),
-        }, ["Visited"]),
+        }, [icon("check"), "Visited"]),
         h("button", {
           class: "detail-btn square", title: "Remove from the trip",
           onclick: () => removeStop(stop),
@@ -1869,7 +1893,7 @@ async function fitWholeTrip() {
 
 /** The sheet covers the lower half, so the fit goes into the band above it. */
 function fitPadding() {
-  const sheet = $("sheet");
+  const sheet = wideNow() ? null : $("search-sheet") || $("sheet");
   const covered = sheet ? sheet.getBoundingClientRect().height : 0;
   return { top: 60, right: 40, bottom: covered + 20, left: 40 };
 }
@@ -1927,135 +1951,46 @@ function goToMe() {
 
 /* ------------------------------------------------------- the search map */
 
-/**
- * What the map shows while a search is open, from design/PlaceSearch.dc.html:
- * the stops already on the trip as small green pins, the bias circle dashed in
- * terracotta, and the result being looked at as one bigger terracotta pin.
- *
- * On the drawn map the circle is given a fixed drawn radius and every point is
- * placed against it, so a result inside the circle looks inside it and one
- * outside looks outside. That is the whole meaning the circle carries.
- */
-/** Sized to the band the sheet leaves, so the whole circle is on screen. */
-function drawnCircleRadius() {
-  return Math.max(28, Math.min(62, visibleMapHeight() / 2 - 16));
-}
-
 function searchMapLayer() {
-  const s = state.search;
-  if (!s || mapsKey()) return [];
-
-  const out = [];
-
-  if (s.bias) out.push(h("div", { class: "bias-circle" }, []));
-
-  for (const pin of s.pins || []) {
-    out.push(h("div", {
-      class: "trip-pin",
-      "data-lat": String(pin.lat),
-      "data-lng": String(pin.lng),
-    }, []));
-  }
-
-  const looking = s.rows.find((r) => r.placeId === s.lookingAt);
-  if (looking && looking.location) {
-    for (const cls of ["pin-halo", "result-pin"]) {
-      out.push(h("div", {
-        class: cls,
-        "data-lat": String(looking.location.lat),
-        "data-lng": String(looking.location.lng),
-      }, []));
-    }
-  }
-  return out;
+  const search = state.search;
+  if (!search || mapsKey()) return [];
+  return search.rows.filter((row) => row.location && !row.onTrip).map((row) => h("button", {
+    class: "suggestion-pin" + (row.placeId === search.lookingAt ? " selected" : ""),
+    "aria-label": row.name,
+    "data-lat": String(row.location.lat),
+    "data-lng": String(row.location.lng),
+    onclick: () => lookAt(row),
+  }, [icon("pinInk")]));
 }
 
-/**
- * Positions the search map layer.
- *
- * It runs after the frame is assembled, not while it is being built: the sheet
- * that decides how much map is visible does not exist yet during the build,
- * and measuring then put the circle behind it.
- */
 function paintSearchMap() {
-  const s = state.search;
-  if (!s || mapsKey()) return;
-
-  const centre = { x: 50, y: 52 };
-  const radius = drawnCircleRadius();
-  const middle = middleOfMap(centre);
-
-  const circle = document.querySelector(".bias-circle");
-  if (circle) {
-    circle.style.left = centre.x + "%";
-    circle.style.top = middle + "px";
-    circle.style.width = radius * 2 + "px";
-    circle.style.height = radius * 2 + "px";
-  }
-
-  for (const el of document.querySelectorAll("[data-lat]")) {
-    const point = { lat: Number(el.dataset.lat), lng: Number(el.dataset.lng) };
-    const at = s.bias
-      ? againstCircle(s.bias, point, centre)
-      // No circle means no scale, so the place being looked at simply sits in
-      // the middle, which is what centring on it means.
-      : (el.classList.contains("trip-pin") ? null : { x: centre.x, y: middle });
-
-    if (!at) { el.hidden = true; continue; }
-    el.hidden = false;
-    el.style.left = at.x + "%";
-    el.style.top = at.y + "px";
+  if (!state.search || mapsKey()) return;
+  const pins = [...document.querySelectorAll(".suggestion-pin")];
+  if (!pins.length) return;
+  const lats = pins.map((pin) => Number(pin.dataset.lat));
+  const lngs = pins.map((pin) => Number(pin.dataset.lng));
+  const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+  const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+  const height = visibleMapHeight();
+  for (const pin of pins) {
+    const x = maxLng === minLng ? 0.5 : (Number(pin.dataset.lng) - minLng) / (maxLng - minLng);
+    const y = maxLat === minLat ? 0.5 : (maxLat - Number(pin.dataset.lat)) / (maxLat - minLat);
+    pin.style.left = (15 + x * 70) + "%";
+    pin.style.top = (24 + y * Math.max(0, height - 48)) + "px";
   }
 }
 
-/**
- * Places a point relative to the bias circle. Returns a percentage across and
- * a pixel offset down, because the map strip is short and a percentage down it
- * would put everything on top of everything else.
- */
-/**
- * The map runs the whole height of the frame, but the search sheet covers all
- * but the top ~138px of it. Placing anything against the map's own height puts
- * it behind the sheet, which is where the circle was going.
- */
 function visibleMapHeight() {
   const host = document.querySelector(".map");
   if (!host) return 138;
   const map = host.getBoundingClientRect();
+  if (wideNow()) return map.height;
   // The search sheet, not the day sheet underneath it. Querying ".sheet" gets
   // whichever is first in the DOM, which is the wrong one while searching and
   // put the circle behind it.
   const sheet = $("search-sheet") || document.querySelector(".sheet");
   if (!sheet) return map.height;
   return Math.max(60, sheet.getBoundingClientRect().top - map.top);
-}
-
-function middleOfMap(centre) {
-  return (centre.y / 100) * visibleMapHeight();
-}
-
-function againstCircle(bias, point, centre) {
-  const host = document.querySelector(".map");
-  const width = host ? host.getBoundingClientRect().width : 375;
-  const middle = middleOfMap(centre);
-
-  if (!bias || !point) return null;
-
-  const metresPerDegLat = 111320;
-  const metresPerDegLng = 111320 * Math.cos((bias.center.lat * Math.PI) / 180);
-  const east = (point.lng - bias.center.lng) * metresPerDegLng;
-  const north = (point.lat - bias.center.lat) * metresPerDegLat;
-
-  // The circle is the bias radius, so the scale follows from it. Anything far
-  // outside is pulled to the edge rather than off the map entirely.
-  const scale = drawnCircleRadius() / bias.radius;
-  let dx = east * scale;
-  let dy = -north * scale;
-  const reach = Math.hypot(dx, dy);
-  const limit = Math.min(width / 2 - 14, visibleMapHeight() / 2 - 14);
-  if (reach > limit) { dx = (dx / reach) * limit; dy = (dy / reach) * limit; }
-
-  return { x: centre.x + (dx / width) * 100, y: middle + dy };
 }
 
 /** Tapping a row looks at it: the row highlights and the map goes to it. */
@@ -2210,7 +2145,7 @@ async function paintMap() {
       icon: { url: pin.url, scaledSize: new maps.Size(pin.box, pin.box), anchor: new maps.Point(pin.box / 2, pin.box / 2) },
       zIndex: 30,
     });
-    marker.addListener("click", () => openStay(stay));
+    marker.addListener("click", () => selectStay(stay));
     gmarkers.push(marker);
     bounds.extend(position);
     if (openDay && stay.check_in <= openDay.date && stay.check_out >= openDay.date) {
@@ -2219,6 +2154,8 @@ async function paintMap() {
     }
   }
 
+  if (state.search) { paintSuggestionPins(maps); return; }
+  clearLookMarker();
   if (!gmarkers.length) return;
 
   // The sheet covers the lower half, so the pins are fitted into the band
@@ -2247,32 +2184,44 @@ function locatedStays() {
   return (state.trip.lodging || []).filter((stay) => Number.isFinite(stay.lat) && Number.isFinite(stay.lng));
 }
 
-/**
- * Centres the real map on a search result and marks it with the terracotta pin
- * the artboard draws. The pin is separate from the trip's own markers, because
- * the place is not on the trip yet.
- */
-let lookMarker = null;
+let suggestionMarkers = [];
+let suggestionFitKey = null;
+
+function paintSuggestionPins(maps) {
+  for (const marker of suggestionMarkers) marker.setMap(null);
+  suggestionMarkers = [];
+  const search = state.search;
+  if (!search) return;
+  const rows = search.rows.filter((row) => row.location && !row.onTrip);
+  const bounds = new maps.LatLngBounds();
+  for (const row of rows) {
+    const selected = row.placeId === search.lookingAt;
+    const size = selected ? 40 : 32;
+    const marker = new maps.Marker({ position: row.location, map: gmap, title: row.name,
+      icon: { url: window.__LOOK_PIN__, scaledSize: new maps.Size(size, size * 1.25), anchor: new maps.Point(size / 2, size * 1.16) }, zIndex: selected ? 60 : 50 });
+    marker.addListener("click", () => lookAt(row));
+    suggestionMarkers.push(marker);
+    bounds.extend(row.location);
+  }
+  const key = rows.map((row) => row.placeId).join(",");
+  if (rows.length && key !== suggestionFitKey) {
+    suggestionFitKey = key;
+    gmap.fitBounds(bounds, fitPadding());
+    if (rows.length === 1) gmap.setZoom(15);
+  }
+}
 
 async function centreOnResult(row) {
   const maps = await loadMaps();
   if (!maps || !gmap || !row.location) return;
 
-  if (lookMarker) lookMarker.setMap(null);
-  lookMarker = new maps.Marker({
-    position: row.location,
-    map: gmap,
-    title: row.name,
-    icon: { url: window.__LOOK_PIN__ },
-    zIndex: 3,
-  });
-
   gmap.panTo(row.location);
-  gmap.setZoom(16);
 }
 
 function clearLookMarker() {
-  if (lookMarker) { lookMarker.setMap(null); lookMarker = null; }
+  for (const marker of suggestionMarkers) marker.setMap(null);
+  suggestionMarkers = [];
+  suggestionFitKey = null;
 }
 
 /**
@@ -2328,7 +2277,7 @@ function mapPins(day, wide) {
       style: "left:" + x + "%;top:" + y + "%;opacity:" + look.opacity + ";z-index:" + look.z,
       title: stop.title,
       onclick: () => {
-        if (stays.includes(stop)) { openStay(stop); return; }
+        if (stays.includes(stop)) { selectStay(stop); return; }
         state.selectedStopId = stop.id;
         render();
       },
@@ -2357,7 +2306,10 @@ function sheetTabs() {
     h("button", {
       class: "sheet-tab" + (state.sheetTab === key ? " on" : ""),
       "aria-pressed": state.sheetTab === key ? "true" : "false",
-      onclick: () => { state.sheetTab = key; state.dayEdit = null; render(); },
+      onclick: () => {
+        const change = () => { state.sheetTab = key; state.dayEdit = null; render(); };
+        if (state.search || state.stayEdit) closeThen(1, change); else change();
+      },
     }, [icon(name), label]);
 
   return h("div", { class: "sheet-tabs" }, [
@@ -2443,7 +2395,7 @@ function sheetContents(hasStops) {
         const body = h("div", { class: "day-body" },
           shown.map((stop) => stopCard(day, stop, showTimes, numbers[stop.id])));
         body.append(
-          h("button", { class: "add-stop", onclick: () => openSearch(day.id) }, [icon("plusGrey")]),
+          h("button", { class: "add-stop", "aria-label": "Add a place", onclick: () => openSearch(day.id) }, [icon("plusGrey")]),
         );
         wrap.append(body);
       }
@@ -2503,17 +2455,19 @@ function staysPanel() {
     out.push(
       h("div", { class: "stay-row" }, [
         h("span", { class: "stay-icon", html: ICONS.house, style: "display:flex" }, []),
-        h("button", { class: "stay-tap", onclick: () => openStay(stay) }, [
+        h("button", { class: "stay-tap", "aria-expanded": String(state.selectedStayId === stay.id), onclick: () => selectStay(stay) }, [
           h("span", { class: "stay-name", text: stay.name }, []),
           h("span", { class: "stay-when", text: stayRange(stay) }, []),
+          stay.city || stay.address ? h("span", { class: "stay-when", text: stay.city || stay.address }, []) : null,
         ]),
         h("button", {
           class: "stay-remove",
-          title: "Remove this stay",
-          onclick: () => removeStay(stay),
-        }, [h("span", { style: "display:flex", html: ICONS.trashSmall }, [])]),
+          title: "Stay options",
+          onclick: () => { state.selectedStayId = stay.id; state.stayMenu = state.stayMenu === stay.id ? null : stay.id; render(); },
+        }, [icon("kebab")]),
       ]),
     );
+    if (state.selectedStayId === stay.id) out.push(stayDetails(stay));
   }
 
   out.push(
@@ -2533,6 +2487,41 @@ function staysPanel() {
 }
 
 /** Sep 30 – Oct 2 · 3 nights, or one date for a single night. */
+function selectStay(stay) {
+  state.selectedStayId = state.selectedStayId === stay.id ? null : stay.id;
+  state.stayMenu = null;
+  state.stayNote = null;
+  if (!planning()) state.sheetTab = "stays";
+  render();
+}
+
+function stayDetails(stay) {
+  const destination = Number.isFinite(stay.lat) && Number.isFinite(stay.lng) ? stay.lat + "," + stay.lng : stay.address || stay.name;
+  const url = "https://www.google.com/maps/dir/?api=1&destination=" + encodeURIComponent(destination) + (stay.google_place_id ? "&destination_place_id=" + encodeURIComponent(stay.google_place_id) : "");
+  return h("div", { class: "stay-details" }, [
+    h("div", { class: "stay-actions" }, [
+      h("a", { class: "detail-btn dark", href: url, target: "_blank", rel: "noreferrer" }, [icon("navigateLight"), "Navigate"]),
+      h("button", { class: "detail-btn", onclick: () => { state.stayNote = { id: stay.id, text: stay.note || "" }; render(); } }, [icon("pencil"), stay.note ? "Edit note" : "Add note"]),
+      planning() ? h("button", { class: "detail-btn square", title: "Stay options", onclick: () => { state.stayMenu = state.stayMenu === stay.id ? null : stay.id; render(); } }, [icon("kebab")]) : null,
+    ]),
+    state.stayMenu === stay.id ? h("div", { class: "stay-menu" }, [
+      h("button", { onclick: () => { state.stayMenu = null; openStay(stay); } }, [icon("pencil"), "Edit Stay"]),
+      h("button", { onclick: () => { state.stayMenu = null; state.selectedStayId = null; removeStay(stay); } }, [icon("trash"), "Delete"]),
+    ]) : null,
+    state.stayNote && state.stayNote.id === stay.id ? h("div", { class: "stay-note-editor" }, [
+      h("textarea", { "aria-label": "Stay note", value: state.stayNote.text, oninput: (event) => { state.stayNote.text = event.target.value; } }, []),
+      h("div", { class: "note-actions" }, [
+        h("button", { class: "save", onclick: () => {
+          const note = state.stayNote.text;
+          state.stayNote = null;
+          optimistic(() => { const before = stay.note; stay.note = note; return () => { stay.note = before; }; }, () => post("/api/lodging/" + stay.id, { note }), "That note did not save");
+        } }, ["Save note"]),
+        h("button", { class: "cancel", onclick: () => { state.stayNote = null; render(); } }, ["Cancel"]),
+      ]),
+    ]) : stay.note ? h("div", { class: "detail-note", text: stay.note }, []) : null,
+  ]);
+}
+
 function stayRange(stay) {
   const nights = daysBetween(stay.check_in, stay.check_out) + 1;
   const range = stay.check_in === stay.check_out
@@ -2574,7 +2563,7 @@ function openStay(stay) {
   openLayer(() => { state.stayEdit = null; render(); });
   const trip = state.trip.trip;
   state.stayEdit = stay
-    ? { id: stay.id, name: stay.name, placeId: null, start: stay.check_in, end: stay.check_out, rows: [], query: "", note: null }
+    ? { id: stay.id, name: stay.name, placeId: stay.google_place_id || null, start: stay.check_in, end: stay.check_out, rows: [], query: "", note: null }
     : { id: null, name: "", placeId: null, start: trip.start_date, end: trip.end_date, rows: [], query: "", note: null };
   render();
   const field = $("stay-name");
@@ -2599,7 +2588,7 @@ function sheetStay(inline) {
         },
       }, [
         h("span", { class: "stay-result-name", text: row.name }, []),
-        h("span", { class: "stay-result-meta", text: row.meta || "" }, []),
+          h("span", { class: "stay-result-meta", text: row.meta || row.city || row.address || "" }, []),
       ]),
     );
   }
@@ -2621,9 +2610,9 @@ function sheetStay(inline) {
             autocomplete: "off",
             oninput: onStayInput,
           }, []),
-          h("span", { id: "stay-loading", class: "stay-skeleton", hidden: !draft.busy, role: "status", "aria-label": "Searching for accommodations" }, []),
         ]),
-        draft.rows.length ? results : null,
+        h("div", { id: "stay-loading", hidden: !draft.busy }, [searchSkeleton("Searching for accommodations")]),
+        results,
         dateFields(draft, null),
         h("div", { class: "note-actions" }, [
           h("button", { class: "save", onclick: saveStay }, ["Save"]),
@@ -2688,7 +2677,7 @@ function saveStay() {
   }
 
   const body = { name, checkIn: draft.start, checkOut: draft.end };
-  if (draft.placeId) body.placeId = draft.placeId;
+  body.placeId = draft.placeId || null;
   const editing = draft.id;
   closeLayer();
 
@@ -2782,8 +2771,8 @@ function stopCard(day, stop, showTimes, number) {
          */
         h("span", {
           class: stop.accommodation ? "stop-index bed" : "stop-index",
-          style: "color:" + (stop.accommodation ? PIN.bed : done ? mutedHue(day.hue) : day.hue) +
-            ";border-color:" + (stop.accommodation ? PIN.bed : done ? mutedHue(day.hue) : day.hue),
+          style: "color:" + (stop.accommodation ? PIN.bed : day.hue) +
+            ";border-color:" + (stop.accommodation ? PIN.bed : day.hue),
           html: stop.accommodation ? ICONS.houseHue : null,
           text: stop.accommodation ? null : String(number),
         }, []),
@@ -2803,10 +2792,6 @@ function stopCard(day, stop, showTimes, number) {
           style: "background:" + stop.authorColor,
           text: stop.author,
           title: stop.author + " added this",
-        }, []),
-        h("span", {
-          class: "stop-dot",
-          style: "background:" + STATUS_FILL[st] + ";border-color:" + STATUS_RING[st],
         }, []),
       ]),
     ]),
@@ -2962,6 +2947,18 @@ function reachForDrawer(x) {
 
 function resolveDropTarget(x, y) {
   const drag = state.drag;
+  if (planning() && !wideNow()) {
+    const pill = [...document.querySelectorAll(".rail-pill[data-day-id]")].find((pill) => {
+      const rect = pill.getBoundingClientRect();
+      return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+    });
+    if (pill) {
+      drag.outside = true;
+      if (pill.dataset.dayId !== state.planDayId) beginHover(pill.dataset.dayId);
+      else endHover();
+      return;
+    }
+  }
 
   /*
    * The drawer is over the calendar, so it is asked first.
@@ -3065,6 +3062,7 @@ function endHover() {
   if (hoverFrame) { cancelAnimationFrame(hoverFrame); hoverFrame = null; }
   const skeleton = $("day-skeleton");
   if (skeleton) skeleton.remove();
+  for (const pill of document.querySelectorAll(".rail-pill.hovering")) { pill.classList.remove("hovering"); pill.style.removeProperty("--hover-progress"); }
   if (drag) { drag.hoverDayId = null; drag.hoverStart = 0; }
   shrinkLifted(0);
 }
@@ -3074,6 +3072,13 @@ function hoverTick() {
   if (!drag || !drag.hoverDayId) { endHover(); return; }
 
   const elapsed = performance.now() - drag.hoverStart;
+  if (planning() && !wideNow()) {
+    const pill = [...document.querySelectorAll(".rail-pill[data-day-id]")].find((pill) => pill.dataset.dayId === drag.hoverDayId);
+    if (pill) { pill.classList.add("hovering"); pill.style.setProperty("--hover-progress", Math.min(100, elapsed / 10) + "%"); }
+    if (elapsed >= 1000) { openHoveredDay(drag.hoverDayId); return; }
+    hoverFrame = requestAnimationFrame(hoverTick);
+    return;
+  }
   const progress = Math.min(1, Math.max(0, (elapsed - HOVER_QUIET_MS) / HOVER_GROW_MS));
   paintHover(drag.hoverDayId, progress);
 
@@ -3116,12 +3121,12 @@ function shrinkLifted(progress) {
 }
 
 function openHoveredDay(dayId) {
-  const drag = state.drag;
   endHover();
   state.openDayId = dayId === "unplanned" ? "unplanned" : dayId;
+  if (planning()) { state.planDayId = dayId; state.trayOpen = false; }
   render();
   // The day has real rows now, so work out which two it would land between.
-  if (state.drag) { resolveDropTarget(0, state.drag.y); paintDrag(); }
+  if (state.drag) { resolveDropTarget(state.drag.x, state.drag.y); paintDrag(); }
 }
 
 /**
@@ -3921,9 +3926,10 @@ function sheetSearch(inline) {
   renderResults(results);
 
   return h("div", { class: inline ? "inline-search" : "sheet", id: "search-sheet", style: inline ? "" : "height:529px" }, [
-    wideNow() ? h("button", { class: "search-close", title: "Close search", onclick: closeSearch }, [icon("close")]) : dismissGrabber("search-sheet", closeSearch),
+    wideNow() ? null : dismissGrabber("search-sheet", closeSearch),
+    h("button", { class: "search-close", title: "Close search", onclick: closeSearch }, [icon("close")]),
     h("div", { class: "search-head" }, [
-      searchTarget(),
+      inline ? null : searchTarget(),
       h("div", { class: "search-field" }, [
         icon("search"),
         h("input", {
@@ -3938,11 +3944,9 @@ function sheetSearch(inline) {
         s.bias && s.bias.label
           ? h("div", { class: "chip" }, [
               icon("pinChip"),
-              h("span", { text: s.bias.label }, []),
-              icon("chevronSmall"),
+              h("span", { text: s.bias.label + " · nearby results first" }, []),
             ])
           : null,
-        s.bias ? h("div", { class: "chip plain", text: Math.round(s.bias.radius / 1000) + " km" }, []) : null,
       ]),
     ]),
     results,
@@ -3978,6 +3982,12 @@ function onSearchInput(event) {
   const query = s.query.trim();
   clearTimeout(debounceTimer);
   searchTicket++;
+  s.rows = [];
+  s.lookingAt = null;
+  clearLookMarker();
+  for (const pin of document.querySelectorAll(".suggestion-pin")) pin.remove();
+  s.busy = query.length >= MIN_CHARS;
+  renderResults($("results"));
 
   if (query.length < MIN_CHARS) {
     s.rows = [];
@@ -4018,10 +4028,19 @@ async function runSearch(query) {
   if (field) { field.focus(); field.setSelectionRange(field.value.length, field.value.length); }
 }
 
+function searchSkeleton(label) {
+  return h("div", { class: "search-skeleton", role: "status", "aria-label": label }, [
+    ...[1, 2, 3].map(() => h("div", { class: "search-skeleton-row", "aria-hidden": "true" }, [
+      h("i", {}, []), h("div", {}, [h("span", {}, []), h("span", {}, [])]),
+    ])),
+  ]);
+}
+
 function renderResults(container) {
   if (!container) return;
   const s = state.search;
   container.replaceChildren();
+  if (s.busy) { container.append(searchSkeleton("Searching for places")); return; }
 
   if (s.note && !s.rows.length) {
     container.append(h("div", { class: "result-hint", text: s.note }, []));
@@ -4060,7 +4079,7 @@ function noteRowTitle() {
 function resultRow(row) {
   if (row.onTrip) {
     return h("div", { class: "result on-trip" }, [
-      h("div", { class: "result-tile yellow" }, [icon("pinDot")]),
+      h("div", { class: "result-tile yellow" }, [icon("pinInk")]),
       h("div", { class: "result-text" }, [
         h("span", { class: "result-name", text: row.name }, []),
         h("span", { class: "result-meta", text: "Already on " + row.onTripDay }, []),
@@ -4084,7 +4103,7 @@ function resultRow(row) {
       title: "Show on the map",
     }, [
       h("div", { class: "result-tile" + (row.outside ? " grey" : "") }, [
-        icon(row.outside ? "bowlGrey" : "bowl"),
+        icon("pinInk"),
       ]),
       h("div", { class: "result-text" }, [
         h("span", { class: "result-name", text: row.name }, []),
@@ -4289,6 +4308,7 @@ function dayRail() {
     const past = day.date < today;
     return h("button", {
       class: "rail-pill" + (on ? " on" : past ? " past" : ""),
+      "data-day-id": day.id,
       onclick: () => { state.planDayId = day.id; state.selectedStopId = null; render(); },
     }, [
       h("span", { class: "rail-hue", style: "background:" + day.hue }, []),
@@ -4313,7 +4333,7 @@ function stayLine(day) {
       h("button", {
         class: "stay-chip",
         title: stayRange(stay),
-        onclick: () => openStay(byStayId(stay.id)),
+        onclick: () => selectStay(byStayId(stay.id)),
         text: stay.name,
       }, []),
     ),
@@ -4568,6 +4588,7 @@ function screenGrid() {
           ? dayEditPanel(days.find((day) => day.id === state.dayEdit)) : null,
         lodgingRow(days),
         lodgingStrip(days),
+        state.selectedStayId && byStayId(state.selectedStayId) ? stayDetails(byStayId(state.selectedStayId)) : null,
         gridScroll(days, span, band, wide),
       ]),
       trayDrawer(wide),
@@ -4877,7 +4898,7 @@ function lodgingStrip(days) {
               // added as a margin, so the bar still ends exactly on the seam.
               style: "left:calc(" + (bar.left * 100) + "% + 2px);width:calc(" + (bar.width * 100) + "% - 4px)",
       title: stayRange(byStayId(bar.id) || { check_in: "", check_out: "" }),
-      onclick: () => openStay(byStayId(bar.id)),
+      onclick: () => selectStay(byStayId(bar.id)),
     }, [
       h("span", { class: "stay-bar-name", text: bar.name }, []),
     ])));

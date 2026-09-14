@@ -459,6 +459,10 @@ async function tripsFor(db: D1Database, userId: string) {
     trips.push({
       ...trip,
       cities,
+      mapPoints: [
+        ...stops.filter((stop) => stop.lat !== null && stop.lng !== null).map((stop) => ({ lat: stop.lat, lng: stop.lng, hue: days.find((day) => day.id === stop.day_id)?.hue ?? "#94897A" })),
+        ...lodging.filter((stay) => Number.isFinite(stay.lat) && Number.isFinite(stay.lng)).map((stay) => ({ lat: stay.lat, lng: stay.lng, hue: "#3F6B4A" })),
+      ],
       // One node a day for the card's map strip, already fitted into it:
       // src/lib/preview.ts does the arithmetic so the browser does none.
       dayNodes: previewNodes(toDayGeo(days, stops).map((day) => ({
@@ -775,6 +779,8 @@ app.get("/api/trips/:tripId/place-search", async (c) => {
         name: place.name,
         category: place.category,
         rating: place.rating,
+        city: place.city,
+        address: place.address,
         // The row needs a coordinate to put a pin on the map when it is
         // tapped, and to stand a stop up optimistically when it is added.
         location: { lat: place.lat, lng: place.lng },
@@ -803,7 +809,8 @@ function resultMeta(
 ): string {
   const parts: string[] = [];
   if (place.category) parts.push(titleCase(place.category));
-  if (place.rating !== null) parts.push(place.rating.toFixed(1));
+  if (place.city) parts.push(place.city);
+  if (place.rating !== null) parts.push(`${place.rating.toFixed(1)}/5 rating`);
 
   if (metres !== null) {
     if (outside) {
@@ -1256,13 +1263,14 @@ app.post("/api/trips/:tripId/lodging", async (c) => {
 });
 
 app.post("/api/lodging/:id", async (c) => {
-  const stay = await c.env.DB.prepare(`SELECT id, check_in, check_out FROM lodging WHERE id = ? AND ${ON_A_TRIP_OF_MINE}`)
+  const stay = await c.env.DB.prepare(`SELECT id, trip_id, check_in, check_out, (SELECT google_place_id FROM places WHERE id = lodging.place_id) AS google_place_id FROM lodging WHERE id = ? AND ${ON_A_TRIP_OF_MINE}`)
     .bind(c.req.param("id"), c.get("viewer").id)
-    .first<{ id: string; check_in: string; check_out: string }>();
+    .first<{ id: string; trip_id: string; google_place_id: string | null; check_in: string; check_out: string }>();
   if (!stay) return c.json({ error: "no such stay" }, 404);
 
   const body = await c.req.json<{
     name?: string;
+    placeId?: string | null;
     checkIn?: string;
     checkOut?: string;
     note?: string;
@@ -1277,11 +1285,23 @@ app.post("/api/lodging/:id", async (c) => {
 
   if (body.name !== undefined && !body.name.trim()) return c.json({ error: "a stay needs a name" }, 400);
 
+  const locationChanged = body.placeId !== undefined && body.placeId !== stay.google_place_id;
+  let details: PlaceDetails | null = null;
+  if (locationChanged && body.placeId) {
+    try {
+      details = await placeFromCache(c.env, body.placeId) ?? await placeDetails(placesConfig(c.env), body.placeId, crypto.randomUUID());
+    } catch (error) {
+      if (!(error instanceof PlacesError)) throw error;
+      return c.json({ error: "That location could not be loaded. Try selecting it again." }, 502);
+    }
+  }
+
   await updateLodging(c.env.DB, stay.id, {
     name: body.name?.trim(),
     checkIn: body.checkIn,
     checkOut: body.checkOut,
     note: body.note,
+    location: !locationChanged ? undefined : { tripId: stay.trip_id, details },
   });
   return c.json({ ok: true });
 });

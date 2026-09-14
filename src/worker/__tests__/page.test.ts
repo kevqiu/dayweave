@@ -94,8 +94,8 @@ describe("the sign-in screen", () => {
     expect(html).not.toContain("type=\"password\"");
   });
 
-  it("keeps the promise the artboard prints under the button", () => {
-    expect(html).toContain("We ask for your name and email, nothing else");
+  it("omits the disclaimer below sign in", () => {
+    expect(html.includes("We ask for your name and email, nothing else")).toBe(false);
   });
 
   it("draws its own quiet map rather than borrowing the trip card's", () => {

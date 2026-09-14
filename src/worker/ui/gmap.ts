@@ -72,7 +72,8 @@ export function meIcon(): string {
 /** The result being looked at: the one terracotta pin the artboard draws. */
 export function lookPinIcon(): string {
   const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34">` +
-    `<circle cx="17" cy="17" r="11" fill="${C.accent}" stroke="${C.card}" stroke-width="3"/></svg>`;
+    `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40">` +
+    `<path d="M16 37C12 31 3 23 3 15a13 13 0 0 1 26 0c0 8-9 16-13 22Z" fill="${C.card}" stroke="${C.ink}" stroke-width="2.5"/>` +
+    `<circle cx="16" cy="15" r="4.5" fill="none" stroke="${C.ink}" stroke-width="2.5"/></svg>`;
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }

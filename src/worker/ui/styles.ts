@@ -1521,6 +1521,35 @@ button { font-family: ${SANS}; cursor: pointer; }
 .inline-stay .grabber { display: none; }
 .inline-stay .modal-head { padding-top: 18px; }
 .inline-stay .date-field { min-width: 0; }
+.inline-stay { padding-bottom: 16px; }
+.stay-details { padding: 4px 14px 16px; flex-shrink: 0; }
+.stay-actions { display: flex; gap: 8px; margin-bottom: 12px; }
+.detail-btn { gap: 7px; }
+.stay-menu { display: flex; gap: 8px; margin: 10px 0; padding: 8px; background: ${C.highlight}; border-radius: 10px; }
+.stay-menu button { display: flex; align-items: center; gap: 6px; border: 0; padding: 8px; background: none; }
+.stay-note-editor textarea { width: 100%; min-height: 90px; resize: vertical; border: 1px solid ${C.border}; border-radius: 8px; padding: 10px; font: inherit; background: ${C.card}; }
+.suggestion-pin { position: absolute; z-index: 20; width: 32px; height: 40px; transform: translate(-50%, -100%); border: 2px solid white; border-radius: 18px; background: ${C.card}; display: grid; place-items: center; box-shadow: 0 2px 5px #0003; }
+.suggestion-pin.selected { width: 40px; height: 50px; z-index: 21; }
+.search-skeleton { padding: 10px 12px; }
+.search-skeleton-row { display: flex; gap: 12px; align-items: center; height: 52px; }
+.search-skeleton-row > i, .search-skeleton-row span { background: linear-gradient(90deg, ${C.line} 20%, ${C.card} 50%, ${C.line} 80%); background-size: 220% 100%; animation: skeleton-shimmer 1.1s ease-in-out infinite; border-radius: 5px; }
+.search-skeleton-row > i { width: 30px; height: 30px; flex-shrink: 0; }
+.search-skeleton-row > div { flex: 1; }
+.search-skeleton-row span { display: block; height: 9px; width: 70%; margin: 7px 0; }
+.search-skeleton-row span + span { width: 90%; height: 7px; }
+.stop.done .stop-name, .rail-stop.done .rail-name, .gcard.done .gcard-title { text-decoration: none; }
+.desk-map { top: 0; left: auto; right: auto; bottom: auto; }
+.day-pencil { display: flex; align-items: center; justify-content: center; padding: 0; }
+.desk-rail .day-wrap > .day-pencil { top: 2px; }
+.inline-search .results { padding-bottom: 0; }
+.inline-search .search-head { padding: 12px 42px 6px 12px; }
+.inline-search .chips { flex-wrap: wrap; }
+.search-close { min-width: 32px; min-height: 32px; align-items: center; justify-content: center; }
+.rail-pill.hovering { background: linear-gradient(to right, ${C.highlight} var(--hover-progress), transparent var(--hover-progress)); outline: 2px solid ${C.accent}; }
+.trip-card-body { display: block; width: 100%; text-align: left; border: 0; color: inherit; background: ${C.card}; }
+.trip-card-map { min-height: 150px; background: ${C.map}; }
+.map-preview-empty { display: flex; align-items: center; justify-content: center; height: 100%; padding: 16px; font-size: 12px; color: ${C.inkSoft}; }
+.trip-card-map .gm-style { font-family: ${SANS}; }
 .search-close { position: absolute; right: 6px; top: 6px; z-index: 2; display: flex; padding: 7px; border: 0; background: transparent; border-radius: 8px; }
 .search-close:hover { background: ${C.highlight}; }
 .trips-scroll { min-height: 0; }
@@ -1560,7 +1589,7 @@ button { font-family: ${SANS}; cursor: pointer; }
   #frame > .sheet { right: auto; bottom: auto; border: 1px solid ${C.border}; border-radius: 14px; box-shadow: 0 12px 40px rgba(51,48,43,.18); overflow-y: auto; padding-bottom: 16px; }
   #frame > .sheet .grabber { display: none; }
   #frame > .sheet .modal-head { padding-top: 20px; }
-  #search-sheet.sheet { min-height: 280px; }
+  #search-sheet.sheet { min-height: 0; }
   #search-sheet.sheet .search-head { padding-top: 24px; }
   .desk-rail { width: 340px; }
   .tray-side { width: 300px; }
@@ -1575,7 +1604,7 @@ button { font-family: ${SANS}; cursor: pointer; }
 }
 @media (prefers-reduced-motion: reduce) {
   .tray-side.drawer, .tray-side.drawer:not(.open), .tray-scrim { transition: none; }
-  .stay-skeleton { animation: none; }
+  .stay-skeleton, .search-skeleton-row > i, .search-skeleton-row span { animation: none; }
 }
 `;
 }

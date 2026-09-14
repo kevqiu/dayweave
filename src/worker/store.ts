@@ -895,6 +895,8 @@ export interface LodgingRow {
   lat?: number | null;
   lng?: number | null;
   address?: string | null;
+  city?: string | null;
+  google_place_id?: string | null;
 }
 
 /**
@@ -1004,7 +1006,7 @@ export async function listLodging(db: D1Database, tripId: string): Promise<Lodgi
   const { results } = await db
     .prepare(
       `SELECT l.id, l.trip_id, l.place_id, l.name, l.check_in, l.check_out, l.note,
-              p.lat, p.lng, p.address
+              p.lat, p.lng, p.address, p.city, p.google_place_id
          FROM lodging l
          LEFT JOIN places p ON p.id = l.place_id
         WHERE l.trip_id = ?
@@ -1015,26 +1017,16 @@ export async function listLodging(db: D1Database, tripId: string): Promise<Lodgi
   return results ?? [];
 }
 
-export async function addLodging(
-  db: D1Database,
-  input: {
-    tripId: string;
-    name: string;
-    checkIn: string;
-    checkOut: string;
-    note?: string;
-    details?: PlaceDetails | null;
-  },
-): Promise<LodgingRow> {
+async function lodgingPlace(db: D1Database, tripId: string, details: PlaceDetails | null): Promise<string | null> {
   let placeId: string | null = null;
 
-  if (input.details) {
+  if (details) {
     // The same dedup the stops take: one row per place per trip, so a hotel
     // that is also a stop is one pin.
-    const d = input.details;
+    const d = details;
     const existing = await db
       .prepare(`SELECT id FROM places WHERE trip_id = ? AND google_place_id = ?`)
-      .bind(input.tripId, d.googlePlaceId)
+      .bind(tripId, d.googlePlaceId)
       .first<{ id: string }>();
     placeId = existing?.id ?? crypto.randomUUID();
     if (!existing) {
@@ -1046,7 +1038,7 @@ export async function addLodging(
         )
         .bind(
           placeId,
-          input.tripId,
+          tripId,
           d.googlePlaceId,
           d.name,
           d.nameLocal,
@@ -1063,6 +1055,22 @@ export async function addLodging(
         .run();
     }
   }
+
+  return placeId;
+}
+
+export async function addLodging(
+  db: D1Database,
+  input: {
+    tripId: string;
+    name: string;
+    checkIn: string;
+    checkOut: string;
+    note?: string;
+    details?: PlaceDetails | null;
+  },
+): Promise<LodgingRow> {
+  const placeId = await lodgingPlace(db, input.tripId, input.details ?? null);
 
   const id = crypto.randomUUID();
   await db
@@ -1090,10 +1098,11 @@ export async function addLodging(
 export async function updateLodging(
   db: D1Database,
   id: string,
-  input: { name?: string; checkIn?: string; checkOut?: string; note?: string },
+  input: { name?: string; checkIn?: string; checkOut?: string; note?: string; location?: { tripId: string; details: PlaceDetails | null } },
 ): Promise<void> {
   const sets: string[] = [];
-  const values: string[] = [];
+  const values: (string | null)[] = [];
+  if (input.location) { sets.push("place_id = ?"); values.push(await lodgingPlace(db, input.location.tripId, input.location.details)); }
   if (input.name !== undefined) { sets.push("name = ?"); values.push(input.name); }
   if (input.checkIn !== undefined) { sets.push("check_in = ?"); values.push(input.checkIn); }
   if (input.checkOut !== undefined) { sets.push("check_out = ?"); values.push(input.checkOut); }

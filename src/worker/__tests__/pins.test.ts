@@ -85,21 +85,21 @@ describe("pinLook", () => {
     expect(look.opacity).toBe(1);
   });
 
-  it("desaturates a day gone by while keeping its hue", () => {
+  it("shrinks a day gone by while keeping its exact color", () => {
     state.selectedStopId = null;
     const look = api.pinLook(past, stop("d"), false, undefined);
-    expect(look.fill).toBe("#4b5f50");
-    expect(look.size).toBe(api.PIN.mini);
-    expect(look.opacity).toBe(0.5);
+    expect(look.fill).toBe(past.hue);
+    expect(look.size).toBeLessThan(api.PIN.mini);
+    expect(look.opacity).toBe(1);
   });
 
-  it("desaturates a visited stop on the open day", () => {
+  it("shrinks a visited stop on the open day without recoloring it", () => {
     state.selectedStopId = null;
     const look = api.pinLook(today, stop("a", { status: "visited" }), true, 1);
     expect(look.fill).not.toBe(api.STATUS_FILL.done);
-    expect(look.fill).not.toBe(today.hue);
+    expect(look.fill).toBe(today.hue);
     // Still full size and numbered: it is on the day you are looking at.
-    expect(look.size).toBe(api.PIN.full);
+    expect(look.size).toBeLessThan(api.PIN.full);
     expect(look.number).toBe(1);
   });
 

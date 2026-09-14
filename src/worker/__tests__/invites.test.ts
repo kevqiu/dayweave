@@ -723,6 +723,22 @@ describe("membership is the permission", () => {
     expect(trip.lodging[0]).toMatchObject({ name: "Seoul stay", check_in: "2026-03-04", check_out: "2026-03-08" });
   });
 
+  it("updates a stay's mapped location, exposes its city, and preserves notes", async () => {
+    const { mika, stayId, tripId } = await plannerFixture();
+    const place = { googlePlaceId: "new-hotel", name: "Central stay", nameLocal: null, lat: 37.5, lng: 127,
+      address: "Central street", city: "Seoul", countryCode: "KR", category: "hotel", mapsUrl: "https://maps.google.com/", rating: 4.3 };
+    env.PLACES_CACHE = { list: async () => ({ keys: [{ name: "ts:v1:hotel" }] }), get: async () => [place] };
+    expect((await mika.post(`/api/lodging/${stayId}`, { name: place.name, placeId: place.googlePlaceId })).status).toBe(200);
+    const trip = await (await mika.get(`/api/trips/${tripId}`)).json() as { lodging: object[] };
+    expect(trip.lodging[0]).toMatchObject({ lat: 37.5, lng: 127, city: "Seoul", google_place_id: "new-hotel", note: "Keep this note" });
+    const list = await (await mika.get("/api/trips")).json() as { trips: { mapPoints: object[] }[] };
+    expect(list.trips[0]!.mapPoints).toContainEqual({ lat: 37.5, lng: 127, hue: "#3F6B4A" });
+    expect((await mika.post(`/api/lodging/${stayId}`, { note: "New note" })).status).toBe(200);
+    expect((await mika.post(`/api/lodging/${stayId}`, { name: "Friend's house", placeId: null })).status).toBe(200);
+    const changed = await (await mika.get(`/api/trips/${tripId}`)).json() as { lodging: object[] };
+    expect(changed.lodging[0]).toMatchObject({ lat: null, lng: null, city: null, note: "New note" });
+  });
+
   it("preserves retained days and unplans removed-day stops when trip dates change", async () => {
     const { mika, tripId, dayId } = await plannerFixture();
     const before = await (await mika.get(`/api/trips/${tripId}`)).json() as { days: { id: string; date: string }[] };

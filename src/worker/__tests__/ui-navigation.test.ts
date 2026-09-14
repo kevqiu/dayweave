@@ -80,7 +80,7 @@ describe("located accommodations", () => {
       state, mapsKey: () => true, $: () => host,
       loadMaps: async () => ({ LatLngBounds: Bounds, Marker, Size: class {}, Point: class {} }),
       gmap: map, routeNumbers: () => ({}), pinLook: () => ({}), pinUrl: () => ({ url: "pin", box: 32 }),
-      fitPadding: () => 24, dayFitKey: () => "day-key", openStay,
+      fitPadding: () => 24, dayFitKey: () => "day-key", selectStay: openStay, clearLookMarker: vi.fn(),
     }, "let gmarkers = []; let mapFitted = null;\n");
     await api.paintMap();
     expect(markers).toHaveLength(1);
@@ -114,5 +114,65 @@ describe("stay search", () => {
       expect(state.stayEdit.rows).toEqual([]);
       expect(render).not.toHaveBeenCalled();
     } finally { vi.useRealTimers(); }
+  });
+});
+
+describe("search and drag transitions", () => {
+  it("closes search before changing the desktop day", () => {
+    const state: any = { search: {}, openDayId: "first", selectedStopId: "stop" };
+    let afterClose: () => void = () => {};
+    const render = vi.fn();
+    const api = load(["switchMapDay"], { state, render, closeThen: (_depth: number, callback: () => void) => { afterClose = callback; } });
+    api.switchMapDay("second");
+    expect(state.openDayId).toBe("first");
+    expect(render).not.toHaveBeenCalled();
+    state.search = null;
+    afterClose();
+    expect(state).toMatchObject({ openDayId: "second", selectedStopId: null });
+    expect(render).toHaveBeenCalledOnce();
+  });
+
+  it("opens a mobile date after one second while keeping the dragged card", () => {
+    const state: any = { drag: { hoverDayId: "second", hoverStart: 0, x: 150, y: 70 }, trayOpen: true };
+    let now = 999;
+    const resolveDropTarget = vi.fn();
+    const render = vi.fn();
+    const api = load(["hoverTick", "openHoveredDay"], {
+      state, performance: { now: () => now }, planning: () => true, wideNow: () => false,
+      document: { querySelectorAll: () => [] }, requestAnimationFrame: vi.fn(),
+      endHover: vi.fn(), render, resolveDropTarget, paintDrag: vi.fn(),
+    }, "let hoverFrame = null;");
+    api.hoverTick();
+    expect(render).not.toHaveBeenCalled();
+    now = 1000;
+    api.hoverTick();
+    expect(state).toMatchObject({ openDayId: "second", planDayId: "second", trayOpen: false });
+    expect(state.drag).toBeTruthy();
+    expect(resolveDropTarget).toHaveBeenCalledWith(150, 70);
+  });
+
+  it("fits every search suggestion and highlights a selection without hiding the others", () => {
+    const rows = [
+      { placeId: "a", name: "First", location: { lat: 1, lng: 2 } },
+      { placeId: "b", name: "Second", location: { lat: 3, lng: 4 } },
+    ];
+    const state = { search: { rows, lookingAt: null as string | null } };
+    const markers: any[] = [];
+    class Bounds { points: unknown[] = []; extend(point: unknown) { this.points.push(point); } }
+    class Marker {
+      setMap = vi.fn(); addListener = vi.fn();
+      constructor(public options: any) { markers.push(this); }
+    }
+    const maps = { Marker, LatLngBounds: Bounds, Size: class {}, Point: class {} };
+    const gmap = { fitBounds: vi.fn(), setZoom: vi.fn() };
+    const api = load(["paintSuggestionPins"], { state, gmap, window: { __LOOK_PIN__: "pin" }, fitPadding: () => 24, lookAt: vi.fn() }, "let suggestionMarkers=[]; let suggestionFitKey=null;");
+    api.paintSuggestionPins(maps);
+    expect(markers.map((marker) => marker.options.position)).toEqual(rows.map((row) => row.location));
+    expect(gmap.fitBounds.mock.calls[0]![0].points).toEqual(rows.map((row) => row.location));
+    state.search.lookingAt = "b";
+    api.paintSuggestionPins(maps);
+    expect(markers[0].setMap).toHaveBeenCalledWith(null);
+    expect(markers.slice(2).map((marker) => marker.options.zIndex)).toEqual([50, 60]);
+    expect(gmap.fitBounds).toHaveBeenCalledOnce();
   });
 });
