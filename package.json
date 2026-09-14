@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "alchemy": "0.94.0",
+    "better-auth": "^1.7.4",
     "hono": "^4.9.10"
   },
   "devDependencies": {

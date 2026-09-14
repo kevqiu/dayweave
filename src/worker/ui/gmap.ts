@@ -44,20 +44,15 @@ export function mapStyle(): unknown[] {
   ];
 }
 
-/**
- * A pin, as a data URI. Same shape the artboards draw: a status-coloured disc
- * inside a cream ring, bigger and ink-ringed when it is the selected stop.
+/*
+ * The trip's own pins used to be built here, one per status, and handed to the
+ * page as a fixed set of data URIs. They are built in the browser now
+ * (`pinUrl` in `client.ts`): a pin carries its day's colour, its number in the
+ * day, and the opacity the current selection leaves it at, so there is no
+ * longer a fixed handful to render ahead of time. The geometry moved with it
+ * unchanged — a disc in a 2.5px cream ring, ink-ringed and larger when
+ * selected.
  */
-export function pinIcon(fill: string, selected: boolean): string {
-  const size = selected ? 26 : 20;
-  const ring = selected ? C.ink : C.card;
-  const box = size + 6;
-  const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${box}" height="${box}" viewBox="0 0 ${box} ${box}">` +
-    `<circle cx="${box / 2}" cy="${box / 2}" r="${size / 2}" fill="${fill}" ` +
-    `stroke="${ring}" stroke-width="2.5"/></svg>`;
-  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
-}
 
 /** The result being looked at: the one terracotta pin the artboard draws. */
 export function lookPinIcon(): string {
