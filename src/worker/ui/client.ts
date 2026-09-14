@@ -1059,16 +1059,16 @@ function initSplashTilt() {
     const beta = ((event.beta - baseline.beta + 540) % 360) - 180;
     const gamma = event.gamma - baseline.gamma;
     const radians = angle * Math.PI / 180;
-    aimX = Math.max(-6, Math.min(6, (beta * Math.cos(radians) + gamma * Math.sin(radians)) * .22));
-    aimY = Math.max(-8, Math.min(8, (gamma * Math.cos(radians) - beta * Math.sin(radians)) * .25));
+    aimX = Math.max(-12, Math.min(12, (beta * Math.cos(radians) + gamma * Math.sin(radians)) * .44));
+    aimY = Math.max(-16, Math.min(16, (gamma * Math.cos(radians) - beta * Math.sin(radians)) * .5));
     if (frameId === null) frameId = requestAnimationFrame(animate);
   };
   const pointer = (event) => {
     if (!active || event.pointerType === "touch") return;
     const rect = stage.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
-    aimX = Math.max(-4, Math.min(4, (.5 - (event.clientY - rect.top) / rect.height) * 8));
-    aimY = Math.max(-6, Math.min(6, ((event.clientX - rect.left) / rect.width - .5) * 12));
+    aimX = Math.max(-8, Math.min(8, (.5 - (event.clientY - rect.top) / rect.height) * 16));
+    aimY = Math.max(-12, Math.min(12, ((event.clientX - rect.left) / rect.width - .5) * 24));
     if (frameId === null) frameId = requestAnimationFrame(animate);
   };
   const leave = () => { aimX = aimY = 0; };
