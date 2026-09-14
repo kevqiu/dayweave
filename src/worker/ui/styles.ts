@@ -154,61 +154,6 @@ button { font-family: ${SANS}; cursor: pointer; }
    account" line under it, which is the view-only share link. Nothing behind it
    is built, and CLAUDE.md's rule about furniture with nothing behind it
    applies to a door as much as to a row. */
-.signin { position: absolute; inset: 0; display: flex; flex-direction: column; background: ${C.paper}; }
-.signin-map {
-  height: 272px; flex-shrink: 0; position: relative; background: ${C.mapFill}; overflow: hidden;
-  /* The artboard pulls the headline 16px up into the map, which is what the
-     fade at the foot of the map is for. It is taken off the map rather than
-     put on the head, because the body scrolls and anything above a scroller's
-     own top is clipped rather than reachable. */
-  margin-bottom: -16px;
-}
-/* 272 of the artboard's 667. On a shorter phone that becomes a proportion
-   rather than a number, so the button underneath stays above the fold instead
-   of the picture pushing it off. Only where the frame fills the screen — on a
-   desktop it is a 667px frame in a taller window, where dvh means nothing. */
-@media (max-width: 420px), (max-height: 700px) {
-  .signin-map { height: min(272px, 40dvh); }
-}
-.signin-pins { position: absolute; inset: 0; }
-.signin-pins > i {
-  position: absolute; border-radius: 50%; border: 3px solid ${C.paper};
-  transform: translate(-50%, -50%);
-}
-.signin-fade {
-  position: absolute; left: 0; right: 0; bottom: 0; height: 90px;
-  background: linear-gradient(to bottom, rgba(251,246,238,0), ${C.paper});
-}
-.signin-body {
-  flex-grow: 1; display: flex; flex-direction: column; padding: 0 26px 26px;
-  overflow-y: auto;
-  /* The map is positioned, so without this it paints over the headline that
-     sits in its fade rather than behind it. */
-  position: relative; z-index: 1;
-}
-.signin-head { flex-shrink: 0; }
-.signin-title {
-  font-family: ${SERIF}; font-size: 31px; font-weight: 500;
-  letter-spacing: -0.015em; line-height: 1.12;
-}
-.signin-sub {
-  font-size: 13px; color: #8C8479; line-height: 1.5; margin-top: 11px;
-  max-width: 280px; text-wrap: pretty;
-}
-.signin-go {
-  height: 48px; border-radius: 12px; border: 1px solid ${C.borderWarm}; background: ${C.card};
-  display: flex; align-items: center; justify-content: center; gap: 11px; padding: 0;
-  box-shadow: 0 1px 3px rgba(80,66,44,0.08); text-decoration: none; flex-shrink: 0;
-}
-.signin-go .label { font-size: 15px; font-weight: 600; color: ${C.ink}; }
-.signin-go:active { background: ${C.highlight}; }
-.signin-unconfigured {
-  border-radius: 12px; border: 1px dashed ${C.borderWarm}; background: ${C.card};
-  padding: 14px; font-size: 12.5px; line-height: 1.5; color: ${C.grey}; text-align: center;
-}
-.signin-promise { display: flex; align-items: flex-start; gap: 8px; margin-top: 13px; }
-.signin-promise span { font-size: 11.5px; color: ${C.grey}; line-height: 1.5; }
-
 /* ---- The pending invite (design/Trips.dc.html, and the same card on sign in) ---- */
 .invite-card {
   margin: 0 14px 12px; border-radius: 14px; border: 1.5px solid ${C.noticeBorder};
@@ -226,8 +171,9 @@ button { font-family: ${SANS}; cursor: pointer; }
   font-family: ${SANS}; font-size: 12px; font-weight: 600; padding: 0 13px; flex-shrink: 0;
 }
 .invite-join:disabled { opacity: 0.5; }
-/* On sign in the card is not in a scrolling list, so it carries its own gap. */
-.signin .invite-card { margin: 0 0 12px; }
+/* On sign in the card is not in a scrolling list — the sign-in body already
+   has the 26px gutter — so it drops the side margin the list gives it. */
+.signin-body .invite-card { margin: 0 0 12px; }
 
 /* ---- Who is on this trip (design/Members.dc.html) ---- */
 .people-screen { z-index: 42; }
@@ -1262,8 +1208,18 @@ button { font-family: ${SANS}; cursor: pointer; }
 .err { padding: 10px 16px; font-size: 11.5px; color: ${C.link}; }
 
 /* ---- Sign in (design/SignIn.dc.html) ---- */
-.signin { justify-content: flex-start; }
-.signin-map { height: 272px; flex-shrink: 0; position: relative; background: ${C.mapFill}; }
+.signin-map {
+  height: 272px; flex-shrink: 0; position: relative; background: ${C.mapFill};
+  /* The drawing is 375 wide; a narrower frame must clip it, not scroll. */
+  overflow: hidden;
+}
+/* 272 of the artboard's 667. On a shorter phone that becomes a proportion
+   rather than a number, so the button underneath stays above the fold instead
+   of the picture pushing it off. Only where the frame fills the screen — on a
+   desktop it is a 667px frame in a taller window, where dvh means nothing. */
+@media (max-width: 420px), (max-height: 700px) {
+  .signin-map { height: min(272px, 40dvh); }
+}
 .signin-fade {
   position: absolute; left: 0; right: 0; bottom: 0; height: 90px;
   background: linear-gradient(to bottom, rgba(251,246,238,0), ${C.paper});

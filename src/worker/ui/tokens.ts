@@ -144,6 +144,24 @@ export function avatarColor(seed: string): string {
   return AVATAR_COLORS[hash % AVATAR_COLORS.length] as string;
 }
 
+/**
+ * A circle for somebody on a trip you are not on yet.
+ *
+ * `design/Trips.dc.html` draws your own avatar in the bar as terracotta always
+ * — `.me-avatar` is the accent, not a dealt colour — and draws the inviter on
+ * the pending card as `#6E8CA8`. That is not where Mika sits on her own trip;
+ * on her trip she is first, which is terracotta. It is that terracotta is
+ * already taken on this screen, by you, and two people in one 32px circle each
+ * is exactly what the dealt colours exist to prevent.
+ *
+ * So the card deals from the palette with the accent skipped, and a second
+ * inviter is still a different circle from the first.
+ */
+export function guestAvatarColor(index: number): string {
+  const rest = AVATAR_COLORS.slice(1);
+  return rest[((index % rest.length) + rest.length) % rest.length] as string;
+}
+
 /** Every phone artboard is this size, and clips. */
 export const FRAME = { width: 375, height: 667 } as const;
 

@@ -229,7 +229,12 @@ function browser(env: Record<string, unknown>) {
 
 interface Session {
   me: { id: string; name: string; initials: string } | null;
-  invite: { tripId: string; sentence: string; when: string; from: { initials: string } } | null;
+  invite: {
+    tripId: string;
+    sentence: string;
+    when: string;
+    from: { initials: string; color: string };
+  } | null;
   trips: { id: string; name: string }[];
 }
 
@@ -515,6 +520,10 @@ describe("following a link", () => {
     expect(state.invite?.sentence).toBe("Mika invited you to Korea");
     expect(state.invite?.when).toBe("Mar 2026");
     expect(state.invite?.from.initials).toBe("MT");
+    // design/Trips.dc.html draws this circle #6E8CA8, not the terracotta Mika
+    // wears on her own trip: terracotta is the account avatar in the bar above,
+    // and two people in one colour on one screen is the thing to avoid.
+    expect(state.invite?.from.color).toBe("#6E8CA8");
     expect(state.invite?.tripId).toBe(tripId);
   });
 

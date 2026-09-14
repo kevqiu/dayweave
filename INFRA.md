@@ -145,6 +145,16 @@ The client is a **Web application** client, which is the only kind that can do
 the code exchange, and the consent screen is configured and serving. Neither of
 those needs anything done to it.
 
+**What a session still cannot do is hold a Google password**, so the consent
+screen itself and the callback behind it remain unwitnessed from here. The rest
+of the flow was walked on the deployed Worker instead, by minting a Better Auth
+session directly: a row in `session` and a cookie signed with the same
+`BETTER_AUTH_SECRET` the Worker verifies with is indistinguishable from a
+sign-in, to the Worker and to the app. That covered the trips list, the trip,
+the People screen, the invite link, the pending card and Join. Only the Google
+half is taken on trust, and INFRA.md's own check above — fetching the authorize
+URL and reading Google's answer — is what stands in for it.
+
 *The one piece of housekeeping left in the data:* the deployed database holds
 65 trips with 65 distinct owners and one member each — one per `dev_…` cookie
 from before sign-in, plus a single `local-user` one. Every name is a session's

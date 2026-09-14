@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { adoptDevIdentity, initialsFor, initialsForName } from "../store.ts";
+import { AVATAR_COLORS, guestAvatarColor } from "../ui/tokens.ts";
 
 describe("initialsForName", () => {
   it("writes the two letters the artboards draw", () => {
@@ -87,5 +88,25 @@ describe("adoptDevIdentity", () => {
     // the delete has to come after the update or it takes both.
     expect(update).toBeGreaterThanOrEqual(0);
     expect(remove).toBeGreaterThan(update);
+  });
+});
+
+describe("guestAvatarColor", () => {
+  it("never deals the terracotta that is always you", () => {
+    // design/Trips.dc.html hard-codes the account avatar in the bar to the
+    // accent, so the accent is not available to anybody else on that screen.
+    for (let i = 0; i < 12; i++) expect(guestAvatarColor(i)).not.toBe(AVATAR_COLORS[0]);
+  });
+
+  it("gives the inviter the blue the artboard draws", () => {
+    // Mika is first on her own trip, which is terracotta there. On the pending
+    // card she is #6E8CA8, because terracotta is taken by whoever is reading.
+    expect(guestAvatarColor(0)).toBe("#6E8CA8");
+  });
+
+  it("still tells two inviters apart, and wraps rather than falling off", () => {
+    expect(guestAvatarColor(1)).not.toBe(guestAvatarColor(0));
+    expect(guestAvatarColor(3)).toBe(guestAvatarColor(0));
+    expect(AVATAR_COLORS).toContain(guestAvatarColor(-1));
   });
 });

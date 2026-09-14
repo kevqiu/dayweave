@@ -53,7 +53,7 @@ import {
   type StopRow,
   type UserRow,
 } from "./store.ts";
-import { avatarColor } from "./ui/tokens.ts";
+import { avatarColor, guestAvatarColor } from "./ui/tokens.ts";
 import { authFor } from "./auth.ts";
 import { page } from "./ui/page.ts";
 import type { worker } from "../../alchemy.run.ts";
@@ -362,15 +362,19 @@ async function pendingInvite(c: Ctx, userId: string | null) {
   // An invite to a trip you are already on is not pending.
   if (userId && (await isMember(c.env.DB, trip.id, userId))) return null;
 
-  // The inviter's avatar is the colour they are on that trip, so the circle on
-  // the card is the same circle you meet once you are inside it.
-  const from = personOf(invite.invited_by, await peopleOfTrip(c.env.DB, trip.id));
+  const people = await peopleOfTrip(c.env.DB, trip.id);
+  const from = personOf(invite.invited_by, people);
   return {
     tripId: trip.id,
     tripName: trip.name,
     sentence: inviteSentence(from.name, trip.name),
     when: monthLabel(trip.start_date, trip.end_date),
-    from: { initials: from.initials, color: from.color },
+    // Not the colour they wear on their own trip: terracotta is you on this
+    // screen, whoever you are. See `guestAvatarColor`.
+    from: {
+      initials: from.initials,
+      color: guestAvatarColor([...people.keys()].indexOf(invite.invited_by)),
+    },
   };
 }
 
