@@ -77,9 +77,47 @@ spend real money.
 | Google APIs | Places (New), Maps JavaScript | enabled; Static Maps and Map Tiles are not |
 | Google OAuth | web client, two redirect URIs | registered and working |
 | Cloudflare token | `49f7be3a…` | active, expires **2027-09-13** |
+| Deploys | `.github/workflows/deploy.yml` | on push to `main` — needs its nine secrets |
 
 The account's workers.dev subdomain is `yvr-kocho`, which is why the hostname
 reads `…-api-dev.yvr-kocho.workers.dev` and not something with your name in it.
+
+### Deploys happen on push to main now
+
+There used to be no automation at all: no `.github/` directory, every
+Cloudflare deployment `triggered_by: "upload"`, and `main` free to sit ahead of
+what was live for days with nothing saying so. `.github/workflows/deploy.yml`
+closes that. It runs `npm ci`, the tests, the typecheck, then `npm run deploy`,
+and it is the same four commands a person would run by hand — deliberately, so
+there is nothing in CI that cannot be reproduced in a session.
+
+**It does not work until the nine secrets are on the repository.** Settings →
+Secrets and variables → Actions, the five `alchemy.run.ts` reads plus
+`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `ALCHEMY_PASSWORD` and
+`ALCHEMY_STATE_TOKEN`. A run with any of them missing fails on the preflight
+step instead of deploying, which is the point: `alchemy.run.ts` reads
+`GOOGLE_MAPS_BROWSER_KEY` as `process.env… ?? ""`, so an absent secret is not an
+error there, it is a blank binding written into the live Worker. That is how
+the map shipped dead once.
+
+Three things in it are load-bearing and should not be tidied away:
+
+- **`ALCHEMY_STAGE: dev` is pinned**, and the job is wrong without it. Alchemy
+  resolves the stage as `ALCHEMY_STAGE ?? USER ?? USERNAME ?? "dev"`
+  (`node_modules/alchemy/lib/scope.js`). A cloud session has no `USER`, so it
+  falls through to `dev` and updates the live stack — **a GitHub runner sets
+  `USER=runner`.** Unpinned, the job would deploy a whole parallel stack,
+  `yvr-kocho-sh-api-runner` with its own D1, KV and R2, and report success
+  while the real Worker went untouched.
+- **The concurrency group does not cancel in progress.** Alchemy's state is one
+  shared store on the account, so two deploys race it; cancelling one halfway
+  leaves the state describing resources only partly written. Queue, never
+  cancel.
+- **The last step asks the live URL for a non-empty Maps key**, not for an
+  empty one. `window.__MAPS_KEY__ = "";` is always in the page — it is the
+  client's own 8-second fallback to the drawn map — so a check that greps for
+  it matches a healthy page too and fails every deploy. This was written the
+  wrong way round first and caught against the deployed Worker.
 
 ## The four things that will hurt if you forget them
 
@@ -153,9 +191,24 @@ DELETE FROM trips WHERE owner_id LIKE 'dev_%' OR owner_id = 'local-user';
 ```
 
 Days, stops, places and members go with each trip — `ON DELETE CASCADE` is on
-every one of those foreign keys. Do it **after** signing in, because a browser
-still carrying one of those cookies hands its trips to the account on the next
-request, and a trip that came with you no longer matches that `LIKE`.
+every one of those foreign keys, confirmed against `db/migrations/0001_init.sql`:
+all ten child tables cascade from `trips`. Do it **after** signing in, because a
+browser still carrying one of those cookies hands its trips to the account on the
+next request, and a trip that came with you no longer matches that `LIKE`.
+
+**Read as of 2026-09-14**, when this was attempted and not completed. There are
+70 trips now: the same 65 to go, and **5 that must not** — real trips on four
+Better Auth accounts, among them a `Japan` with 8 stops, a `London` with 2 and a
+`china` with 1. There is a `Japan` on both sides of that line, so filter on
+`owner_id` and never on the name. Behind the 65 sit 65 members, 380 days, 111
+places and 116 stops: 737 rows.
+
+The delete itself is refused by a cloud session's own guard against bulk
+deletion of hosted data — both as the `LIKE` sweep above and as an explicit list
+of the 65 ids. It needs either a `Bash` permission rule for the D1 query
+endpoint or, more simply, a person running the SQL from the Cloudflare
+dashboard's D1 console. Nothing depends on it: `adoptDevIdentity` means the
+litter breaks nothing while it sits there.
 
 **5. The map's browser key is deployed and working.** A different key from
 `GOOGLE_PLACES_KEY`, confirmed by comparing the string in the served page

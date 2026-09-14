@@ -1,0 +1,132 @@
+# Deploy the Worker when main moves.
+#
+# Until now every deploy was someone running `npm run deploy` in a session, and
+# INFRA.md recorded the consequence: main could sit ahead of what was live for
+# days without anything saying so. This closes that gap.
+#
+# The secrets this needs are listed in ENVIRONMENT.md. All nine must exist as
+# repository secrets, and the preflight step below fails the run if any is
+# missing rather than letting the deploy write a blank into the live Worker.
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  # So a deploy can be re-run by hand after adding a secret or rotating a key,
+  # without pushing an empty commit to main.
+  workflow_dispatch:
+
+# Alchemy's state is one shared store on the account, not a file in the
+# container, so two deploys running at once race each other for it. Queue them
+# instead. Deliberately NOT cancel-in-progress: cancelling a deploy halfway
+# through leaves the state describing resources that were only partly written.
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      # The stage decides every resource name: the Worker is
+      # `yvr-kocho-sh-api-${stage}`, the database `yvr-kocho-sh-${stage}-db`.
+      #
+      # Alchemy resolves it as ALCHEMY_STAGE ?? USER ?? USERNAME ?? "dev"
+      # (node_modules/alchemy/lib/scope.js). A cloud session has no USER, so it
+      # falls through to "dev" and updates the live stack. **A GitHub runner
+      # sets USER=runner.** Unpinned, this job would quietly deploy a whole
+      # parallel stack — a second Worker, a second D1, new KV namespaces, a new
+      # R2 bucket — and report success while the real Worker went untouched.
+      ALCHEMY_STAGE: dev
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # `npm i` resolves better-auth's optional @sveltejs/kit peer and drags in
+      # vite 8; `npm ci` from the committed lockfile is clean. ENVIRONMENT.md
+      # has the detail. Do not soften this to `npm install`.
+      - name: Install
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # The map shipped dead once because GOOGLE_MAPS_BROWSER_KEY was missing
+      # and alchemy.run.ts reads it as `process.env.GOOGLE_MAPS_BROWSER_KEY ?? ""`
+      # — an absent secret is not an error there, it is an empty string written
+      # into the live Worker. The four Alchemy/Cloudflare ones fail loudly on
+      # their own, but they are cheaper to catch here than three minutes in.
+      #
+      # Only ever tests for presence. Nothing here prints a value.
+      - name: Check every secret is present
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_PLACES_KEY: ${{ secrets.GOOGLE_PLACES_KEY }}
+          GOOGLE_MAPS_BROWSER_KEY: ${{ secrets.GOOGLE_MAPS_BROWSER_KEY }}
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ALCHEMY_PASSWORD: ${{ secrets.ALCHEMY_PASSWORD }}
+          ALCHEMY_STATE_TOKEN: ${{ secrets.ALCHEMY_STATE_TOKEN }}
+        run: |
+          missing=""
+          for name in GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GOOGLE_PLACES_KEY \
+                      GOOGLE_MAPS_BROWSER_KEY BETTER_AUTH_SECRET \
+                      CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID \
+                      ALCHEMY_PASSWORD ALCHEMY_STATE_TOKEN; do
+            if [ -z "${!name}" ]; then missing="$missing $name"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "Missing repository secrets:$missing"
+            echo "Add them under Settings -> Secrets and variables -> Actions."
+            echo "ENVIRONMENT.md explains what each one is."
+            exit 1
+          fi
+          echo "All nine secrets are present."
+
+      - name: Deploy
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_PLACES_KEY: ${{ secrets.GOOGLE_PLACES_KEY }}
+          GOOGLE_MAPS_BROWSER_KEY: ${{ secrets.GOOGLE_MAPS_BROWSER_KEY }}
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ALCHEMY_PASSWORD: ${{ secrets.ALCHEMY_PASSWORD }}
+          ALCHEMY_STATE_TOKEN: ${{ secrets.ALCHEMY_STATE_TOKEN }}
+          DO_NOT_TRACK: "1"
+        run: npm run deploy
+
+      # Proves the thing that is live is the thing that was just built, rather
+      # than trusting a green deploy step. The map key is the one binding that
+      # can be blank without anything failing, so it is the one worth asserting.
+      - name: Verify what is live
+        run: |
+          url="https://yvr-kocho-sh-api-dev.yvr-kocho.workers.dev/"
+          code=$(curl -sS -o /tmp/live.html -w '%{http_code}' "$url")
+          echo "GET $url -> $code"
+          [ "$code" = "200" ] || { echo "The deployed Worker did not answer 200."; exit 1; }
+          # Assert the server wrote a NON-EMPTY key, rather than looking for an
+          # empty one: `window.__MAPS_KEY__ = "";` is always in the page. It is
+          # the client's own 8-second fallback to the drawn map
+          # (src/worker/ui/client.ts), so grepping for it matches a healthy
+          # page too and would fail every deploy.
+          if grep -q 'window\.__MAPS_KEY__ = "[^"]' /tmp/live.html; then
+            echo "Live, and the Maps key binding is not blank."
+          else
+            echo "The live page has no non-empty Maps key: the map is dead."
+            exit 1
+          fi
