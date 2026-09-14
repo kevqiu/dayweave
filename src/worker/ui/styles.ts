@@ -1522,11 +1522,17 @@ button { font-family: ${SANS}; cursor: pointer; }
 .inline-stay .modal-head { padding-top: 18px; }
 .inline-stay .date-field { min-width: 0; }
 .inline-stay { padding-bottom: 16px; }
-.stay-details { padding: 4px 14px 16px; flex-shrink: 0; }
-.stay-actions { display: flex; gap: 8px; margin-bottom: 12px; }
+.stay-details { flex-shrink: 0; }
+.stay-actions { margin-bottom: 0; }
 .detail-btn { gap: 7px; }
-.stay-menu { display: flex; gap: 8px; margin: 10px 0; padding: 8px; background: ${C.highlight}; border-radius: 10px; }
-.stay-menu button { display: flex; align-items: center; gap: 6px; border: 0; padding: 8px; background: none; }
+.stay-card .stay-row { border: 0; padding: 7px; height: auto; min-height: 52px; }
+.stay-card .stay-name { font-weight: 500; }
+.stay-menu-anchor { position: relative; flex: 0 0 34px; }
+.stay-menu { position: absolute; right: 0; bottom: calc(100% + 4px); width: 180px; border-radius: 11px; background: ${C.card}; border: 1px solid ${C.borderWarm}; box-shadow: 0 6px 20px rgba(84,68,44,.2); overflow: hidden; z-index: 30; }
+.stay-menu button { display: flex; align-items: center; gap: 9px; width: 100%; height: 40px; border: 0; padding: 0 12px; background: none; text-align: left; font-size: 13px; font-weight: 500; }
+.stay-menu button + button { border-top: 1px solid ${C.line}; color: #A06B52; }
+.stay-menu button:hover, .stay-menu button:focus-visible { background: ${C.highlight}; }
+.stay-note-editor { margin-top: 8px; }
 .stay-note-editor textarea { width: 100%; min-height: 90px; resize: vertical; border: 1px solid ${C.border}; border-radius: 8px; padding: 10px; font: inherit; background: ${C.card}; }
 .suggestion-pin { position: absolute; z-index: 20; width: 32px; height: 40px; transform: translate(-50%, -100%); border: 2px solid white; border-radius: 18px; background: ${C.card}; display: grid; place-items: center; box-shadow: 0 2px 5px #0003; }
 .suggestion-pin.selected { width: 40px; height: 50px; z-index: 21; }
@@ -1603,8 +1609,8 @@ button { font-family: ${SANS}; cursor: pointer; }
   .desk-trip-date, .desk-sub { font-size: 10px; }
 }
 .stay-color { width: 16px; height: 16px; border: 2px solid white; border-radius: 50%; flex-shrink: 0; box-shadow: 0 1px 3px #0002; }
-.stay-actions .action { flex: 0 1 auto; padding: 0 12px; }
-.stay-actions .action.kebab { width: 32px; padding: 6px; }
+.stay-actions > .action { flex: 1 1 0; }
+.stay-actions .action.kebab { width: 34px; padding: 0; }
 .stay-name { font-size: 13px; }
 .stay-remove { width: 32px; height: 32px; padding: 6px; }
 .rail-stop .stop-index { width: 19px; height: 19px; font-size: 10px; }

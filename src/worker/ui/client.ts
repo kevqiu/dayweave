@@ -208,6 +208,10 @@ window.addEventListener("resize", () => {
 
 /* -------------------------------------------------------------- history */
 
+document.addEventListener("click", (event) => {
+  if (state.stayMenu && !event.target.closest(".stay-menu-anchor")) { state.stayMenu = null; render(); }
+});
+
 /**
  * Back has to mean back.
  *
@@ -314,6 +318,7 @@ function closeLayer() {
 
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
+  if (state.stayMenu) { state.stayMenu = null; render(); document.querySelector(".stay-menu-anchor button")?.focus(); return; }
   if (backStack.length) closeLayer();
   else if (state.trayOpen && !wideNow()) toggleTray(false);
 });
@@ -2482,22 +2487,18 @@ function staysPanel() {
 
   for (const stay of stays) {
     if (editing && editing.id === stay.id) { out.push(...sheetStay(true)); continue; }
-    out.push(
+    const selected = state.selectedStayId === stay.id;
+    out.push(h("div", { class: "stop stay-card" + (selected ? " selected" : "") }, [
       h("div", { class: "stay-row" }, [
         h("span", { class: "stay-color", style: "background:" + PIN.bed }, []),
-        h("button", { class: "stay-tap", "aria-expanded": String(state.selectedStayId === stay.id), onclick: () => selectStay(stay) }, [
+        h("button", { class: "stay-tap", "aria-expanded": String(selected), onclick: () => selectStay(stay) }, [
           h("span", { class: "stay-name", text: stay.name }, []),
           h("span", { class: "stay-when", text: stayRange(stay) }, []),
           stay.city || stay.address ? h("span", { class: "stay-when", text: stay.city || stay.address }, []) : null,
         ]),
-        state.selectedStayId === stay.id ? h("button", {
-          class: "stay-remove",
-          title: "Stay options",
-          onclick: () => { state.selectedStayId = stay.id; state.stayMenu = state.stayMenu === stay.id ? null : stay.id; render(); },
-        }, [icon("kebab")]) : null,
       ]),
-    );
-    if (state.selectedStayId === stay.id) out.push(stayDetails(stay));
+      selected ? stayDetails(stay) : null,
+    ]));
   }
 
   out.push(
@@ -2528,16 +2529,19 @@ function selectStay(stay) {
 function stayDetails(stay) {
   const destination = Number.isFinite(stay.lat) && Number.isFinite(stay.lng) ? stay.lat + "," + stay.lng : stay.address || stay.name;
   const url = "https://www.google.com/maps/dir/?api=1&destination=" + encodeURIComponent(destination) + (stay.google_place_id ? "&destination_place_id=" + encodeURIComponent(stay.google_place_id) : "");
-  return h("div", { class: "stay-details" }, [
-    h("div", { class: "stay-actions" }, [
+  return h("div", { class: "stop-actions stay-details" }, [
+    !state.stayNote && stay.note ? h("div", { class: "stop-note" }, [h("i", {}, []), h("span", { text: stay.note }, [])]) : null,
+    h("div", { class: "action-row stay-actions" }, [
       h("a", { class: "action dark", href: url, target: "_blank", rel: "noreferrer" }, [icon("navigateLight"), "Navigate"]),
-      h("button", { class: "action", onclick: () => { state.stayNote = { id: stay.id, text: stay.note || "" }; render(); } }, [icon("pencil"), stay.note ? "Edit note" : "Add note"]),
-      planning() ? h("button", { class: "action kebab", title: "Stay options", onclick: () => { state.stayMenu = state.stayMenu === stay.id ? null : stay.id; render(); } }, [icon("kebab")]) : null,
+      h("button", { class: "action", onclick: () => { state.stayMenu = null; state.stayNote = { id: stay.id, text: stay.note || "" }; render(); } }, [icon("pencil"), stay.note ? "Edit note" : "Add note"]),
+      h("div", { class: "stay-menu-anchor" }, [
+        h("button", { class: "action kebab", title: "Stay options", "aria-expanded": String(state.stayMenu === stay.id), onclick: () => { state.stayMenu = state.stayMenu === stay.id ? null : stay.id; render(); } }, [icon("kebab")]),
+        state.stayMenu === stay.id ? h("div", { class: "stay-menu", "aria-label": "Stay options" }, [
+          h("button", { onclick: () => { state.stayMenu = null; openStay(stay); } }, [icon("pencil"), "Edit Stay"]),
+          h("button", { onclick: () => { state.stayMenu = null; state.selectedStayId = null; removeStay(stay); } }, [icon("trash"), "Delete"]),
+        ]) : null,
+      ]),
     ]),
-    state.stayMenu === stay.id ? h("div", { class: "stay-menu" }, [
-      h("button", { onclick: () => { state.stayMenu = null; openStay(stay); } }, [icon("pencil"), "Edit Stay"]),
-      h("button", { onclick: () => { state.stayMenu = null; state.selectedStayId = null; removeStay(stay); } }, [icon("trash"), "Delete"]),
-    ]) : null,
     state.stayNote && state.stayNote.id === stay.id ? h("div", { class: "stay-note-editor" }, [
       h("textarea", { "aria-label": "Stay note", text: state.stayNote.text, oninput: (event) => { state.stayNote.text = event.target.value; } }, []),
       h("div", { class: "note-actions" }, [
@@ -2546,9 +2550,9 @@ function stayDetails(stay) {
           state.stayNote = null;
           optimistic(() => { const before = stay.note; stay.note = note; return () => { stay.note = before; }; }, () => post("/api/lodging/" + stay.id, { note }), "That note did not save");
         } }, ["Save note"]),
-        h("button", { class: "cancel", onclick: () => { state.stayNote = null; render(); } }, ["Cancel"]),
+        h("button", { class: "cancel", onclick: () => { state.stayMenu = null; state.stayNote = null; render(); } }, ["Cancel"]),
       ]),
-    ]) : stay.note ? h("div", { class: "detail-note", text: stay.note }, []) : null,
+    ]) : null,
   ]);
 }
 
