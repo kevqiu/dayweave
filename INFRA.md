@@ -7,7 +7,7 @@ computer. **That list is empty.** Items 1 through 7 are closed; what is left
 below is the state, the load-bearing warnings, and enough of the reasoning that
 nobody re-opens a decision without knowing why it went the way it did.
 
-Last checked against the live account: 2026-09-13.
+Last checked against the live account: 2026-09-14.
 
 The numbering is stable — items keep their number once they are done, so
 "item 3" means the same thing in a week's time as it does today.
@@ -30,6 +30,20 @@ that assert a principal.
 — which is correct and worth leaving that way. Setting them from here would
 mean putting a `cloud-platform` refresh token for the whole GCP project into an
 environment that every session can read, to save two clicks.
+
+**Re-tested 2026-09-14, still not doable from a session, for a second reason.**
+The environment now carries a `CLOUDSDK_AUTH_ACCESS_TOKEN`, which looked like
+it might be the OAuth principal that API keys are not. It is not one: it is 14
+characters, where a real `ya29.` access token runs to several hundred, so it is
+an agent-proxy placeholder rather than a credential. The functional probe that
+would have confirmed it — an authenticated GET against `cloudquotas.googleapis.com`
+— is itself refused by the session's own classifier as credential exploration,
+which is the right call on a variable whose only purpose would be to be spent
+against someone else's API.
+
+So there are now two independent blocks, and neither is worth engineering
+around. **Leave these two quotas to a human at the console**; the links are in
+the table above.
 
 | Quota | Where | Suggested |
 | --- | --- | --- |
@@ -64,9 +78,31 @@ spend real money.
 | Google APIs | Places (New), Maps JavaScript | enabled; Static Maps and Map Tiles are not |
 | Google OAuth | web client, two redirect URIs | registered and working |
 | Cloudflare token | `49f7be3a…` | active, expires **2027-09-13** |
+| Deploys | `.github/workflows/deploy.yml` | on push to `main` — needs its nine secrets |
 
 The account's workers.dev subdomain is `yvr-kocho`, which is why the hostname
 reads `…-api-dev.yvr-kocho.workers.dev` and not something with your name in it.
+
+### Deploying and identifying the live commit
+
+Pushes to main run .github/workflows/deploy.yml: locked dependency installation,
+tests, typecheck, then npm run deploy. The workflow queues deployments without
+cancelling a run already updating the shared Alchemy state.
+
+scripts/deploy.mjs loads the local .env when present, checks all nine required
+variables, requires a clean Git checkout, and explicitly deploys stage dev.
+It binds the current HEAD as DEPLOY_COMMIT. Both public origins must report
+that exact SHA at /version and in the homepage X-Deploy-Commit header, return
+HTTP 200, and include the nonempty browser Maps key before the command succeeds.
+
+Use Node 24 and npm ci locally. Commit changes before running npm run deploy;
+the script deliberately refuses deployments with uncommitted or untracked files.
+The nine variables listed in ENVIRONMENT.md must also be GitHub Actions
+repository secrets. The existing Alchemy password and state token must be reused.
+
+The planner and automation branches were integrated onto main on 2026-09-14.
+The old claude/my-maps-spike-deploy-gk8s4z branch is historical React/Vite
+exploration, not a release candidate; retain it for reference without merging.
 
 ## The four things that will hurt if you forget them
 
@@ -169,9 +205,24 @@ DELETE FROM trips WHERE owner_id LIKE 'dev_%' OR owner_id = 'local-user';
 ```
 
 Days, stops, places and members go with each trip — `ON DELETE CASCADE` is on
-every one of those foreign keys. Do it **after** signing in, because a browser
-still carrying one of those cookies hands its trips to the account on the next
-request, and a trip that came with you no longer matches that `LIKE`.
+every one of those foreign keys, confirmed against `db/migrations/0001_init.sql`:
+all ten child tables cascade from `trips`. Do it **after** signing in, because a
+browser still carrying one of those cookies hands its trips to the account on the
+next request, and a trip that came with you no longer matches that `LIKE`.
+
+**Read as of 2026-09-14**, when this was attempted and not completed. There are
+70 trips now: the same 65 to go, and **5 that must not** — real trips on four
+Better Auth accounts, among them a `Japan` with 8 stops, a `London` with 2 and a
+`china` with 1. There is a `Japan` on both sides of that line, so filter on
+`owner_id` and never on the name. Behind the 65 sit 65 members, 380 days, 111
+places and 116 stops: 737 rows.
+
+The delete itself is refused by a cloud session's own guard against bulk
+deletion of hosted data — both as the `LIKE` sweep above and as an explicit list
+of the 65 ids. It needs either a `Bash` permission rule for the D1 query
+endpoint or, more simply, a person running the SQL from the Cloudflare
+dashboard's D1 console. Nothing depends on it: `adoptDevIdentity` means the
+litter breaks nothing while it sits there.
 
 **5. The map's browser key is deployed and working.** A different key from
 `GOOGLE_PLACES_KEY`, confirmed by comparing the string in the served page

@@ -1,3 +1,16 @@
+# Local development and deployment
+
+Use Node 24 and install the committed dependencies with npm ci. Keep the nine
+variables listed below in a gitignored .env file in the repository root.
+Alchemy loads this file for local development; run npm run dev.
+
+For release, commit changes and run npm run deploy. The release script checks
+the variables, requires a clean checkout, pins stage dev, and verifies the
+deployed Git SHA at both public hostnames. It never prints secret values.
+GitHub Actions runs the same release command on pushes to main; configure the
+same nine values as repository secrets. Reuse the existing ALCHEMY_PASSWORD,
+ALCHEMY_STATE_TOKEN and BETTER_AUTH_SECRET when moving between environments.
+
 # Running this in a Claude Code cloud session
 
 Two things have to be configured on the cloud environment before a deploy can

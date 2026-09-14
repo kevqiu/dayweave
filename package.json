@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "deploy": "alchemy deploy",
+    "deploy": "node scripts/deploy.mjs",
     "destroy": "alchemy destroy",
     "dev": "alchemy dev",
     "test": "vitest run",
