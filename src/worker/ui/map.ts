@@ -51,66 +51,45 @@ export function cardMap(): string {
 </svg>`;
 }
 
-/**
- * The 272px band across the top of `design/SignIn.dc.html`.
- *
- * A quiet map with a dashed thread through six pins, which the artboard's own
- * comment calls "the day ramp read left to right". The six are transcribed
- * rather than taken from `dayHue`: they are close to it but not equal, and on
- * this screen they are a drawing of a trip rather than any trip's days, so the
- * artboard is what they answer to.
- *
- * The pins sit on the 375 x 272 box rather than inside the SVG's own
- * coordinate space, which is why this returns a block of markup and not one
- * `<svg>`: the artboard positions them the same way.
- */
 export function signInMap(): string {
-  /*
-   * The pins are drawn *inside* the SVG, in its own coordinates.
-   *
-   * The artboard positions them as absolutely-placed divs at `left: 58px;
-   * top: 236px` while the dashed thread is a path at `M58 236` in a viewBox of
-   * `30 60 330 240`. Those are two different coordinate spaces — the viewBox
-   * maps 58 to about 32 screen pixels and 236 to about 200 — so the thread
-   * misses every pin it is supposed to run through, by tens of pixels, and
-   * misses by a different amount at every window size.
-   *
-   * Putting the circles in the path's own space fixes it at every size and for
-   * free. The radii are the artboard's diameters scaled by the same 0.88 the
-   * viewBox applies, so they come out the size it drew them.
-   */
-  const K = 330 / 375;
-  const pins = [
-    { x: 58, y: 236, d: 17, hex: DAY_PALETTE[0] },
-    { x: 118, y: 212, d: 15, hex: DAY_PALETTE[1] },
-    { x: 178, y: 214, d: 15, hex: DAY_PALETTE[2] },
-    { x: 232, y: 232, d: 15, hex: DAY_PALETTE[3] },
-    { x: 282, y: 210, d: 15, hex: DAY_PALETTE[4] },
-    { x: 306, y: 96, d: 14, hex: DAY_PALETTE[6] },
-  ];
-
-  const circles = pins
-    .map(
-      (p) =>
-        `<circle cx="${p.x}" cy="${p.y}" r="${((p.d / 2) * K).toFixed(1)}" fill="${p.hex}" ` +
-        `stroke="${C.paper}" stroke-width="2.65"></circle>`,
-    )
-    .join("\n  ");
-
-  return `<svg width="375" height="272" viewBox="30 60 330 240" style="display:block">
-  <rect width="390" height="396" fill="${C.mapFill}"></rect>
-  <path d="M0 306 C 78 288, 138 322, 208 310 C 282 297, 326 328, 390 314 L390 396 L0 396 Z" fill="#D9E4E3"></path>
-  <path d="M232 44 C 292 38, 336 76, 338 128 C 340 182, 292 208, 248 194 C 204 180, 196 110, 232 44 Z" fill="#E2E9D7"></path>
-  <g stroke="#E7DFD0" stroke-width="1" fill="none">
-    <path d="M0 84 H390 M0 156 H390 M0 232 H390 M64 0 V306 M148 0 V306 M240 0 V306 M320 0 V306"></path>
-  </g>
-  <g stroke="#FCF9F2" stroke-linecap="round" fill="none">
-    <path d="M-10 118 C 90 110, 152 178, 244 172 C 318 167, 352 212, 400 206" stroke-width="9"></path>
-    <path d="M100 -10 C 108 84, 84 190, 112 268 C 138 340, 120 360, 132 410" stroke-width="9"></path>
-    <path d="M276 -10 C 272 88, 296 168, 274 248 C 256 306, 272 330, 264 380" stroke-width="6"></path>
-  </g>
-  <path d="M58 236 C 104 200, 134 250, 178 214 C 218 182, 236 246, 282 210 C 316 184, 330 132, 306 96" fill="none" stroke="#B0A794" stroke-width="1.6" stroke-dasharray="1 6" stroke-linecap="round" opacity="0.8"></path>
-  ${circles}
-</svg>
-<div class="signin-fade"></div>`;
+  const nodes = [{ x: 52, y: 252 }, { x: 122, y: 216 }, { x: 188, y: 262 }, { x: 252, y: 212 }, { x: 310, y: 158 }, { x: 282, y: 76 }];
+  const route = "M52 252 C72 250 98 218 122 216 C148 214 162 266 188 262 C214 258 226 222 252 212 C278 202 312 186 310 158 C308 130 274 106 282 76";
+  const path = `<path d="${route}" fill="none" stroke-width="6" stroke-dasharray="6 11" stroke-linejoin="round"/>`;
+  const pins = nodes.map((point, i) => `<circle cx="${point.x}" cy="${point.y}" r="10" style="--node-color:${DAY_PALETTE[i]}"/><text x="${point.x}" y="${point.y + 4}" text-anchor="middle">${i + 1}</text>`).join("");
+  const layer = (content: string, cls: string, lift: number) => `<svg viewBox="0 0 400 360" class="trail-layer ${cls}" style="--lift:${lift}px" aria-hidden="true">${content}</svg>`;
+  const controls: [number, number, number, number][] = [[72, 250, 98, 218], [148, 214, 162, 266], [214, 258, 226, 222], [278, 202, 312, 186], [308, 130, 274, 106]];
+  const blocks = controls.flatMap(([x1, y1, x2, y2], leg) => Array.from({ length: 6 }, (_, step) => {
+    const a = nodes[leg]!, b = nodes[leg + 1]!, t = (step + .5) / 6, u = 1 - t;
+    const x = u ** 3 * a.x + 3 * u ** 2 * t * x1 + 3 * u * t ** 2 * x2 + t ** 3 * b.x;
+    const y = u ** 3 * a.y + 3 * u ** 2 * t * y1 + 3 * u * t ** 2 * y2 + t ** 3 * b.y;
+    const angle = Math.atan2(3 * u ** 2 * (y1 - a.y) + 6 * u * t * (y2 - y1) + 3 * t ** 2 * (b.y - y2), 3 * u ** 2 * (x1 - a.x) + 6 * u * t * (x2 - x1) + 3 * t ** 2 * (b.x - x2)) * 180 / Math.PI;
+    const block = `<path d="M${x - 3} ${y}h6" transform="rotate(${angle} ${x} ${y})" fill="none" stroke-width="6"/>`;
+    return `<div class="trail-block" style="--wave-delay:${-(10 - (leg * 6 + step) * .32)}s">${Array.from({ length: 8 }, (_, i) => layer(block, "trail-depth", 30 + i * 2)).join("")}${layer(`<g class="trail-surface">${block}</g><g class="trail-glint" stroke="url(#trail-shine)">${block}</g>`, "trail-top", 46)}</div>`;
+  })).join("");
+  return `<div class="daytrail-scene" aria-label="A dotted daytrail rises from a map into a shimmering purple path" role="img">
+    <div class="daytrail-plane">
+      <svg class="trail-ground" viewBox="-1200 -1080 2800 2520" aria-hidden="true">
+        <rect x="-1200" y="-1080" width="2800" height="2520" fill="${C.mapFill}"/>
+        <g fill="#E2E9D7">
+          <path d="M248 24 Q360 6 372 100 T288 150 Q220 130 248 24 M20 60 Q70 38 100 80 T70 138 Q10 134 20 60"/>
+          <path d="M-380 -240 Q-160 -300 -130 -110 T-310 30 Q-440 -60 -380 -240 M570 -420 Q780 -480 810 -290 T640 -180 Q510 -260 570 -420 M650 310 Q840 240 900 430 T700 580 Q580 450 650 310 M-600 430 Q-390 370 -350 550 T-530 720 Q-700 590 -600 430"/>
+          <path d="M-1050 -700 Q-800 -820 -740 -560 T-950 -370 Q-1170 -460 -1050 -700 M1060 -720 Q1320 -790 1360 -500 T1170 -330 Q970 -440 1060 -720 M1050 880 Q1260 770 1420 990 T1190 1250 Q1000 1130 1050 880 M-950 990 Q-750 840 -590 1030 T-800 1260 Q-1010 1190 -950 990"/>
+        </g>
+        <g stroke="#E3DCCD" stroke-width="1" fill="none">
+          ${Array.from({ length: 25 }, (_, i) => { const x = -1240 + i * 120; return `<path d="M${x} -1080 Q${x + 80} -350 ${x + 20} 180 T${x + 60} 1440"/>`; }).join("")}
+          ${Array.from({ length: 23 }, (_, i) => { const y = -1120 + i * 120; return `<path d="M-1200 ${y} Q-400 ${y + 60} 200 ${y + 10} T1600 ${y + 30}"/>`; }).join("")}
+        </g>
+        <path d="M-1200 480 C-800 250 -420 590 -80 380 S440 260 700 530 S1230 760 1600 470" stroke="#D9E4E3" stroke-width="95" fill="none"/>
+        <g stroke="#FFFCF6" stroke-width="9" fill="none">
+          ${Array.from({ length: 10 }, (_, i) => { const x = -1140 + i * 310; return `<path d="M${x} -1080 C${x - 130} -610 ${x + 140} -250 ${x + 20} 190 S${x + 130} 970 ${x + 50} 1440"/>`; }).join("")}
+          ${Array.from({ length: 9 }, (_, i) => { const y = -1030 + i * 310; return `<path d="M-1200 ${y} C-730 ${y + 120} -370 ${y - 120} 180 ${y + 20} S1120 ${y - 110} 1600 ${y + 40}"/>`; }).join("")}
+        </g>
+        <g class="trail-shadow" stroke="${C.brand}">${path}</g>
+      </svg>
+      ${blocks}
+      ${layer(`<g class="trail-nodes">${pins}</g>
+        <defs><linearGradient id="trail-shine" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="400" y2="0"><stop offset=".25" stop-color="white" stop-opacity="0"/><stop offset=".5" stop-color="white"/><stop offset=".75" stop-color="white" stop-opacity="0"/></linearGradient></defs>
+        `, "trail-top", 46)}
+    </div>
+  </div><button class="tilt-shimmer" data-tilt hidden>Enable tilt shimmer</button>`;
 }

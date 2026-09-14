@@ -143,8 +143,10 @@ function render() {
   // frame only grows for the wide one; every other screen stays 375.
   const grid = planning() && wideNow();
 
+  if (splashCleanup) { splashCleanup(); splashCleanup = null; }
+  stopTrailWave();
   frame.replaceChildren();
-  if (state.screen === "signIn") { frame.append(screenSignIn()); return; }
+  if (state.screen === "signIn") { frame.append(screenSignIn()); initSplash(); return; }
   if (state.screen === "trips") { frame.append(screenTrips()); paintTripMaps(); }
   else if (state.screen === "newTrip") frame.append(screenNewTrip());
   else if (state.screen === "trip") {
@@ -1020,15 +1022,61 @@ async function createTrip() {
  * nothing to do from this screen until there is something to open. See
  * CLAUDE.md.
  */
+let splashCleanup = null;
+function initSplash() {
+  const stage = document.querySelector(".signin-map");
+  if (!stage || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const shine = stage.querySelector("#trail-shine");
+  const tilt = stage.querySelector("[data-tilt]");
+  let aimX = 0, aimY = 0, x = 0, y = 0, tick = null, listening = false;
+  const start = performance.now();
+  const pointer = (event) => {
+    const box = stage.getBoundingClientRect();
+    aimX = (event.clientX - box.left) / box.width * 2 - 1;
+    aimY = (event.clientY - box.top) / box.height * 2 - 1;
+  };
+  const orient = (event) => {
+    if (event.gamma === null || event.beta === null) return;
+    aimX = Math.max(-1, Math.min(1, event.gamma / 35));
+    aimY = Math.max(-1, Math.min(1, (event.beta - 35) / 40));
+  };
+  stage.addEventListener("pointermove", pointer);
+  const animate = (now) => {
+    if (!stage.isConnected) return;
+    x += (aimX - x) * .08; y += (aimY - y) * .08;
+    shine.setAttribute("gradientTransform", "translate(" + (Math.sin((now - start) / 1800) * 140 + x * 120) + " " + y * 80 + ") rotate(" + (25 + x * 30) + " 200 180)");
+    tick = requestAnimationFrame(animate);
+  };
+  tick = requestAnimationFrame(animate);
+  if (window.DeviceOrientationEvent && window.isSecureContext && window.matchMedia("(pointer: coarse)").matches) {
+    tilt.hidden = false;
+    tilt.onclick = async () => {
+      try {
+        const access = typeof DeviceOrientationEvent.requestPermission === "function" ? await DeviceOrientationEvent.requestPermission() : "granted";
+        if (!stage.isConnected) return;
+        if (access !== "granted") throw new Error("denied");
+        window.addEventListener("deviceorientation", orient);
+        listening = true; tilt.textContent = "Tilt shimmer on"; tilt.disabled = true;
+      } catch (_) { tilt.textContent = "Use touch to shimmer"; tilt.disabled = true; }
+    };
+  }
+  splashCleanup = () => {
+    cancelAnimationFrame(tick);
+    stage.removeEventListener("pointermove", pointer);
+    if (listening) window.removeEventListener("deviceorientation", orient);
+  };
+}
+
 function screenSignIn() {
   return column([
     h("div", { class: "signin-map", html: window.__SIGNIN_MAP__ }, []),
     h("div", { class: "signin-body" }, [
       h("div", { class: "signin-head" }, [
-        h("div", { class: "signin-title", html: "Your trip,<br>on one map" }, []),
+        h("div", { class: "signin-brand" }, [icon("daytrail"), h("span", { text: "Daytrail" }, [])]),
+        h("h1", { class: "signin-title", text: "Bring your daytrails to life." }, []),
         h("div", {
           class: "signin-sub",
-          text: "Everywhere you mean to go, in a color for each day. Plan together, find your way, and mark the places you visit.",
+          text: "Map the places you dream of. Make each day your own. Explore together.",
         }, []),
       ]),
       h("span", { style: "flex-grow:1" }, []),
@@ -2068,6 +2116,101 @@ function loadMaps() {
  * button are the artboards', and PLAN.md section 2 objects specifically to
  * Google's own furniture landing in a design meant to be calm.
  */
+let mapTrails = [];
+let trailWaveTimer = null;
+function stopTrailWave() {
+  if (trailWaveTimer !== null) clearInterval(trailWaveTimer);
+  trailWaveTimer = null;
+}
+function trailWaveOpacity(position, elapsed, legs) {
+  const distance = ((position - elapsed / 6000) % legs + legs * 1.5) % legs - legs / 2;
+  const width = distance > 0 ? .18 : .55;
+  return .4 + .28 * Math.exp(-Math.pow(distance / width, 2));
+}
+function animateTrailWave(update) {
+  stopTrailWave();
+  const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  if (motion.matches) { update(null); return; }
+  const start = performance.now();
+  update(0);
+  trailWaveTimer = setInterval(() => {
+    if (motion.matches) { update(null); stopTrailWave(); return; }
+    if (!document.hidden) update(performance.now() - start);
+  }, 60);
+}
+function dayTrailPoints(day, lodging) {
+  const stays = lodging.filter((stay) => Number.isFinite(stay.lat) && Number.isFinite(stay.lng) && stay.check_in <= day.date && stay.check_out >= day.date)
+    .sort((a, b) => b.check_in.localeCompare(a.check_in));
+  const points = stays.length ? [{ lat: stays[0].lat, lng: stays[0].lng }] : [];
+  for (const stop of day.stops) {
+    if (stop.accommodation || !stop.location || !Number.isFinite(stop.location.lat) || !Number.isFinite(stop.location.lng)) continue;
+    points.push({ lat: stop.location.lat, lng: stop.location.lng });
+  }
+  return points.filter((point, i) => !i || point.lat !== points[i - 1].lat || point.lng !== points[i - 1].lng);
+}
+
+function smoothTrail(points) {
+  if (points.length < 2) return points;
+  const route = points.map((point) => ({ lat: point.lat, lng: point.lng }));
+  for (let i = 1; i < route.length; i++) route[i].lng += 360 * Math.round((route[i - 1].lng - route[i].lng) / 360);
+  const path = [route[0]];
+  if (route.length === 2) {
+    const a = route[0], b = route[1];
+    const control = { lat: (a.lat + b.lat) / 2 + (b.lng - a.lng) * .1, lng: (a.lng + b.lng) / 2 - (b.lat - a.lat) * .1 };
+    for (let step = 1; step <= 20; step++) {
+      const t = step / 20, u = 1 - t;
+      path.push({ lat: u * u * a.lat + 2 * u * t * control.lat + t * t * b.lat, lng: u * u * a.lng + 2 * u * t * control.lng + t * t * b.lng });
+    }
+    return path;
+  }
+  for (let i = 0; i < route.length - 1; i++) {
+    const a = route[Math.max(0, i - 1)], b = route[i], c = route[i + 1], d = route[Math.min(route.length - 1, i + 2)];
+    for (let step = 1; step <= 20; step++) {
+      const t = step / 20;
+      const point = {};
+      for (const key of ["lat", "lng"]) {
+        point[key] = .5 * ((2 * b[key]) + (-a[key] + c[key]) * t + (2 * a[key] - 5 * b[key] + 4 * c[key] - d[key]) * t * t + (-a[key] + 3 * b[key] - 3 * c[key] + d[key]) * t * t * t);
+      }
+      path.push(point);
+    }
+  }
+  return path;
+}
+
+function paintDayTrail(maps) {
+  stopTrailWave();
+  for (const trail of mapTrails) trail.setMap(null);
+  mapTrails = [];
+  const day = state.trip.days.find((day) => day.id === state.openDayId);
+  if (!day) return;
+  const points = dayTrailPoints(day, state.trip.lodging || []);
+  if (points.length < 2) return;
+  const curve = smoothTrail(points);
+  const distances = [0];
+  for (let i = 1; i < curve.length; i++) {
+    const a = curve[i - 1], b = curve[i];
+    distances.push(distances[i - 1] + Math.hypot(b.lat - a.lat, (b.lng - a.lng) * Math.cos((a.lat + b.lat) * Math.PI / 360)));
+  }
+  const total = distances[distances.length - 1];
+  if (!total) return;
+  const count = Math.min(240, Math.max(24, (points.length - 1) * 24));
+  const positions = [];
+  let segment = 1;
+  const icons = Array.from({ length: count }, (_, i) => {
+    const target = total * i / (count - 1);
+    while (segment < distances.length - 1 && distances[segment] < target) segment++;
+    const fraction = (target - distances[segment - 1]) / (distances[segment] - distances[segment - 1] || 1);
+    positions.push((segment - 1 + fraction) / 20);
+    return { icon: { path: maps.SymbolPath.CIRCLE, scale: 1.6, fillColor: day.hue, fillOpacity: .55, strokeOpacity: 0 }, offset: (100 * i / (count - 1)) + "%" };
+  });
+  const line = new maps.Polyline({ map: gmap, path: curve, strokeOpacity: 0, clickable: false, zIndex: 5, icons });
+  mapTrails.push(line);
+  animateTrailWave((elapsed) => {
+    for (let i = 0; i < icons.length; i++) icons[i].icon.fillOpacity = elapsed === null ? .55 : trailWaveOpacity(positions[i], elapsed, points.length - 1);
+    line.set("icons", icons);
+  });
+}
+
 async function paintMap() {
   if (!mapsKey()) return;
   const host = $("gmap");
@@ -2167,6 +2310,7 @@ async function paintMap() {
     }
   }
 
+  paintDayTrail(maps);
   if (state.search) { paintSuggestionPins(maps); return; }
   clearLookMarker();
   if (focusSelectedMapStop()) return;
@@ -2298,7 +2442,7 @@ function mapPins(day, wide) {
    */
   const numbers = day ? routeNumbers(day) : {};
 
-  return located.map((stop) => {
+  const pins = located.map((stop) => {
     const look = pinLook(day || {}, stop, true, numbers[stop.id]);
     /*
      * The band the pins are fitted into.
@@ -2330,6 +2474,16 @@ function mapPins(day, wide) {
       }, []),
     ]);
   });
+  if (day) {
+    const points = smoothTrail(dayTrailPoints(day, state.trip.lodging || []));
+    if (points.length > 1) {
+      const depth = wide ? 62 : 26;
+      const legs = (points.length - 1) / 20;
+      const dots = points.map((point, i) => '<circle class="trail-wave-dot" cx="' + (16 + (point.lng - minLng) / spanLng * 68) + '" cy="' + (14 + depth - (point.lat - minLat) / spanLat * depth) + '" r=".36" style="animation-duration:' + (legs * 6) + 's;animation-delay:-' + (legs * 6 - i / 20 * 6) + 's"/>').join("");
+      pins.unshift(h("div", { class: "map-trail-layer", html: '<svg viewBox="0 0 100 100" preserveAspectRatio="none" width="100%" height="100%" fill="' + day.hue + '">' + dots + '</svg>' }, []));
+    }
+  }
+  return pins;
 }
 
 /**

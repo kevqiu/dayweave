@@ -7,6 +7,9 @@
  */
 
 export const COLOR = {
+  brand: "#86558F",
+  brandLight: "#C6A0CD",
+  brandWash: "#F0E5F2",
   /** Page ground, on every phone artboard. */
   paper: "#FBF6EE",
   /** A raised card or a field sitting on the paper. */
@@ -32,7 +35,7 @@ export const COLOR = {
   /** Terracotta: the caret, the owner avatar, the bias circle. */
   accent: "#C4826A",
   /** Link text. */
-  link: "#A8663C",
+  link: "#86558F",
 
   /** Status, PLAN.md section 7. Pin fill carries status and nothing else. */
   today: "#6F9A6B",
@@ -153,8 +156,8 @@ export function guestAvatarColor(index: number): string {
 export const FRAME = { width: 375, height: 667 } as const;
 
 export const FONTS_HREF =
-  "https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Figtree:wght@400;500;600;700&display=swap";
+  "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Figtree:wght@400;500;600;700&display=swap";
 
 /** Newsreader for names and titles, Figtree for everything else. */
-export const SERIF = 'Newsreader, Georgia, serif';
+export const SERIF = 'Fraunces, Georgia, serif';
 export const SANS = 'Figtree, "Helvetica Neue", sans-serif';

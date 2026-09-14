@@ -1,3 +1,5 @@
+import { COLOR as C } from "./tokens.ts";
+
 /**
  * The icons, transcribed from the artboards.
  *
@@ -211,7 +213,7 @@ export const arrowLeft = (o: IconOptions = {}) =>
  * rest of this file. No artboard specifies it — it is browser chrome, not a
  * screen — so it is the one icon here whose colour is its own.
  */
-export const airplane = ({ size = 32, color = "#7A4FBF" }: IconOptions = {}) =>
+export const airplane = ({ size = 32, color = C.brand }: IconOptions = {}) =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="${color}"><path d="M12 .9c1.15 0 1.95 1.7 1.95 3.9v4.4l9.35 5.4V17l-9.35-2.7v5l2.75 2.05v1.85L12 21.9l-4.7 1.3v-1.85l2.75-2.05v-5L.7 17v-2.4l9.35-5.4V4.8C10.05 2.6 10.85.9 12 .9z"/></svg>`;
 /** SignIn: the shield beside the line about what we ask for. */
 export const shield = (o: IconOptions = {}) =>
@@ -249,3 +251,6 @@ export const house = ({ size = 12, color = "#FFFFFF" }: IconOptions = {}) =>
     { size, color, width: 2.2 },
     'stroke-linecap="round" stroke-linejoin="round"',
   );
+
+export const daytrail = ({ size = 32, color = C.brand }: IconOptions = {}) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 32 32" fill="none"><path d="M7 13a9 9 0 0 1 18 0" fill="${C.brandLight}"/><path d="M5 16H22C27 16 27 22 21 22H12C7 22 7 28 12 28H20" stroke="${color}" stroke-width="4" stroke-linecap="round"/><circle cx="25" cy="28" r="2" fill="${color}"/></svg>`;

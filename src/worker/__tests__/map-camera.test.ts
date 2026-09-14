@@ -24,7 +24,7 @@ describe("map camera across UI updates", () => {
       state: { screen: "trip", view: "map" },
       frame: { replaceChildren: vi.fn(), append: vi.fn() },
       planning: () => false, wideNow: () => true,
-      positionEditors: vi.fn(),
+      positionEditors: vi.fn(), splashCleanup: null, stopTrailWave: vi.fn(),
       screenTripDesk: () => replacement,
       $: () => replacement, gmap: { getDiv: () => mapHost }, paintMap: paint,
     };

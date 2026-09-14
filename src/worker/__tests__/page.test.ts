@@ -62,7 +62,7 @@ describe("page", () => {
     expect(html).toContain("function render()");
   });
 
-  it("carries the plane as an inline favicon", () => {
+  it("carries the Daybreak logo as an inline favicon", () => {
     const html = page();
     expect(html).toContain('<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,');
     // Encoded, because the colour is a "#" and an unencoded one ends the URI.

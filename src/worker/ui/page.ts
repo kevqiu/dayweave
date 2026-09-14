@@ -18,6 +18,7 @@ import { COLOR as C, DAY_PALETTE, DAY_BLACK, FONTS_HREF } from "./tokens.ts";
 /** Each icon in the size and colour the artboard that uses it specifies. */
 function iconSet(): Record<string, string> {
   return {
+    daytrail: icons.daytrail({ size: 40 }),
     search: icons.search({ size: 17, color: C.inkSoft }),
     searchLight: icons.search({ size: 14, color: C.paper }),
     close: icons.close({ size: 17, color: C.inkSoft }),
@@ -79,12 +80,7 @@ function iconSet(): Record<string, string> {
   };
 }
 
-/**
- * The tab icon, inlined as a data URI so the Worker serves one document and no
- * second request. A plane, because that is the one thing every trip starts
- * with.
- */
-const FAVICON = `data:image/svg+xml,${encodeURIComponent(icons.airplane())}`;
+const FAVICON = `data:image/svg+xml,${encodeURIComponent(icons.daytrail())}`;
 
 export function page(mapsKey = ""): string {
   const boot = {
@@ -100,7 +96,17 @@ export function page(mapsKey = ""): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="${C.paper}">
-<title>yvr.kocho.sh</title>
+<title>Daytrail — Bring your daytrails to life</title>
+<meta name="description" content="Bring your daytrails to life. Map the places you dream of, plan each day, and explore together with Daytrail.">
+<meta name="application-name" content="Daytrail">
+<meta name="apple-mobile-web-app-title" content="Daytrail">
+<meta property="og:site_name" content="Daytrail">
+<meta property="og:title" content="Daytrail — Bring your daytrails to life">
+<meta property="og:description" content="Map the places you dream of, plan each day, and explore together.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Daytrail — Bring your daytrails to life">
+<meta name="twitter:description" content="Map the places you dream of, plan each day, and explore together.">
 <link rel="icon" type="image/svg+xml" href="${FAVICON}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

@@ -80,7 +80,7 @@ describe("located accommodations", () => {
       state, mapsKey: () => true, $: () => host,
       loadMaps: async () => ({ LatLngBounds: Bounds, Marker, Size: class {}, Point: class {} }),
       gmap: map, routeNumbers: () => ({}), pinLook: () => ({}), pinUrl: () => ({ url: "pin", box: 32 }),
-      fitPadding: () => 24, dayFitKey: () => "day-key", selectStay: openStay, clearLookMarker: vi.fn(), focusSelectedMapStop: () => false,
+      fitPadding: () => 24, dayFitKey: () => "day-key", selectStay: openStay, clearLookMarker: vi.fn(), focusSelectedMapStop: () => false, paintDayTrail: vi.fn(),
     }, "let gmarkers = []; let mapFitted = null;\n");
     await api.paintMap();
     expect(markers).toHaveLength(1);
@@ -118,6 +118,90 @@ describe("stay search", () => {
 });
 
 describe("search and drag transitions", () => {
+  it.each(["granted", "denied"])("only enables device shimmer after a user gesture and %s permission", async (permission) => {
+    const tilt: any = { hidden: true };
+    const stage = { isConnected: true, querySelector: (selector: string) => selector === "[data-tilt]" ? tilt : { setAttribute: vi.fn() }, addEventListener: vi.fn(), removeEventListener: vi.fn() };
+    const requestPermission = vi.fn(async () => permission);
+    const orientation = { requestPermission };
+    const window = { DeviceOrientationEvent: orientation, isSecureContext: true, matchMedia: (query: string) => ({ matches: query.includes("coarse") }), addEventListener: vi.fn(), removeEventListener: vi.fn() };
+    const context = { window, DeviceOrientationEvent: orientation, document: { querySelector: () => stage }, performance: { now: () => 0 }, requestAnimationFrame: () => 1, cancelAnimationFrame: vi.fn() };
+    const api = new Function(...Object.keys(context), "let splashCleanup=null;" + definition("initSplash") + ";return {start:initSplash, stop:()=>splashCleanup()};")(...Object.values(context));
+    api.start();
+    expect(requestPermission).not.toHaveBeenCalled();
+    expect(window.addEventListener).not.toHaveBeenCalled();
+    await tilt.onclick();
+    expect(requestPermission).toHaveBeenCalledOnce();
+    expect(window.addEventListener).toHaveBeenCalledTimes(permission === "granted" ? 1 : 0);
+    api.stop();
+    expect(window.removeEventListener).toHaveBeenCalledTimes(permission === "granted" ? 1 : 0);
+    expect(context.cancelAnimationFrame).toHaveBeenCalledWith(1);
+  });
+
+  it("does not start shimmer animation or sensor controls with reduced motion", () => {
+    const requestAnimationFrame = vi.fn();
+    const api = load(["initSplash"], { document: { querySelector: () => ({}) }, window: { matchMedia: () => ({ matches: true }) }, requestAnimationFrame });
+    api.initSplash();
+    expect(requestAnimationFrame).not.toHaveBeenCalled();
+  });
+  it("builds a smooth trail from the current accommodation through every destination in order", () => {
+    const api = load(["dayTrailPoints", "smoothTrail"], {});
+    const day = { date: "2026-10-02", stops: [
+      { location: { lat: 35.1, lng: 130.1 } }, { location: null },
+      { location: { lat: 35.2, lng: 130.2 } }, { location: { lat: 35.3, lng: 130.1 } },
+    ] };
+    const lodging = [
+      { lat: 1, lng: 2, check_in: "2026-09-01", check_out: "2026-09-03" },
+      { lat: 35, lng: 130, check_in: "2026-10-01", check_out: "2026-10-03" },
+    ];
+    const points = api.dayTrailPoints(day, lodging);
+    expect(points).toEqual([{ lat: 35, lng: 130 }, ...day.stops.filter((stop) => stop.location).map((stop) => stop.location)]);
+    const curve = api.smoothTrail(points);
+    for (let i = 0; i < points.length; i++) {
+      expect(curve[i * 20].lat).toBeCloseTo(points[i].lat);
+      expect(curve[i * 20].lng).toBeCloseTo(points[i].lng);
+    }
+    expect(api.dayTrailPoints(day, [])).toHaveLength(3);
+    const crossing = api.smoothTrail([{ lat: 0, lng: 179.9 }, { lat: 0, lng: -179.9 }]);
+    expect(Math.abs(crossing.at(-1).lng - crossing[0].lng)).toBeCloseTo(.2);
+  });
+
+  it("moves a subtle opacity crest forward one node every six seconds", () => {
+    const api = load(["trailWaveOpacity"], {});
+    expect(api.trailWaveOpacity(1, 6000, 4)).toBeCloseTo(.68);
+    expect(api.trailWaveOpacity(2, 12000, 4)).toBeCloseTo(.68);
+    expect(api.trailWaveOpacity(.8, 6000, 4)).toBeGreaterThan(api.trailWaveOpacity(1.2, 6000, 4));
+    for (let time = 0; time < 24000; time += 100) {
+      const opacity = api.trailWaveOpacity(1, time, 4);
+      expect(opacity).toBeGreaterThanOrEqual(.4);
+      expect(opacity).toBeLessThanOrEqual(.68);
+    }
+  });
+
+  it("keeps the trail still for reduced motion and cancels its timer", () => {
+    const clearInterval = vi.fn(), setInterval = vi.fn(() => 9), update = vi.fn();
+    const motion = { matches: true };
+    const api = load(["stopTrailWave", "animateTrailWave"], { clearInterval, setInterval, window: { matchMedia: () => motion }, performance: { now: () => 0 }, document: { hidden: false } }, "let trailWaveTimer=7;");
+    api.animateTrailWave(update);
+    expect(clearInterval).toHaveBeenCalledWith(7);
+    expect(update).toHaveBeenCalledWith(null);
+    expect(setInterval).not.toHaveBeenCalled();
+    motion.matches = false;
+    api.animateTrailWave(update);
+    expect(setInterval).toHaveBeenCalledTimes(1);
+    api.stopTrailWave();
+    expect(clearInterval).toHaveBeenCalledWith(9);
+  });
+
+  it("replaces the previous day's dotted trail instead of accumulating map overlays", () => {
+    const previous = { setMap: vi.fn() };
+    const lines: any[] = [];
+    const state = { openDayId: "day", trip: { days: [{ id: "day", hue: "#7A4FBF" }] } };
+    const api = load(["paintDayTrail"], { stopTrailWave: vi.fn(), animateTrailWave: vi.fn(), state, gmap: {}, dayTrailPoints: () => [{ lat: 1, lng: 2 }, { lat: 2, lng: 3 }], smoothTrail: (points: unknown) => points, previous }, "let mapTrails=[previous];");
+    api.paintDayTrail({ Polyline: class { constructor(public options: unknown) { lines.push(this); } }, SymbolPath: { CIRCLE: "circle" } });
+    expect(previous.setMap).toHaveBeenCalledWith(null);
+    expect(lines[0].options.icons[0].icon.fillColor).toBe("#7A4FBF");
+    expect(lines[0].options.clickable).toBe(false);
+  });
   it("focuses a selected accommodation and skips stays without coordinates", () => {
     const state: any = { sheetTab: "stays", selectedStayId: "stay", trip: { days: [], lodging: [
       { id: "stay", lat: 35, lng: 130 }, { id: "unlocated", lat: null, lng: null },
