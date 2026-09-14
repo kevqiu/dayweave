@@ -1639,7 +1639,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .map-trail-layer { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
 .daytrail-scene { width: min(88%, 640px); aspect-ratio: 400 / 360; perspective: 900px; position: relative; }
 .daytrail-scene { transform-style: preserve-3d; transform: rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)); }
-.daytrail-plane { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; animation: trail-isometric 3.8s cubic-bezier(.42,0,.22,1) .6s both, trail-zoom 2.6s cubic-bezier(.42,0,.22,1) 4.4s forwards; }
+.daytrail-plane { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; animation: trail-isometric 4.8s cubic-bezier(.42,0,.22,1) .6s both; }
 .trail-ground { position: absolute; left: -300%; top: -300%; width: 700%; height: 700%; max-width: none; }
 .trail-block { position: absolute; width: 1.5%; height: 1.667%; transform: translate(-50%, -50%) rotateZ(var(--block-angle)); transform-style: preserve-3d; pointer-events: none; }
 .trail-block-solid { position: absolute; inset: 0; transform-style: preserve-3d; animation: trail-block-wave 14s ease-in-out var(--wave-delay) infinite; }
@@ -1666,8 +1666,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .splash .invite-card { animation: splash-fade .9s .7s both; }
 .splash .signin-map { animation: splash-fade 1.4s ease-in-out both; }
 @keyframes splash-fade { from { opacity: 0; } to { opacity: 1; } }
-@keyframes trail-isometric { from { transform: rotateX(0) rotateZ(0) scale(.94); } to { transform: rotateX(42deg) rotateZ(-20deg) scale(.9); } }
-@keyframes trail-zoom { from { transform: rotateX(42deg) rotateZ(-20deg) scale(.9); } to { transform: rotateX(42deg) rotateZ(-20deg) scale(1.18); } }
+@keyframes trail-isometric { from { transform: rotateX(0) rotateZ(0) scale(.94); } to { transform: rotateX(42deg) rotateZ(-20deg) scale(1.18); } }
 @keyframes trail-lift { from { transform: translateZ(0); } to { transform: translateZ(var(--lift)); } }
 @keyframes trail-depth-in { to { opacity: 1; } }
 @keyframes trail-gold { to { stroke: ${C.brandLight}; } }

@@ -52,12 +52,12 @@ export function cardMap(): string {
 }
 
 export function signInMap(): string {
-  const nodes = [{ x: 52, y: 252 }, { x: 122, y: 216 }, { x: 188, y: 262 }, { x: 252, y: 212 }, { x: 310, y: 158 }, { x: 282, y: 76 }];
-  const route = "M52 252 C72 250 98 218 122 216 C148 214 162 266 188 262 C214 258 226 222 252 212 C278 202 312 186 310 158 C308 130 274 106 282 76";
+  const nodes = [{ x: 52, y: 252 }, { x: 122, y: 216 }, { x: 188, y: 226 }, { x: 252, y: 212 }, { x: 310, y: 158 }, { x: 282, y: 76 }];
+  const route = "M52 252 C72 250 98 218 122 216 C148 214 162 230 188 226 C214 222 226 222 252 212 C278 202 312 186 310 158 C308 130 274 106 282 76";
   const path = `<path d="${route}" fill="none" stroke-width="6" stroke-dasharray="6 11" stroke-linejoin="round"/>`;
   const pins = nodes.map((point, i) => `<circle cx="${point.x}" cy="${point.y}" r="10" style="--node-color:${DAY_PALETTE[i]}"/><text x="${point.x}" y="${point.y + 4}" text-anchor="middle">${i + 1}</text>`).join("");
   const layer = (content: string, cls: string, lift: number) => `<svg viewBox="0 0 400 360" class="trail-layer ${cls}" style="--lift:${lift}px" aria-hidden="true">${content}</svg>`;
-  const controls: [number, number, number, number][] = [[72, 250, 98, 218], [148, 214, 162, 266], [214, 258, 226, 222], [278, 202, 312, 186], [308, 130, 274, 106]];
+  const controls: [number, number, number, number][] = [[72, 250, 98, 218], [148, 214, 162, 230], [214, 222, 226, 222], [278, 202, 312, 186], [308, 130, 274, 106]];
   const blocks = controls.flatMap(([x1, y1, x2, y2], leg) => Array.from({ length: 6 }, (_, step) => {
     const a = nodes[leg]!, b = nodes[leg + 1]!, t = (step + .5) / 6, u = 1 - t;
     const x = u ** 3 * a.x + 3 * u ** 2 * t * x1 + 3 * u * t ** 2 * x2 + t ** 3 * b.x;
