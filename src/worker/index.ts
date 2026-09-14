@@ -754,16 +754,6 @@ app.get("/api/trips/:tripId/place-search", async (c) => {
   const onTrip = await placesOnTrip(c.env.DB, tripId);
   const anchor = bias?.anchor ?? null;
 
-  /**
-   * "Outside the day" only means something when the circle came from the day
-   * you are planning. When it fell back to a neighbouring day or the viewport
-   * (PLAN.md section 4b), the open day has no location of its own yet, so
-   * nothing can be outside it and saying so would be a lie.
-   *
-   * Either way it never gates anything. Bias ranks; it does not restrict.
-   */
-  const ownDay = bias !== null && (bias.source === "day-stops" || bias.source === "lodging");
-
   return c.json({
     bias: bias ? { ...bias, label: biasLabel(bias, days, stops) } : null,
     // The stops already on the trip, so the search view can draw them as the
@@ -773,7 +763,6 @@ app.get("/api/trips/:tripId/place-search", async (c) => {
       .map((s) => ({ lat: s.lat as number, lng: s.lng as number })),
     results: places.map((place) => {
       const metres = anchor ? haversineMetres(anchor.location, { lat: place.lat, lng: place.lng }) : null;
-      const outside = ownDay && metres !== null && metres > (bias as Bias).radius;
       return {
         placeId: place.googlePlaceId,
         name: place.name,
@@ -787,38 +776,23 @@ app.get("/api/trips/:tripId/place-search", async (c) => {
         distanceMetres: metres,
         onTrip: onTrip.has(place.googlePlaceId),
         onTripDay: onTrip.get(place.googlePlaceId) ?? null,
-        outside,
-        meta: resultMeta(place, metres, anchor?.name ?? null, outside),
+        meta: resultMeta(place, metres, anchor?.name ?? null),
       };
     }),
   });
 });
 
-/**
- * `Ramen · 4.3 · 450 m from Ohori Park`, exactly as the artboard writes it.
- *
- * Each piece is dropped when it is not known, rather than padded out: an
- * unrated place simply has no rating in the line. A result outside the circle
- * says so instead of giving a walking-scale distance that would mislead.
- */
 function resultMeta(
   place: PlaceDetails,
   metres: number | null,
   anchorName: string | null,
-  outside: boolean,
 ): string {
   const parts: string[] = [];
   if (place.category) parts.push(titleCase(place.category));
   if (place.city) parts.push(place.city);
-  if (place.rating !== null) parts.push(`${place.rating.toFixed(1)}/5 rating`);
+  if (place.rating !== null) parts.push(`★ ${place.rating.toFixed(1)}`);
 
-  if (metres !== null) {
-    if (outside) {
-      parts.push(`${formatDistance(metres)} away`, "outside the day");
-    } else if (anchorName) {
-      parts.push(`${formatDistance(metres)} from ${anchorName}`);
-    }
-  }
+  if (metres !== null) parts.push(anchorName ? `${formatDistance(metres)} from ${anchorName}` : `${formatDistance(metres)} away`);
   return parts.join(" · ");
 }
 

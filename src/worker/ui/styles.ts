@@ -1602,6 +1602,20 @@ button { font-family: ${SANS}; cursor: pointer; }
   .desk-pager { margin-left: 0; }
   .desk-trip-date, .desk-sub { font-size: 10px; }
 }
+.stay-color { width: 16px; height: 16px; border: 2px solid white; border-radius: 50%; flex-shrink: 0; box-shadow: 0 1px 3px #0002; }
+.stay-actions .action { flex: 0 1 auto; padding: 0 12px; }
+.stay-actions .action.kebab { width: 32px; padding: 6px; }
+.stay-name { font-size: 13px; }
+.stay-remove { width: 32px; height: 32px; padding: 6px; }
+.rail-stop .stop-index { width: 19px; height: 19px; font-size: 10px; }
+.desk-name { display: inline-flex; align-items: center; gap: 8px; }
+.desk-name > span:first-child { overflow: hidden; text-overflow: ellipsis; }
+.desk-name > span:last-child { flex-shrink: 0; }
+#search-sheet .search-head { padding-bottom: 8px; }
+#search-sheet.sheet .search-close { top: 17px; }
+#search-sheet .search-target { min-height: 32px; padding-right: 32px; margin-bottom: 4px; }
+.grid-add-ghost { position: absolute; left: 5px; right: 5px; height: 40px; border: 2px dashed; border-radius: 9px; display: grid; place-items: center; background: ${C.card}; pointer-events: none; }
+@media (min-width: 780px) { #search-sheet.sheet .search-close { top: 24px; } }
 @media (prefers-reduced-motion: reduce) {
   .tray-side.drawer, .tray-side.drawer:not(.open), .tray-scrim { transition: none; }
   .stay-skeleton, .search-skeleton-row > i, .search-skeleton-row span { animation: none; }

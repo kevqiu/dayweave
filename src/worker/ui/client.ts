@@ -154,7 +154,6 @@ function render() {
   }
   if (state.people) frame.append(screenPeople());
   if (state.search && !$("search-sheet")) {
-    if (wideNow()) frame.append(h("div", { class: "scrim light", onclick: closeSearch }, []));
     frame.append(sheetSearch());
   }
   if (state.tripMenu) frame.append(...tripMenu());
@@ -240,7 +239,7 @@ document.addEventListener("click", (event) => {
   if (target && !target.closest(".sheet, .inline-search")) {
     const rect = target.getBoundingClientRect();
     editorAnchor = { left: rect.left, top: rect.top, bottom: rect.bottom };
-    if (target.classList.contains("gcol")) editorAnchor = { left: event.clientX, top: event.clientY, bottom: event.clientY };
+    if (target.classList.contains("gcol")) editorAnchor = { left: rect.right + 8, right: rect.left - 8, top: event.clientY, bottom: event.clientY, grid: true };
   }
 }, true);
 
@@ -290,7 +289,15 @@ function positionEditors() {
     el.style.height = "auto";
     el.style.maxHeight = Math.max(200, bounds.height - 32) + "px";
     el.style.left = Math.max(16, Math.min(anchor.left - bounds.left, bounds.width - width - 16)) + "px";
+    if (el.id === "search-sheet" && anchor.grid && anchor.left + width > bounds.right - 16) {
+      el.style.left = Math.max(16, anchor.right - bounds.left - width) + "px";
+    }
     const height = el.getBoundingClientRect().height;
+    if (el.id === "trip-details-editor") {
+      el.style.left = (bounds.width - width) / 2 + "px";
+      el.style.top = Math.max(16, (bounds.height - height) / 2) + "px";
+      continue;
+    }
     el.style.top = Math.max(16, Math.min(anchor.bottom - bounds.top + 8, bounds.height - height - 16)) + "px";
   }
 }
@@ -1306,7 +1313,7 @@ function pinLook(day, stop, open, number) {
     roof: false,
     // Only the open day is big enough to read a number in.
     number: open ? (number || null) : null,
-    z: selected ? 40 : open ? 20 : 10,
+    z: selected ? 100 : open ? 80 : 10,
   };
 }
 
@@ -1425,8 +1432,8 @@ function deskBar(on) {
           state.tripMenu = true;
           render();
         },
-        text: trip.trip.name,
-      }, []),
+        "aria-expanded": String(state.tripMenu),
+      }, [h("span", { text: trip.trip.name }, []), icon("chevron")]),
       h("span", { class: "desk-sub", text: trip.dateRange }, []),
     ]),
     h("div", { class: "segmented" }, [
@@ -1542,9 +1549,8 @@ function railStop(day, stop) {
         render();
       },
     }, [
-      // The artboard keeps a 38px column for the time whether or not there is
-      // one, so the names line up down the rail.
-      h("span", { class: "rail-time" + (stop.time ? "" : " unset"), style: "color:" + day.hue, text: stop.time || "" }, []),
+      h("span", { class: "stop-index", style: "color:" + day.hue + ";border-color:" + day.hue, text: String(routeNumbers(day)[stop.id] || day.stops.indexOf(stop) + 1) }, []),
+      stop.time ? h("span", { class: "rail-time", style: "color:" + day.hue, text: stop.time }, []) : null,
       h("div", { class: "stop-text" }, [
         h("span", { class: "rail-name", text: stop.title }, []),
         h("span", { class: "rail-meta", text: stop.note || stop.description }, []),
@@ -2156,6 +2162,7 @@ async function paintMap() {
 
   if (state.search) { paintSuggestionPins(maps); return; }
   clearLookMarker();
+  if (focusSelectedMapStop()) return;
   if (!gmarkers.length) return;
 
   // The sheet covers the lower half, so the pins are fitted into the band
@@ -2174,6 +2181,29 @@ async function paintMap() {
  * the next render finds the day's fit already spent and does not snap back.
  * Opening another day changes the key, and the map follows again.
  */
+let focusedMapStop = null;
+function focusSelectedMapStop() {
+  const stop = state.trip.days.flatMap((day) => day.stops).find((stop) => stop.id === state.selectedStopId);
+  if (!stop || !stop.location) {
+    if (focusedMapStop) mapFitted = null;
+    focusedMapStop = null;
+    return false;
+  }
+  const key = stop.id + ":" + stop.location.lat + ":" + stop.location.lng;
+  if (focusedMapStop !== key) {
+    focusedMapStop = key;
+    const zoom = Math.max(gmap.getZoom() || 0, 15);
+    const padding = fitPadding();
+    const world = 256 * Math.pow(2, zoom);
+    const radians = Math.max(-85, Math.min(85, stop.location.lat)) * Math.PI / 180;
+    const y = (1 - Math.log(Math.tan(radians) + 1 / Math.cos(radians)) / Math.PI) / 2 + (padding.bottom - padding.top) / (2 * world);
+    const center = { lat: Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) * 180 / Math.PI, lng: stop.location.lng + (padding.right - padding.left) * 180 / world };
+    if (gmap.getZoom() < zoom) gmap.setZoom(zoom);
+    gmap.panTo(center);
+  }
+  return true;
+}
+
 function dayFitKey() {
   const day = state.trip.days.find((d) => d.id === state.openDayId);
   const stops = day ? day.stops.filter((s) => s.location) : [];
@@ -2454,17 +2484,17 @@ function staysPanel() {
     if (editing && editing.id === stay.id) { out.push(...sheetStay(true)); continue; }
     out.push(
       h("div", { class: "stay-row" }, [
-        h("span", { class: "stay-icon", html: ICONS.house, style: "display:flex" }, []),
+        h("span", { class: "stay-color", style: "background:" + PIN.bed }, []),
         h("button", { class: "stay-tap", "aria-expanded": String(state.selectedStayId === stay.id), onclick: () => selectStay(stay) }, [
           h("span", { class: "stay-name", text: stay.name }, []),
           h("span", { class: "stay-when", text: stayRange(stay) }, []),
           stay.city || stay.address ? h("span", { class: "stay-when", text: stay.city || stay.address }, []) : null,
         ]),
-        h("button", {
+        state.selectedStayId === stay.id ? h("button", {
           class: "stay-remove",
           title: "Stay options",
           onclick: () => { state.selectedStayId = stay.id; state.stayMenu = state.stayMenu === stay.id ? null : stay.id; render(); },
-        }, [icon("kebab")]),
+        }, [icon("kebab")]) : null,
       ]),
     );
     if (state.selectedStayId === stay.id) out.push(stayDetails(stay));
@@ -2500,9 +2530,9 @@ function stayDetails(stay) {
   const url = "https://www.google.com/maps/dir/?api=1&destination=" + encodeURIComponent(destination) + (stay.google_place_id ? "&destination_place_id=" + encodeURIComponent(stay.google_place_id) : "");
   return h("div", { class: "stay-details" }, [
     h("div", { class: "stay-actions" }, [
-      h("a", { class: "detail-btn dark", href: url, target: "_blank", rel: "noreferrer" }, [icon("navigateLight"), "Navigate"]),
-      h("button", { class: "detail-btn", onclick: () => { state.stayNote = { id: stay.id, text: stay.note || "" }; render(); } }, [icon("pencil"), stay.note ? "Edit note" : "Add note"]),
-      planning() ? h("button", { class: "detail-btn square", title: "Stay options", onclick: () => { state.stayMenu = state.stayMenu === stay.id ? null : stay.id; render(); } }, [icon("kebab")]) : null,
+      h("a", { class: "action dark", href: url, target: "_blank", rel: "noreferrer" }, [icon("navigateLight"), "Navigate"]),
+      h("button", { class: "action", onclick: () => { state.stayNote = { id: stay.id, text: stay.note || "" }; render(); } }, [icon("pencil"), stay.note ? "Edit note" : "Add note"]),
+      planning() ? h("button", { class: "action kebab", title: "Stay options", onclick: () => { state.stayMenu = state.stayMenu === stay.id ? null : stay.id; render(); } }, [icon("kebab")]) : null,
     ]),
     state.stayMenu === stay.id ? h("div", { class: "stay-menu" }, [
       h("button", { onclick: () => { state.stayMenu = null; openStay(stay); } }, [icon("pencil"), "Edit Stay"]),
@@ -3522,19 +3552,19 @@ function tripMenu() {
   return [
     h("div", { class: "scrim light", onclick: close }, []),
     h("div", { class: "trip-menu" }, [
-      item("pinInk", "Map view", {
+      wideNow() ? null : item("pinInk", "Map view", {
         on: state.view === "map",
         // This menu, and the Plan view under it if it is showing. The Plan
         // layer's own close is what puts the map back.
         onclick: () => state.view === "plan" ? closeThen(1, leavePlan) : closeLayer(),
       }),
-      item("grid", "Plan view", {
+      wideNow() ? null : item("grid", "Plan view", {
         on: state.view === "plan",
         // Close the menu, and open the Plan view once that has landed rather
         // than on top of a traversal that is still on its way.
         onclick: () => (state.view === "plan" ? closeLayer() : closeThen(1, showPlan)),
       }),
-      h("div", { class: "rule" }, []),
+      wideNow() ? null : h("div", { class: "rule" }, []),
       // PLAN.md section 4d's "changing the dates later", which was written
       // and unbuilt: there was no way to rename a trip or move its dates.
       item("pencilInk", "Change trip", {
@@ -3575,11 +3605,10 @@ function sheetTripEdit() {
 
   return [
     h("div", { class: "scrim", onclick: close }, []),
-    h("div", { class: "sheet modal", style: "height:auto" }, [
+    h("div", { class: "sheet modal", id: "trip-details-editor", style: "height:auto" }, [
       h("div", { class: "grabber", onclick: close }, [h("i", {}, [])]),
       h("div", { class: "modal-head" }, [
-        h("div", { class: "modal-title", text: "Change trip" }, []),
-        h("div", { class: "modal-sub", text: "The name, and the days it covers" }, []),
+        h("div", { class: "modal-title", text: "Change Trip Details" }, []),
       ]),
       h("div", { class: "trip-edit" }, [
         h("div", { class: "underlined" }, [
@@ -3940,14 +3969,6 @@ function sheetSearch(inline) {
           oninput: onSearchInput,
         }, []),
       ]),
-      h("div", { class: "chips" }, [
-        s.bias && s.bias.label
-          ? h("div", { class: "chip" }, [
-              icon("pinChip"),
-              h("span", { text: s.bias.label + " · nearby results first" }, []),
-            ])
-          : null,
-      ]),
     ]),
     results,
   ]);
@@ -4090,11 +4111,8 @@ function resultRow(row) {
 
   const looking = state.search.lookingAt === row.placeId;
 
-  // A result beyond the circle is dimmed and says how far, and is added the
-  // same way as any other. The bias ranks results; it has never restricted
-  // them, and the UI must not restrict them either (PLAN.md section 4b).
   return h("div", {
-    class: "result" + (row.outside ? " far" : "") + (looking ? " looking" : ""),
+    class: "result" + (looking ? " looking" : ""),
   }, [
     // The row itself looks at the place; only the button adds it.
     h("button", {
@@ -4102,7 +4120,7 @@ function resultRow(row) {
       onclick: () => lookAt(row),
       title: "Show on the map",
     }, [
-      h("div", { class: "result-tile" + (row.outside ? " grey" : "") }, [
+      h("div", { class: "result-tile" }, [
         icon("pinInk"),
       ]),
       h("div", { class: "result-text" }, [
@@ -4666,8 +4684,8 @@ function gridBar(from, total, page) {
         state.tripMenu = true;
         render();
       },
-      text: state.trip.trip.name,
-    }, []),
+      "aria-expanded": String(state.tripMenu),
+    }, [h("span", { text: state.trip.trip.name }, []), icon("chevron")]),
     h("span", { class: "desk-trip-date", text: state.trip.dateRange }, []),
     h("div", { class: "segmented" }, [
       h("button", { onclick: leavePlan }, ["Map"]),
@@ -4832,9 +4850,15 @@ function gridColumn(day, span, band, flip) {
       if (state.selectedStopId) { state.selectedStopId = null; render(); return; }
       const y = event.clientY - col.getBoundingClientRect().top;
       if (y > span.height) return;
-      openSearch(day.id, PLAN.formatClock(PLAN.gridTime(span, y)));
+      const open = () => openSearch(day.id, PLAN.formatClock(PLAN.gridTime(span, y)));
+      if (state.search) closeThen(1, open); else open();
     },
   }, []);
+
+  if (wideNow() && state.search && state.search.dayId === day.id && state.search.startTime) {
+    const top = PLAN.gridY(span, PLAN.minutesOf(state.search.startTime));
+    col.append(h("div", { class: "grid-add-ghost", style: "top:" + top + "px;border-color:" + day.hue, "aria-label": "Adding a place at " + state.search.startTime }, [icon("plus")]));
+  }
 
   if (isToday) {
     const nowAt = new Date();

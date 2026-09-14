@@ -80,7 +80,7 @@ describe("located accommodations", () => {
       state, mapsKey: () => true, $: () => host,
       loadMaps: async () => ({ LatLngBounds: Bounds, Marker, Size: class {}, Point: class {} }),
       gmap: map, routeNumbers: () => ({}), pinLook: () => ({}), pinUrl: () => ({ url: "pin", box: 32 }),
-      fitPadding: () => 24, dayFitKey: () => "day-key", selectStay: openStay, clearLookMarker: vi.fn(),
+      fitPadding: () => 24, dayFitKey: () => "day-key", selectStay: openStay, clearLookMarker: vi.fn(), focusSelectedMapStop: () => false,
     }, "let gmarkers = []; let mapFitted = null;\n");
     await api.paintMap();
     expect(markers).toHaveLength(1);
@@ -118,6 +118,24 @@ describe("stay search", () => {
 });
 
 describe("search and drag transitions", () => {
+  it("zooms to each selected stop once and leaves it visible above the mobile drawer", () => {
+    const state = { selectedStopId: "a", trip: { days: [{ stops: [
+      { id: "a", location: { lat: 35, lng: 130 } }, { id: "b", location: { lat: 36, lng: 131 } },
+    ] }] } };
+    const gmap = { getZoom: () => 12, setZoom: vi.fn(), panTo: vi.fn() };
+    const api = load(["focusSelectedMapStop"], { state, gmap, fitPadding: () => ({ top: 60, bottom: 400, left: 40, right: 40 }) }, "let focusedMapStop=null; let mapFitted=null;");
+    expect(api.focusSelectedMapStop()).toBe(true);
+    expect(gmap.setZoom).toHaveBeenCalledWith(15);
+    expect(gmap.panTo.mock.calls[0]![0].lat).toBeLessThan(35);
+    expect(gmap.panTo.mock.calls[0]![0].lng).toBe(130);
+    api.focusSelectedMapStop();
+    expect(gmap.panTo).toHaveBeenCalledOnce();
+    state.selectedStopId = "b";
+    api.focusSelectedMapStop();
+    expect(gmap.panTo).toHaveBeenCalledTimes(2);
+    state.selectedStopId = "";
+    expect(api.focusSelectedMapStop()).toBe(false);
+  });
   it("closes search before changing the desktop day", () => {
     const state: any = { search: {}, openDayId: "first", selectedStopId: "stop" };
     let afterClose: () => void = () => {};

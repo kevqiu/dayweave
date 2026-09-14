@@ -67,6 +67,14 @@ describe("routeNumbers", () => {
 });
 
 describe("pinLook", () => {
+  it("keeps the current day above accommodations and other days", () => {
+    state.selectedStopId = null;
+    const current = api.pinLook(today, stop("a"), true, 1);
+    expect(current.z).toBeGreaterThan(api.pinLook(today, bed, false).z);
+    expect(current.z).toBeGreaterThan(api.pinLook(later, stop("c"), false).z);
+    state.selectedStopId = "a";
+    expect(api.pinLook(today, stop("a"), true, 1).z).toBeGreaterThan(current.z);
+  });
   it("colours the open day by the day, which is what the list shows", () => {
     state.selectedStopId = null;
     const look = api.pinLook(today, stop("a"), true, 1);
