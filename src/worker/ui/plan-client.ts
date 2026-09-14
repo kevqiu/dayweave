@@ -105,6 +105,65 @@ export const PLAN_CLIENT = String.raw`
     return out;
   }
 
+  function lodgingBars(dates, stays) {
+    if (!dates.length) return [];
+    var span = dates.length;
+    var ordered = stays.slice().sort(function (a, b) {
+      if (a.checkIn < b.checkIn) return -1;
+      if (a.checkIn > b.checkIn) return 1;
+      return a.id < b.id ? -1 : 1;
+    });
+    var covers = function (stay, date) { return stay.checkIn <= date && date <= stay.checkOut; };
+
+    var out = [];
+    ordered.forEach(function (stay) {
+      if (stay.checkOut < stay.checkIn) return;
+      var from = -1;
+      var to = -1;
+      for (var i = 0; i < span; i++) {
+        if (!covers(stay, dates[i])) continue;
+        if (from === -1) from = i;
+        to = i;
+      }
+      if (from === -1) return;
+
+      var sharing = function (index) {
+        return ordered.filter(function (other) {
+          return other.id !== stay.id && covers(other, dates[index]);
+        });
+      };
+      var earlier = sharing(from).some(function (other) {
+        return other.checkIn < stay.checkIn || (other.checkIn === stay.checkIn && other.id < stay.id);
+      });
+      var later = sharing(to).some(function (other) {
+        return other.checkOut > stay.checkOut || (other.checkOut === stay.checkOut && other.id > stay.id);
+      });
+
+      var leftUnits = earlier ? from + 0.5 : from;
+      var rightUnits = later ? to + 0.5 : to + 1;
+
+      out.push({
+        id: stay.id,
+        name: stay.name,
+        left: leftUnits / span,
+        width: Math.max(0, rightUnits - leftUnits) / span,
+        startsBefore: stay.checkIn < dates[from],
+        endsAfter: stay.checkOut > dates[to],
+      });
+    });
+    return out;
+  }
+
+  function staysOn(date, stays) {
+    return stays.filter(function (s) {
+      return s.checkIn <= date && date <= s.checkOut;
+    }).sort(function (a, b) {
+      if (a.checkIn < b.checkIn) return -1;
+      if (a.checkIn > b.checkIn) return 1;
+      return a.id < b.id ? -1 : 1;
+    });
+  }
+
   w.__PLAN__ = {
     PX_PER_HOUR: PX_PER_HOUR,
     minutesOf: minutesOf,
@@ -117,6 +176,8 @@ export const PLAN_CLIENT = String.raw`
     cardBox: cardBox,
     hourLines: hourLines,
     hourLabels: hourLabels,
+    lodgingBars: lodgingBars,
+    staysOn: staysOn,
   };
 })(window);
 `;

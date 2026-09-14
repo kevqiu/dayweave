@@ -194,3 +194,104 @@ export function hourLabels(span: GridSpan): { at: number; label: string }[] {
   }
   return out;
 }
+
+/* ------------------------------------------------------------- the stays */
+
+export interface LodgingStay {
+  id: string;
+  name: string;
+  /** The first date the stay applies to, inclusive. */
+  checkIn: string;
+  /** The last date it applies to, inclusive. */
+  checkOut: string;
+}
+
+export interface LodgingBar {
+  id: string;
+  name: string;
+  /** Fraction across the strip of days, 0 at the first column's left edge. */
+  left: number;
+  /** Fraction of the strip's width. */
+  width: number;
+  /** The stay reaches back past the first day showing. */
+  startsBefore: boolean;
+  /** It carries on past the last one. */
+  endsAfter: boolean;
+}
+
+/**
+ * Where a stay sits on the Planner's lodging strip.
+ *
+ * `design/Planner.dc.html` writes the hotel's name into every column it
+ * covers, so "The Blossom Hakata" is drawn three times in a row. That is what
+ * a per-column strip can do, and it reads as three hotels at a glance. A stay
+ * is one thing spanning days, so it is drawn as one bar spanning columns.
+ *
+ * The day you change hotels belongs to both of them, and the artboard has no
+ * answer for that — it shows one name per cell and picks. So a day two stays
+ * share is split down the middle: the one that started earlier keeps the left
+ * half, the one starting that day takes the right. The seam is where the
+ * change happens, which is the thing the row is being read for.
+ *
+ * Three stays on one day would have two of them sharing a half. That is a
+ * trip nobody is planning, and inventing lanes for it would cost the strip
+ * the height that makes it legible at all.
+ */
+export function lodgingBars(
+  dates: readonly string[],
+  stays: readonly LodgingStay[],
+): LodgingBar[] {
+  if (!dates.length) return [];
+  const span = dates.length;
+
+  // Earliest first, and by id where two start together, so the halves are
+  // handed out the same way on every render and on every phone.
+  const ordered = [...stays].sort(
+    (a, b) => (a.checkIn < b.checkIn ? -1 : a.checkIn > b.checkIn ? 1 : a.id < b.id ? -1 : 1),
+  );
+  const covers = (stay: LodgingStay, date: string) => stay.checkIn <= date && date <= stay.checkOut;
+
+  const out: LodgingBar[] = [];
+  for (const stay of ordered) {
+    if (stay.checkOut < stay.checkIn) continue;
+
+    let from = -1;
+    let to = -1;
+    for (let i = 0; i < span; i++) {
+      if (!covers(stay, dates[i] as string)) continue;
+      if (from === -1) from = i;
+      to = i;
+    }
+    if (from === -1) continue;
+
+    const sharing = (index: number) =>
+      ordered.filter((other) => other.id !== stay.id && covers(other, dates[index] as string));
+
+    const earlier = sharing(from).some(
+      (other) => other.checkIn < stay.checkIn || (other.checkIn === stay.checkIn && other.id < stay.id),
+    );
+    const later = sharing(to).some(
+      (other) => other.checkOut > stay.checkOut || (other.checkOut === stay.checkOut && other.id > stay.id),
+    );
+
+    const leftUnits = earlier ? from + 0.5 : from;
+    const rightUnits = later ? to + 0.5 : to + 1;
+
+    out.push({
+      id: stay.id,
+      name: stay.name,
+      left: leftUnits / span,
+      width: Math.max(0, rightUnits - leftUnits) / span,
+      startsBefore: stay.checkIn < (dates[from] as string),
+      endsAfter: stay.checkOut > (dates[to] as string),
+    });
+  }
+  return out;
+}
+
+/** The stays covering one date, earliest first. What a phone shows for a day. */
+export function staysOn(date: string, stays: readonly LodgingStay[]): LodgingStay[] {
+  return stays
+    .filter((s) => s.checkIn <= date && date <= s.checkOut)
+    .sort((a, b) => (a.checkIn < b.checkIn ? -1 : a.checkIn > b.checkIn ? 1 : a.id < b.id ? -1 : 1));
+}

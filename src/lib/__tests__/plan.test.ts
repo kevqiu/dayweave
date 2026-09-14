@@ -8,9 +8,11 @@ import {
   gridY,
   hourLabels,
   hourLines,
+  lodgingBars,
   minutesOf,
   planRows,
   PX_PER_HOUR,
+  staysOn,
 } from "../plan.ts";
 
 describe("minutesOf", () => {
@@ -136,5 +138,87 @@ describe("the grid's geometry", () => {
     expect(hourLines(span)).toHaveLength(14);
     expect(hourLabels(span)[0]).toEqual({ at: 0, label: "08:00" });
     expect(hourLabels(span)[1]).toEqual({ at: 88, label: "10:00" });
+  });
+});
+
+describe("lodgingBars", () => {
+  const WEEK = [
+    "2026-09-30", "2026-10-01", "2026-10-02", "2026-10-03",
+    "2026-10-04", "2026-10-05", "2026-10-06",
+  ];
+  const stay = (id: string, checkIn: string, checkOut: string) => ({
+    id, name: id, checkIn, checkOut,
+  });
+
+  it("draws a stay as one bar across the days it covers", () => {
+    const [bar] = lodgingBars(WEEK, [stay("blossom", "2026-09-30", "2026-10-02")]);
+    expect(bar?.left).toBeCloseTo(0);
+    expect(bar?.width).toBeCloseTo(3 / 7);
+  });
+
+  it("leaves out a stay that is nowhere near the days showing", () => {
+    expect(lodgingBars(WEEK, [stay("later", "2026-11-01", "2026-11-04")])).toEqual([]);
+  });
+
+  it("clips to the page, and says which end it ran off", () => {
+    const [bar] = lodgingBars(WEEK, [stay("long", "2026-09-20", "2026-11-01")]);
+    expect(bar?.left).toBeCloseTo(0);
+    expect(bar?.width).toBeCloseTo(1);
+    expect(bar?.startsBefore).toBe(true);
+    expect(bar?.endsAfter).toBe(true);
+  });
+
+  it("splits the day two stays share down the middle", () => {
+    // Leaving the Blossom on Oct 2 and checking into the ryokan the same day:
+    // the day belongs to both, so each gets half of it and the seam is where
+    // the change happens.
+    const bars = lodgingBars(WEEK, [
+      stay("blossom", "2026-09-30", "2026-10-02"),
+      stay("ryokan", "2026-10-02", "2026-10-04"),
+    ]);
+    const blossom = bars.find((b) => b.id === "blossom");
+    const ryokan = bars.find((b) => b.id === "ryokan");
+
+    expect(blossom?.left).toBeCloseTo(0);
+    expect(blossom?.width).toBeCloseTo(2.5 / 7);
+    expect(ryokan?.left).toBeCloseTo(2.5 / 7);
+    expect(ryokan?.width).toBeCloseTo(2.5 / 7);
+    // They meet exactly, with nothing over and nothing between.
+    expect((blossom as { left: number; width: number }).left + (blossom as { width: number }).width)
+      .toBeCloseTo((ryokan as { left: number }).left);
+  });
+
+  it("does not halve a day only one stay is on", () => {
+    const bars = lodgingBars(WEEK, [
+      stay("a", "2026-09-30", "2026-10-01"),
+      stay("b", "2026-10-03", "2026-10-04"),
+    ]);
+    expect(bars[0]?.width).toBeCloseTo(2 / 7);
+    expect(bars[1]?.left).toBeCloseTo(3 / 7);
+    expect(bars[1]?.width).toBeCloseTo(2 / 7);
+  });
+
+  it("hands the halves out the same way whatever order the stays arrive in", () => {
+    const two = [stay("blossom", "2026-09-30", "2026-10-02"), stay("ryokan", "2026-10-02", "2026-10-04")];
+    expect(lodgingBars(WEEK, two)).toEqual(lodgingBars(WEEK, [...two].reverse()));
+  });
+
+  it("ignores a stay that ends before it starts rather than drawing it backwards", () => {
+    expect(lodgingBars(WEEK, [stay("wrong", "2026-10-04", "2026-10-01")])).toEqual([]);
+  });
+});
+
+describe("staysOn", () => {
+  const stays = [
+    { id: "a", name: "Blossom", checkIn: "2026-09-30", checkOut: "2026-10-02" },
+    { id: "b", name: "Ryokan", checkIn: "2026-10-02", checkOut: "2026-10-04" },
+  ];
+
+  it("gives both hotels on the day you change, earliest first", () => {
+    expect(staysOn("2026-10-02", stays).map((s) => s.name)).toEqual(["Blossom", "Ryokan"]);
+  });
+
+  it("gives nothing for a night nobody has booked", () => {
+    expect(staysOn("2026-10-09", stays)).toEqual([]);
   });
 });

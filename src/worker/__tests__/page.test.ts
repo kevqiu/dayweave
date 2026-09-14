@@ -4,6 +4,9 @@ import { page } from "../ui/page.ts";
 import { styles } from "../ui/styles.ts";
 
 describe("the embedded client script", () => {
+  it("parses as JavaScript after branch integration", () => {
+    expect(() => new Function(CLIENT)).not.toThrow();
+  });
   /**
    * CLIENT is one String.raw template. A backtick anywhere inside it — in a
    * comment as readily as in code — closes the template early, and the error

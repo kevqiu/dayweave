@@ -67,59 +67,63 @@ export const COLOR = {
 } as const;
 
 /**
- * The day ramp, PLAN.md section 7: a sequence encoded as a sequence, so
- * further down the ramp reads as further away in time.
+ * The day palette, PLAN.md section 7: a colour per day, so a pin's hue says
+ * which day it belongs to.
  *
- * `design/Main.dc.html` fixes the first four days of an eleven-day trip
- * exactly, and those four are transcribed. No artboard draws a trip's later
- * days, so the tail is interpolated on to a pale yellow, which is what the
- * plan describes and what `#E6D5A8` in the Planner looks like.
+ * This used to be a green-to-yellow ramp interpolated out of the four days
+ * `design/Main.dc.html` pins exactly. A ramp encodes a sequence, which is what
+ * section 7 asked for, but it only has one usable axis: past about day six the
+ * steps between neighbouring days are smaller than the eye separates, and on a
+ * three-week trip half the map is the same olive. A day is now a thing a
+ * person names and colours (see `dayColor` and the day's own pencil), so the
+ * eight below are handed out in order and are as far apart on the wheel as
+ * the palette allows, while staying in its register — nothing here is more
+ * saturated than the terracotta accent already on the screen.
+ *
+ * `#3F6B4A` is still first, because it is the green every artboard draws on
+ * day one and on the today pin.
  */
-const RAMP: readonly { at: number; hex: string }[] = [
-  { at: 0.0, hex: "#3F6B4A" },
-  { at: 0.1, hex: "#57794C" },
-  { at: 0.2, hex: "#70864D" },
-  { at: 0.3, hex: "#8C8C4C" },
-  { at: 0.55, hex: "#B29A52" },
-  { at: 0.8, hex: "#D2B768" },
-  { at: 1.0, hex: "#E6D5A8" },
-];
+export const DAY_PALETTE = [
+  "#3F6B4A",
+  "#2F7D86",
+  "#3F6BA6",
+  "#6A5FA6",
+  "#9C5E8E",
+  "#C4826A",
+  "#C0913C",
+  "#7E8C42",
+] as const;
 
-type Rgb = [number, number, number];
+/** White, the ninth swatch: a day deliberately left uncoloured. */
+export const DAY_WHITE = "#FFFFFF";
 
-const rgb = (hex: string): Rgb => [
-  Number.parseInt(hex.slice(1, 3), 16),
-  Number.parseInt(hex.slice(3, 5), 16),
-  Number.parseInt(hex.slice(5, 7), 16),
-];
+const hslHex = (h: number, s: number, l: number): string => {
+  const k = (n: number) => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n: number) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  const hex = (n: number) =>
+    Math.round(n * 255)
+      .toString(16)
+      .padStart(2, "0");
+  return `#${hex(f(0))}${hex(f(8))}${hex(f(4))}`.toUpperCase();
+};
 
-const FIRST = RAMP[0] as { at: number; hex: string };
-const LAST = RAMP[RAMP.length - 1] as { at: number; hex: string };
-
-/** The hue for day `index` of `total`. Day one is the deep green. */
-export function dayHue(index: number, total: number): string {
-  const t = total <= 1 ? 0 : Math.min(1, Math.max(0, index / (total - 1)));
-
-  let lower = FIRST;
-  let upper = LAST;
-  for (let i = 0; i < RAMP.length - 1; i++) {
-    const a = RAMP[i] as { at: number; hex: string };
-    const b = RAMP[i + 1] as { at: number; hex: string };
-    if (t >= a.at && t <= b.at) {
-      lower = a;
-      upper = b;
-      break;
-    }
-  }
-
-  const span = upper.at - lower.at;
-  const k = span === 0 ? 0 : (t - lower.at) / span;
-  const a = rgb(lower.hex);
-  const b = rgb(upper.hex);
-  const hex = (n: number) => Math.round(n).toString(16).padStart(2, "0");
-  return `#${hex(a[0] + (b[0] - a[0]) * k)}${hex(a[1] + (b[1] - a[1]) * k)}${hex(
-    a[2] + (b[2] - a[2]) * k,
-  )}`;
+/**
+ * The colour day `index` is born with.
+ *
+ * The first eight come out of the palette in order. Past that a trip is long
+ * enough that no fixed list would cover it, so the hue is stepped by the
+ * golden angle — which is the standard way of picking colours that keep
+ * landing far from the ones already used rather than clumping, and is stable
+ * per index so the server and the browser never disagree about day twelve.
+ * Saturation and lightness are held at the palette's own, so a generated
+ * colour sits beside a chosen one without looking louder.
+ */
+export function dayColor(index: number): string {
+  const at = Math.max(0, Math.floor(index));
+  if (at < DAY_PALETTE.length) return DAY_PALETTE[at] as string;
+  const hue = (152 + (at - DAY_PALETTE.length + 1) * 137.508) % 360;
+  return hslHex(hue, 0.36, 0.45);
 }
 
 /**

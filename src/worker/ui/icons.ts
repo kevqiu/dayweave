@@ -148,6 +148,32 @@ export const layers = (o: IconOptions = {}) =>
 export const locate = ({ size = 18, color = "#6B645B" }: IconOptions = {}) =>
   `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.9"><circle cx="12" cy="12" r="7"></circle><circle cx="12" cy="12" r="2" fill="${color}" stroke="none"></circle><path d="M12 1v3M12 20v3M1 12h3M20 12h3" stroke-linecap="round"></path></svg>`;
 
+/**
+ * Zooming back out until the whole trip is in the frame.
+ *
+ * The artboard's second map control is a layers button, which had nothing
+ * behind it: PLAN.md section 2 turns Google's own layers off and there is no
+ * second basemap to switch to. The useful control at that size is the one
+ * that undoes a pan — four corners closing on what is inside them.
+ */
+export const frameAll = (o: IconOptions = {}) =>
+  svg(
+    `<path d="M4 9V5.5A1.5 1.5 0 0 1 5.5 4H9M15 4h3.5A1.5 1.5 0 0 1 20 5.5V9M20 15v3.5a1.5 1.5 0 0 1-1.5 1.5H15M9 20H5.5A1.5 1.5 0 0 1 4 18.5V15"></path>`,
+    { width: 2, ...o },
+    'stroke-linecap="round" stroke-linejoin="round"',
+  );
+
+/**
+ * A roof, which is what `design/Planner.dc.html` puts in the gutter of its
+ * lodging row. The same shape marks the Accommodations tab on the sheet.
+ */
+export const lodgingHouse = (o: IconOptions = {}) =>
+  svg(
+    `<path d="M3 10.5L12 3l9 7.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"></path>`,
+    { width: 1.9, color: "#A59C90", ...o },
+    'stroke-linejoin="round"',
+  );
+
 /** MoveToDay: the star on the BEST FIT card. */
 export const star = (o: IconOptions = {}) =>
   svg(

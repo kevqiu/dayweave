@@ -35,6 +35,10 @@ code.*
 | Sign in with Google — PKCE, sessions in KV, the `account` row Drive will need | §5 |
 | Invites — one copyable link a trip, the card that waits on the trips list, Join | §5 |
 | Who is on this trip, and membership actually enforced on every route | §5 |
+| Renaming a trip and moving its dates, days reconciled rather than rebuilt | §4d |
+| Naming a day, and colouring it out of a palette or a colour picker | §7 |
+| Where you are sleeping — a stay over a range, and the Planner's lodging row | §5b |
+| The map's two controls: fit the whole trip, and where I am | §7 |
 
 ### Next, in the order it is worth doing
 
@@ -65,9 +69,9 @@ code.*
 7. **The wide layout (`design/Desktop.dc.html`).** The Planner grid is the only
    screen that has a desk density; the Trips list and the map still centre a
    375px frame on a 1440px window.
-8. **Editing a trip after it exists (§4d).** There is no way to rename a trip,
-   change its dates, or delete one. §4d's *Changing the dates later* is written
-   and unbuilt, and the trip menu has no item for any of it.
+8. **Deleting a trip.** Renaming one and moving its dates is built — *Change
+   trip* in the one dropdown — but there is still no way to delete one, and no
+   artboard draws the confirmation that would need.
 
 Infrastructure has its own backlog in **INFRA.md** — the Places key, the custom
 domain, the Maps browser key, Alchemy state. One item now blocks the whole app
@@ -90,18 +94,8 @@ there is no way to sign in**, and everything is behind signing in.
    the search row's `+` is **32x32**. Apple asks 44 and Google 48. The
    artboards draw them at those sizes, so this is a real conflict between the
    spec and a device, and it needs settling rather than quietly rounding.
-3. **Three controls are drawn and do nothing when tapped.** The two map
-   controls (layers, locate), the account avatar on the Trips list, and *Bring
-   in a My Map* on the empty trip. *Invite someone* in the trip bar now opens
-   the People screen. Each of the rest is blocked on an item above — but a
-   control that responds to nothing is worse than one that is not there, so
-   either wire them or take them out.
-
-   The account avatar is the one worth deciding: it carries your Google name
-   and initials now, and a tap does nothing. `POST /api/session/out` exists and
-   works, so signing out is a menu on that avatar and nothing else — but no
-   artboard draws that menu, so what it holds is a design question rather than
-   a missing line.
+3. **Bring in a My Map is still not wired.** The map controls, invitations,
+   and account menu are now functional; importing a My Map remains pending.
 4. **A failed write is announced and then forgotten.** The revert is right, but
    there is no retry and nothing is queued, so an edit made on bad hotel wifi
    is simply lost. §2 promised better than this; see *Offline* above.
@@ -635,7 +629,12 @@ What we do build now is the plumbing, because retrofitting it is unpleasant:
 
 ---
 
-## 5b. Flights and hotels — not in v1
+## 5b. Flights and hotels
+
+*Status: hotels are built. A stay is a name, an optional place, and a range of dates; it is added
+from the Accommodations tab of the sheet and drawn as one bar across the Planner's lodging row,
+with the day of a changeover split in half between the two. Flights and trains are not built —
+`travel_legs` still has no API — and the paragraphs below are about them.*
 
 Added by hand for now. The Planner's travel row is where they go: a plane and a train icon per day,
 sitting above the lodging row, so "Shinkansen at 11:00" is visible without eating a grid cell.
@@ -705,14 +704,25 @@ never dims. CLAUDE.md has the full set of rules; `src/worker/__tests__/pins.test
 at a glance but makes "what have I done today" harder, and today is what you look at while
 travelling.
 
-**Day hues are a ramp, not a wheel.** Day 1 is a deep green and the last day is a pale yellow,
-travelling through olive, orange and yellow on the way. A trip is a sequence, so the hues should
-encode a sequence: further down the ramp means further away in time, readable without a legend.
-A rainbow of arbitrary hues said nothing. The ramp also sits in the same family as the status
-colours, so the map does not fight itself.
+**Day hues were a ramp, and are now a palette of eight.** The ramp ran deep green to pale yellow
+through olive and orange, on the reasoning that a trip is a sequence and the colour should encode
+one. That reasoning was sound and the result was not: a ramp has a single axis, and past about day
+six the step between two days is smaller than the eye separates, so half of a long trip came out
+the same olive. Eight colours as far apart on the wheel as this palette's register allows tell
+eleven days apart; a ramp of eleven does not. Beyond eight, a golden-angle step keeps picking hues
+far from the ones already used.
 
-People get their own small palette that is deliberately outside the ramp, so an avatar never reads
-as a day.
+The first colour is still `#3F6B4A`, the green every artboard draws on day one and on the today
+pin, so nothing in the drawn screens moved.
+
+**And a day's colour belongs to whoever is planning the trip.** Every day header carries a pencil
+that opens a name field and the ten swatches — the eight, white, and a colour input for anything
+else. Which is the honest answer to the thing the ramp was reaching for: the app cannot know that
+three of these days are the Kagoshima days and one is the day everything goes wrong, and the person
+holding the phone can.
+
+People get their own small palette that is deliberately outside the day colours, so an avatar never
+reads as a day.
 
 Palette, warm and low-saturation throughout:
 
@@ -721,8 +731,8 @@ paper    #FBF6EE     ink      #33302B     line     #E9DFCE
 surface  #FFFCF6     ink-2    #8C8479     surface-2 #F6EFE2
 today    #6F9A6B on #E4EEE1        ahead  #E0B355 on #F8EECF
 done     #BDB4A7 on #EFE9DF
-day ramp #3F6B4A #57794C #70864D #8C8C4C #AD8A49 #CE8845 #D79C4D #E0B054 #E6C168 #EBCE87 #F0DCA6
-avatars  #C4826A #6E8CA8 #8A83AE #A87A93        (people, deliberately off the day ramp)
+days     #3F6B4A #2F7D86 #3F6BA6 #6A5FA6 #9C5E8E #C4826A #C0913C #7E8C42   then a golden-angle step
+avatars  #C4826A #6E8CA8 #8A83AE #A87A93        (people, deliberately off the day colours)
 ```
 
 **The phone target is 375 x 667, not 390 x 844.** The earlier drafts were drawn at the size of a
@@ -851,7 +861,7 @@ what makes dragging onto a day a single field update and keeps drag-back-off fre
 | Invites | **A link you copy**, one a trip, revocable. No email service | §5 |
 | Drive | Plumbed but unused in v1. `drive.file`, asked incrementally | §5 |
 | Flights | **Out of v1.** Hand-entered in the Planner travel row | §5b |
-| Colour | **Status on the pins**, day as a dot on a green-to-yellow ramp | §7 |
+| Colour | **Status on the pins**, day as a dot in its own colour | §7 |
 | Presence | Live cursors **out of v1**. Live changes stay in | §6 |
 
 ## 11. Still open

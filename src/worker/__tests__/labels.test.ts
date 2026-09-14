@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { dateRangeLabel, dayLabel, initialsFor, navigateUrl, stopsForDay } from "../store.ts";
-import { dayHue } from "../ui/tokens.ts";
+import { DAY_PALETTE, dayColor } from "../ui/tokens.ts";
 
 describe("dayLabel", () => {
   it("writes a day the way every artboard does", () => {
@@ -27,23 +27,25 @@ describe("dateRangeLabel", () => {
   });
 });
 
-describe("dayHue", () => {
-  it("reproduces the four days Main.dc.html fixes for an 11 day trip", () => {
-    expect(dayHue(0, 11)).toBe("#3f6b4a");
-    expect(dayHue(1, 11)).toBe("#57794c");
-    expect(dayHue(2, 11)).toBe("#70864d");
-    expect(dayHue(3, 11)).toBe("#8c8c4c");
+describe("dayColor", () => {
+  it("starts on the green every artboard draws on day one", () => {
+    expect(dayColor(0)).toBe("#3F6B4A");
   });
 
-  it("ends pale yellow, and starts deep green whatever the trip's length", () => {
-    expect(dayHue(0, 4)).toBe("#3f6b4a");
-    expect(dayHue(3, 4)).toBe("#e6d5a8");
-    expect(dayHue(0, 1)).toBe("#3f6b4a");
+  it("hands out the palette in order, and nothing twice", () => {
+    const eight = [0, 1, 2, 3, 4, 5, 6, 7].map(dayColor);
+    expect(eight).toEqual([...DAY_PALETTE]);
+    expect(new Set(eight).size).toBe(8);
   });
 
-  it("travels in one direction, so the ramp reads as a sequence", () => {
-    const reds = [0, 1, 2, 3, 4, 5, 6].map((i) => Number.parseInt(dayHue(i, 7).slice(1, 3), 16));
-    for (let i = 1; i < reds.length; i++) expect(reds[i]).toBeGreaterThan(reds[i - 1] as number);
+  it("keeps going past the palette, without repeating what it just used", () => {
+    const twenty = Array.from({ length: 20 }, (_, i) => dayColor(i));
+    for (const hex of twenty) expect(hex).toMatch(/^#[0-9A-F]{6}$/);
+    expect(new Set(twenty).size).toBe(20);
+  });
+
+  it("is the same colour for the same day every time it is asked", () => {
+    expect(dayColor(13)).toBe(dayColor(13));
   });
 });
 

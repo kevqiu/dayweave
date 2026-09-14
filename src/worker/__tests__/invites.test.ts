@@ -250,6 +250,7 @@ beforeEach(() => {
     // Better Auth signs the session cookie with this, so a test that does not
     // set it signs everybody in as nobody.
     BETTER_AUTH_SECRET: "test-secret-not-a-real-one",
+    DEPLOY_COMMIT: "0123456789abcdef0123456789abcdef01234567",
   };
 });
 
@@ -324,6 +325,13 @@ async function inviteLink(who: ReturnType<typeof browser>, tripId: string) {
 }
 
 describe("signing in", () => {
+  it("reports the deployed commit without requiring a session", async () => {
+    const who = browser(env);
+    const version = await who.get("/version");
+    expect(version.status).toBe(200);
+    expect(await version.json()).toEqual({ commit: env.DEPLOY_COMMIT });
+    expect((await who.get("/")).headers.get("x-deploy-commit")).toBe(env.DEPLOY_COMMIT);
+  });
   it("starts signed out, with no trips and nothing waiting", async () => {
     const who = browser(env);
     expect((await who.get("/api/trips")).status).toBe(401);
@@ -643,6 +651,86 @@ describe("who is on this trip", () => {
 });
 
 describe("membership is the permission", () => {
+  async function plannerFixture() {
+    const { mika, tripId } = await mikaWithATrip();
+    const trip = await (await mika.get(`/api/trips/${tripId}`)).json() as {
+      days: { id: string; date: string }[];
+    };
+    const response = await mika.post(`/api/trips/${tripId}/lodging`, {
+      name: "Seoul stay", checkIn: "2026-03-04", checkOut: "2026-03-08", note: "Keep this note",
+    });
+    expect(response.status).toBe(201);
+    const { lodging } = await response.json() as { lodging: { id: string } };
+    return { mika, tripId, dayId: trip.days[0]!.id, stayId: lodging.id };
+  }
+
+  it.each(["stranger", "signed out"])("blocks every planner write from a %s without changing data", async (identity) => {
+    const { mika, tripId, dayId, stayId } = await plannerFixture();
+    const outsider = browser(env);
+    if (identity === "stranger") await signIn(outsider, JORDAN);
+    const before = await (await mika.get(`/api/trips/${tripId}`)).json();
+    const writes: [string, object][] = [
+      [`/api/trips/${tripId}`, { name: "Changed", startDate: "2026-03-06" }],
+      [`/api/days/${dayId}`, { name: "Changed", hue: "#FFFFFF" }],
+      [`/api/trips/${tripId}/lodging`, { name: "Another", checkIn: "2026-03-06" }],
+      [`/api/lodging/${stayId}`, { name: "Changed" }],
+      [`/api/lodging/${stayId}/delete`, {}],
+    ];
+    for (const [path, body] of writes) {
+      expect((await outsider.post(path, body)).status).toBe(identity === "stranger" ? 404 : 401);
+    }
+    expect(await (await mika.get(`/api/trips/${tripId}`)).json()).toEqual(before);
+  });
+
+  it.each(["owner", "member"])("allows an invited %s to edit trips, days and stays", async (role) => {
+    const { mika, tripId, dayId, stayId } = await plannerFixture();
+    const editor = role === "owner" ? mika : browser(env);
+    if (role === "member") {
+      await editor.get(await inviteLink(mika, tripId));
+      await signIn(editor, JORDAN);
+      expect((await editor.post("/api/invite/accept")).status).toBe(200);
+    }
+    expect((await editor.post(`/api/trips/${tripId}`, { name: "Japan" })).status).toBe(200);
+    expect((await editor.post(`/api/days/${dayId}`, { name: "Arrival", hue: "#FFFFFF" })).status).toBe(200);
+    expect((await editor.post(`/api/lodging/${stayId}`, { name: "New name", checkOut: "2026-03-09" })).status).toBe(200);
+    const trip = await (await editor.get(`/api/trips/${tripId}`)).json() as {
+      trip: { name: string }; days: { id: string; name: string; hue: string }[];
+      lodging: { name: string; check_out: string }[];
+    };
+    expect(trip.trip.name).toBe("Japan");
+    expect(trip.days.find((day) => day.id === dayId)).toMatchObject({ name: "Arrival", hue: "#FFFFFF" });
+    expect(trip.lodging[0]).toMatchObject({ name: "New name", check_out: "2026-03-09" });
+    expect((await editor.post(`/api/trips/${tripId}/lodging`, { name: "Another", checkIn: "2026-03-10" })).status).toBe(201);
+    expect((await editor.post(`/api/lodging/${stayId}/delete`)).status).toBe(200);
+  });
+
+  it("validates partial lodging date edits against the stored range", async () => {
+    const { mika, stayId, tripId } = await plannerFixture();
+    for (const body of [{ checkIn: "2026-03-09" }, { checkOut: "2026-03-03" }, { name: " " }, { checkIn: "2026-02-30" }]) {
+      expect((await mika.post(`/api/lodging/${stayId}`, body)).status).toBe(400);
+    }
+    const trip = await (await mika.get(`/api/trips/${tripId}`)).json() as { lodging: object[] };
+    expect(trip.lodging[0]).toMatchObject({ name: "Seoul stay", check_in: "2026-03-04", check_out: "2026-03-08" });
+  });
+
+  it("preserves retained days and unplans removed-day stops when trip dates change", async () => {
+    const { mika, tripId, dayId } = await plannerFixture();
+    const before = await (await mika.get(`/api/trips/${tripId}`)).json() as { days: { id: string; date: string }[] };
+    const retained = before.days[1]!;
+    expect((await mika.post(`/api/days/${retained.id}`, { name: "Keep me", hue: "#123456" })).status).toBe(200);
+    await (env.DB as D1Database).prepare(`INSERT INTO stops (id, trip_id, day_id, title, note, order_key, created_by, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind("removed-day-note", tripId, dayId, "Keep this stop", "Keep its note", "a0", "test-user", 1, 1).run();
+    expect((await mika.post(`/api/trips/${tripId}`, { startDate: retained.date, endDate: "2026-03-15" })).status).toBe(200);
+    const after = await (await mika.get(`/api/trips/${tripId}`)).json() as {
+      days: { id: string; date: string; name: string; hue: string }[]; unplanned: { id: string; note: string }[];
+    };
+    expect(after.days.find((day) => day.id === retained.id)).toMatchObject({ name: "Keep me", hue: "#123456" });
+    expect(after.days.some((day) => day.id === dayId)).toBe(false);
+    expect(after.days.at(-1)?.date).toBe("2026-03-15");
+    expect(after.unplanned.find((stop) => stop.id === "removed-day-note")).toMatchObject({ note: "Keep its note" });
+  });
+
   it("keeps a stranger out of the trip, its search and its stops", async () => {
     const { tripId } = await mikaWithATrip();
     const stranger = browser(env);

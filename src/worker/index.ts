@@ -19,15 +19,18 @@ import { previewNodes } from "../lib/preview.ts";
 import { suggestDays, type CandidateDay } from "../lib/suggest.ts";
 import { formatClock, minutesOf } from "../lib/plan.ts";
 import {
+  addLodging,
   addNoteAsStop,
   addPlaceAsStop,
   adoptDevIdentity,
-  cityOfDay,
   citiesForTrip,
+  cityOfDay,
+  cleanHex,
   createTrip,
   dateRangeLabel,
   dayLabel,
   ensureInvite,
+  deleteLodging,
   getTrip,
   getStop,
   initialsFor,
@@ -36,6 +39,7 @@ import {
   isMember,
   joinTrip,
   listDays,
+  listLodging,
   listStops,
   liveInvite,
   moveStopToDay,
@@ -47,6 +51,9 @@ import {
   stopsForDay,
   toDayGeo,
   usersById,
+  updateDay,
+  updateLodging,
+  updateTrip,
   type DayRow,
   type InviteRow,
   type Person,
@@ -297,9 +304,12 @@ const NO_SUCH_TRIP = { error: "no such trip" } as const;
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
 app.get("/", (c) => {
+  c.header("X-Deploy-Commit", c.env.DEPLOY_COMMIT);
   // The browser key is public by design; the Places key stays server-side.
   return c.html(page(c.env.GOOGLE_MAPS_BROWSER_KEY));
 });
+
+app.get("/version", (c) => c.json({ commit: c.env.DEPLOY_COMMIT }));
 
 /**
  * A followed invite link.
@@ -470,10 +480,11 @@ app.get("/api/trips/:tripId", async (c) => {
   const trip = await tripForViewer(c.env.DB, tripId, viewer.id);
   if (!trip) return c.json({ error: "no such trip" }, 404);
 
-  const [days, stops, people] = await Promise.all([
+  const [days, stops, people, lodging] = await Promise.all([
     listDays(c.env.DB, tripId),
     listStops(c.env.DB, tripId),
     peopleOfTrip(c.env.DB, tripId),
+    listLodging(c.env.DB, tripId),
   ]);
 
   return c.json({
@@ -484,12 +495,19 @@ app.get("/api/trips/:tripId", async (c) => {
     me: { ...personOf(viewer.id, people), name: viewer.name, email: viewer.email },
     members: listMembers(people),
     cities: citiesForTrip(days, stops),
+    dateRange: dateRangeLabel(trip.start_date, trip.end_date),
     headerSubtitle: headerSubtitle(trip.start_date, trip.end_date, stops.length),
     days: days.map((day) => ({
       ...day,
+      // The date is the day's heading and cannot be wrong, so it keeps the
+      // name `label` the whole client already reads. What a person typed on
+      // the day rides beside it as `name`, which is `days.label` in the
+      // schema — the column the first migration declared and nothing wrote.
       label: dayLabel(day.date),
+      name: day.label,
       stops: stopsForDay(stops, day.id, people),
     })),
+    lodging,
     unplanned: stopsForDay(stops, null, people),
   });
 });
@@ -569,6 +587,69 @@ function inviteView(c: Ctx, invite: InviteRow | null) {
     ago: agoLabel(invite.created_at, Date.now()),
   };
 }
+
+/**
+ * Renaming a trip and moving its dates (PLAN.md section 4d).
+ *
+ * Days inside both the old range and the new one are left alone, so a change
+ * of dates does not repaint or empty the part of the trip that did not move.
+ * Anything on a day that falls outside the new range lands in To be planned
+ * rather than being deleted with it.
+ */
+app.post("/api/trips/:tripId", async (c) => {
+  const tripId = c.req.param("tripId");
+  const trip = await tripForViewer(c.env.DB, tripId, c.get("viewer").id);
+  if (!trip) return c.json({ error: "no such trip" }, 404);
+
+  const body = await c.req.json<{ name?: string; startDate?: string; endDate?: string }>();
+  const name = (body.name ?? trip.name).trim();
+  const startDate = body.startDate ?? trip.start_date;
+  const endDate = body.endDate ?? trip.end_date;
+
+  if (!name) return c.json({ error: "a trip needs a name" }, 400);
+  if (!isIsoDate(startDate) || !isIsoDate(endDate)) return c.json({ error: "those are not dates" }, 400);
+  if (endDate < startDate) return c.json({ error: "the trip ends before it starts" }, 400);
+
+  const changed = await updateTrip(c.env.DB, trip, { name, startDate, endDate });
+  return c.json({ ok: true, ...changed });
+});
+
+const isIsoDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value)
+  && !Number.isNaN(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
+
+/**
+ * A day's name and its colour.
+ *
+ * PLAN.md section 7 gave every day a hue off one ramp. The ramp is now eight
+ * chosen colours and a step past them (`dayColor`), and the day is a thing
+ * somebody can name and recolour — so this is where the pencil on a day
+ * header writes to.
+ */
+app.post("/api/days/:dayId", async (c) => {
+  const dayId = c.req.param("dayId");
+  const day = await c.env.DB.prepare(`SELECT id FROM days WHERE id = ? AND ${ON_A_TRIP_OF_MINE}`)
+    .bind(dayId, c.get("viewer").id)
+    .first<{ id: string }>();
+  if (!day) return c.json({ error: "no such day" }, 404);
+
+  const body = await c.req.json<{ name?: string | null; hue?: string }>();
+  const patch: { label?: string | null; hue?: string } = {};
+
+  if (body.name !== undefined) {
+    // An empty name is no name, not an empty one: the day goes back to being
+    // its date alone (PLAN.md section 11, nothing is a placeholder).
+    const name = (body.name ?? "").trim();
+    patch.label = name === "" ? null : name.slice(0, 60);
+  }
+  if (body.hue !== undefined) {
+    const hue = cleanHex(body.hue);
+    if (!hue) return c.json({ error: "that is not a colour" }, 400);
+    patch.hue = hue;
+  }
+
+  await updateDay(c.env.DB, dayId, patch);
+  return c.json({ ok: true, ...patch });
+});
 
 /**
  * The line under the trip name. `Sep 30 – Oct 10 · day 3 of 11` while the trip
@@ -1103,6 +1184,117 @@ app.post("/api/stops/:stopId/delete", async (c) => {
     .bind(Date.now(), Date.now(), c.req.param("stopId"), userId)
     .run();
   if (!done.meta.changes) return c.json({ error: "no such stop" }, 404);
+  return c.json({ ok: true });
+});
+
+// --- lodging ----------------------------------------------------------------
+
+/**
+ * Where you are sleeping, over a span of days.
+ *
+ * `design/Planner.dc.html` rules a lodging strip under the grid and `lodging`
+ * has been in the schema since the first migration, but nothing could put
+ * anything in it, so the strip was left out as furniture with nothing behind
+ * it (PLAN.md section 5b). This is the API that was missing. A stay is added
+ * from the Accommodations tab of the sheet, where it is the one thing on the
+ * trip that is a range rather than a day.
+ */
+app.post("/api/trips/:tripId/lodging", async (c) => {
+  const tripId = c.req.param("tripId");
+  const trip = await tripForViewer(c.env.DB, tripId, c.get("viewer").id);
+  if (!trip) return c.json({ error: "no such trip" }, 404);
+
+  const body = await c.req.json<{
+    name?: string;
+    placeId?: string | null;
+    checkIn?: string;
+    checkOut?: string;
+    note?: string;
+  }>();
+
+  const checkIn = body.checkIn ?? "";
+  const checkOut = body.checkOut ?? checkIn;
+  if (!isIsoDate(checkIn) || !isIsoDate(checkOut)) return c.json({ error: "a stay needs dates" }, 400);
+  if (checkOut < checkIn) return c.json({ error: "that stay ends before it starts" }, 400);
+
+  // A stay can be a place Google knows or an address somebody typed. The
+  // second is not a lesser case: half the places people sleep are a friend's
+  // spare room, and PLAN.md section 11 is against making somebody invent a
+  // Google listing for one.
+  let details: PlaceDetails | null = null;
+  if (body.placeId) {
+    try {
+      details = await placeFromCache(c.env, body.placeId);
+      if (!details) {
+        details = await placeDetails(placesConfig(c.env), body.placeId, crypto.randomUUID());
+      }
+    } catch (error) {
+      if (!(error instanceof PlacesError)) throw error;
+      details = null;
+    }
+  }
+
+  const name = (body.name ?? details?.name ?? "").trim();
+  if (!name) return c.json({ error: "a stay needs a name" }, 400);
+
+  const stay = await addLodging(c.env.DB, {
+    tripId,
+    name,
+    checkIn,
+    checkOut,
+    note: body.note,
+    details,
+  });
+  return c.json({ lodging: stay }, 201);
+});
+
+app.post("/api/lodging/:id", async (c) => {
+  const stay = await c.env.DB.prepare(`SELECT id, check_in, check_out FROM lodging WHERE id = ? AND ${ON_A_TRIP_OF_MINE}`)
+    .bind(c.req.param("id"), c.get("viewer").id)
+    .first<{ id: string; check_in: string; check_out: string }>();
+  if (!stay) return c.json({ error: "no such stay" }, 404);
+
+  const body = await c.req.json<{
+    name?: string;
+    checkIn?: string;
+    checkOut?: string;
+    note?: string;
+  }>();
+
+  for (const date of [body.checkIn, body.checkOut]) {
+    if (date !== undefined && !isIsoDate(date)) return c.json({ error: "that is not a date" }, 400);
+  }
+  if ((body.checkOut ?? stay.check_out) < (body.checkIn ?? stay.check_in)) {
+    return c.json({ error: "that stay ends before it starts" }, 400);
+  }
+
+  if (body.name !== undefined && !body.name.trim()) return c.json({ error: "a stay needs a name" }, 400);
+
+  await updateLodging(c.env.DB, stay.id, {
+    name: body.name?.trim(),
+    checkIn: body.checkIn,
+    checkOut: body.checkOut,
+    note: body.note,
+  });
+  return c.json({ ok: true });
+});
+
+/**
+ * Hard, unlike a stop.
+ *
+ * A stop is soft-deleted so somebody else's offline edit stays undoable
+ * (PLAN.md section 9). A stay carries no order key, no note thread and
+ * nothing pointing at it, so there is nothing an offline client could be
+ * holding a stale reference to; leaving tombstones in a table the Planner
+ * reads on every render would cost more than it saves.
+ */
+app.post("/api/lodging/:id/delete", async (c) => {
+  const stay = await c.env.DB.prepare(`SELECT id, check_in, check_out FROM lodging WHERE id = ? AND ${ON_A_TRIP_OF_MINE}`)
+    .bind(c.req.param("id"), c.get("viewer").id)
+    .first<{ id: string; check_in: string; check_out: string }>();
+  if (!stay) return c.json({ error: "no such stay" }, 404);
+
+  await deleteLodging(c.env.DB, c.req.param("id"));
   return c.json({ ok: true });
 });
 

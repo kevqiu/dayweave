@@ -54,6 +54,21 @@ export function mapStyle(): unknown[] {
  * selected.
  */
 
+/**
+ * Where the phone says it is.
+ *
+ * Deliberately not a pin: a pin is a thing on the trip, and this is not one.
+ * A ringed dot in the accent, the shape every map has used for "here" since
+ * before any of this.
+ */
+export function meIcon(): string {
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 26 26">` +
+    `<circle cx="13" cy="13" r="11" fill="${C.accent}" fill-opacity="0.22"/>` +
+    `<circle cx="13" cy="13" r="5.5" fill="${C.accent}" stroke="${C.card}" stroke-width="2.5"/></svg>`;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
 /** The result being looked at: the one terracotta pin the artboard draws. */
 export function lookPinIcon(): string {
   const svg =
