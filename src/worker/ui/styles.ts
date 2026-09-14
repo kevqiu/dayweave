@@ -1656,8 +1656,14 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .trail-layer { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; transform: translateZ(0); animation: trail-lift 2.5s cubic-bezier(.42,0,.22,1) 2.5s both; }
 .trail-depth { stroke: ${C.brand}; opacity: 0; animation: trail-lift 2.5s cubic-bezier(.42,0,.22,1) 2.5s both, trail-depth-in .6s 1.8s forwards; }
 .trail-surface { stroke: #ADA394; animation: trail-gold 1.3s 1.8s both; }
-.trail-nodes circle { fill: var(--node-color); stroke: ${C.paper}; stroke-width: 2.5; animation: node-gold 2s 2.5s both; }
-.trail-nodes text { fill: white; font: 600 11px ${SANS}; }
+.trail-number circle { fill: var(--node-color); stroke: ${C.paper}; stroke-width: 2.5; animation: node-gold 2s 2.5s both; }
+.trail-location { animation: trail-pin-out 1.2s ease-in-out var(--marker-delay) both; }
+.trail-location path { fill: var(--node-color); stroke: ${C.paper}; stroke-width: 2.5; stroke-linejoin: round; }
+.trail-location circle { fill: ${C.paper}; }
+.trail-number { animation: trail-number-in 1.2s ease-in-out var(--marker-delay) both; }
+@keyframes trail-pin-out { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(.65); } }
+@keyframes trail-number-in { from { opacity: 0; transform: scale(.65); } to { opacity: 1; transform: scale(1); } }
+.trail-nodes text { fill: white; font: 600 11px ${SANS}; user-select: none; -webkit-user-select: none; pointer-events: none; }
 .trail-glint { opacity: 0; animation: trail-depth-in 1s 3s forwards; }
 .signin-brand { display: flex; align-items: center; gap: 12px; font-family: ${SERIF}; font-size: 25px; color: ${C.brand}; margin-bottom: 18px; animation: splash-fade .7s .15s both; }
 .splash .signin-title { margin: 0; animation: splash-fade .9s .35s both; }
@@ -1689,7 +1695,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .trail-layer { transform: translateZ(var(--lift)); }
   .trail-depth, .trail-glint { opacity: 1; }
   .trail-surface { stroke: ${C.brandLight}; }
-  .trail-nodes circle { fill: ${C.brand}; }
+  .trail-number circle { fill: ${C.brand}; }
+  .trail-location { opacity: 0; }
+  .trail-number { opacity: 1; transform: none; }
 }
 `;
 }

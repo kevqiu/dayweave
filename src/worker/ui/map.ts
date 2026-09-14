@@ -55,7 +55,7 @@ export function signInMap(): string {
   const nodes = [{ x: 52, y: 252 }, { x: 122, y: 216 }, { x: 188, y: 226 }, { x: 252, y: 212 }, { x: 310, y: 158 }, { x: 282, y: 76 }];
   const route = "M52 252 C72 250 98 218 122 216 C148 214 162 230 188 226 C214 222 226 222 252 212 C278 202 312 186 310 158 C308 130 274 106 282 76";
   const path = `<path d="${route}" fill="none" stroke-width="6" stroke-dasharray="6 11" stroke-linejoin="round"/>`;
-  const pins = nodes.map((point, i) => `<circle cx="${point.x}" cy="${point.y}" r="10" style="--node-color:${DAY_PALETTE[i]}"/><text x="${point.x}" y="${point.y + 4}" text-anchor="middle">${i + 1}</text>`).join("");
+  const pins = nodes.map((point, i) => `<g transform="translate(${point.x} ${point.y})" style="--node-color:${DAY_PALETTE[i]};--marker-delay:${2.1 + i * .12}s"><g class="trail-location"><path d="M0 14 C-3 10 -10 3 -10 -4 A10 10 0 1 1 10 -4 C10 3 3 10 0 14Z"/><circle cy="-4" r="3"/></g><g class="trail-number"><circle r="10"/><text y="4" text-anchor="middle">${i + 1}</text></g></g>`).join("");
   const layer = (content: string, cls: string, lift: number) => `<svg viewBox="0 0 400 360" class="trail-layer ${cls}" style="--lift:${lift}px" aria-hidden="true">${content}</svg>`;
   const controls: [number, number, number, number][] = [[72, 250, 98, 218], [148, 214, 162, 230], [214, 222, 226, 222], [278, 202, 312, 186], [308, 130, 274, 106]];
   const blocks = controls.flatMap(([x1, y1, x2, y2], leg) => Array.from({ length: 6 }, (_, step) => {
@@ -79,7 +79,7 @@ export function signInMap(): string {
           ${Array.from({ length: 25 }, (_, i) => { const x = -1240 + i * 120; return `<path d="M${x} -1080 Q${x + 80} -350 ${x + 20} 180 T${x + 60} 1440"/>`; }).join("")}
           ${Array.from({ length: 23 }, (_, i) => { const y = -1120 + i * 120; return `<path d="M-1200 ${y} Q-400 ${y + 60} 200 ${y + 10} T1600 ${y + 30}"/>`; }).join("")}
         </g>
-        <path d="M-1200 480 C-800 250 -420 590 -80 380 S440 260 700 530 S1230 760 1600 470" stroke="#D9E4E3" stroke-width="95" fill="none"/>
+        <path transform="translate(0 70)" d="M-1200 480 C-800 250 -420 590 -80 380 S440 260 700 530 S1230 760 1600 470" stroke="#D9E4E3" stroke-width="95" fill="none"/>
         <g stroke="#FFFCF6" stroke-width="9" fill="none">
           ${Array.from({ length: 10 }, (_, i) => { const x = -1140 + i * 310; return `<path d="M${x} -1080 C${x - 130} -610 ${x + 140} -250 ${x + 20} 190 S${x + 130} 970 ${x + 50} 1440"/>`; }).join("")}
           ${Array.from({ length: 9 }, (_, i) => { const y = -1030 + i * 310; return `<path d="M-1200 ${y} C-730 ${y + 120} -370 ${y - 120} 180 ${y + 20} S1120 ${y - 110} 1600 ${y + 40}"/>`; }).join("")}
