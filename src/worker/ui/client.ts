@@ -144,8 +144,9 @@ function render() {
   const grid = planning() && wideNow();
 
   stopTrailWave();
+  if (splashCleanup) { splashCleanup(); splashCleanup = null; }
   frame.replaceChildren();
-  if (state.screen === "signIn") { frame.append(screenSignIn()); return; }
+  if (state.screen === "signIn") { frame.append(screenSignIn()); initSplashTilt(); return; }
   if (state.screen === "trips") { frame.append(screenTrips()); paintTripMaps(); }
   else if (state.screen === "newTrip") frame.append(screenNewTrip());
   else if (state.screen === "trip") {
@@ -1022,6 +1023,68 @@ async function createTrip() {
  * nothing to do from this screen until there is something to open. See
  * CLAUDE.md.
  */
+let splashCleanup = null;
+function initSplashTilt() {
+  const stage = document.querySelector(".signin-map");
+  const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  if (!stage || motion.matches || !window.isSecureContext || !window.DeviceOrientationEvent || !window.matchMedia("(pointer: coarse)").matches) return;
+  const button = stage.querySelector("[data-map-tilt]");
+  const scene = stage.querySelector(".daytrail-scene");
+  let active = false, disposed = false, baseline = null, frameId = null, timeout = null;
+  let aimX = 0, aimY = 0, x = 0, y = 0;
+  const reset = () => {
+    active = false; baseline = null;
+    window.removeEventListener("deviceorientation", orient);
+    if (frameId !== null) cancelAnimationFrame(frameId);
+    clearTimeout(timeout); frameId = null;
+    aimX = aimY = x = y = 0;
+    scene.style.setProperty("--tilt-x", "0deg"); scene.style.setProperty("--tilt-y", "0deg");
+    button.textContent = "Enable map tilt";
+    button.setAttribute("aria-pressed", "false");
+  };
+  const animate = () => {
+    if (!active || disposed || !stage.isConnected) return;
+    if (!document.hidden) {
+      x += (aimX - x) * .06; y += (aimY - y) * .06;
+      scene.style.setProperty("--tilt-x", x.toFixed(3) + "deg");
+      scene.style.setProperty("--tilt-y", y.toFixed(3) + "deg");
+    }
+    frameId = requestAnimationFrame(animate);
+  };
+  const orient = (event) => {
+    if (!active || !Number.isFinite(event.beta) || !Number.isFinite(event.gamma)) return;
+    clearTimeout(timeout);
+    const angle = window.screen?.orientation?.angle || 0;
+    if (!baseline || baseline.angle !== angle) baseline = { beta: event.beta, gamma: event.gamma, angle };
+    const beta = ((event.beta - baseline.beta + 540) % 360) - 180;
+    const gamma = event.gamma - baseline.gamma;
+    const radians = angle * Math.PI / 180;
+    aimX = Math.max(-6, Math.min(6, (beta * Math.cos(radians) + gamma * Math.sin(radians)) * .22));
+    aimY = Math.max(-8, Math.min(8, (gamma * Math.cos(radians) - beta * Math.sin(radians)) * .25));
+    if (frameId === null) frameId = requestAnimationFrame(animate);
+  };
+  button.hidden = false;
+  button.onclick = async () => {
+    if (active) { reset(); return; }
+    button.disabled = true;
+    try {
+      const sensor = window.DeviceOrientationEvent;
+      const permission = typeof sensor.requestPermission === "function" ? await sensor.requestPermission() : "granted";
+      if (disposed || !stage.isConnected || motion.matches) return;
+      if (permission !== "granted") throw new Error("denied");
+      active = true;
+      button.textContent = "Turn off map tilt";
+      button.setAttribute("aria-pressed", "true");
+      window.addEventListener("deviceorientation", orient);
+      timeout = setTimeout(() => { if (active && !baseline) { reset(); button.textContent = "Map tilt unavailable"; } }, 4000);
+    } catch (_) { if (!disposed) button.textContent = "Map tilt unavailable"; }
+    finally { if (!disposed) button.disabled = false; }
+  };
+  const preference = () => { if (motion.matches) reset(); button.hidden = motion.matches; };
+  motion.addEventListener("change", preference);
+  splashCleanup = () => { disposed = true; reset(); motion.removeEventListener("change", preference); button.onclick = null; };
+}
+
 function screenSignIn() {
   return column([
     h("div", { class: "signin-map", html: window.__SIGNIN_MAP__ }, []),

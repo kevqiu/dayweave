@@ -118,6 +118,45 @@ describe("stay search", () => {
 });
 
 describe("search and drag transitions", () => {
+  it.each(["granted", "denied"])("requests map tilt on tap and handles %s permission", async (permission) => {
+    const button: any = { hidden: true, setAttribute: vi.fn() };
+    const scene = { style: { setProperty: vi.fn() } };
+    const stage = { isConnected: true, querySelector: (selector: string) => selector === "[data-map-tilt]" ? button : scene };
+    const motion = { matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() };
+    const listeners: Record<string, Function> = {};
+    const requestPermission = vi.fn(async () => permission);
+    let tick: Function = () => {};
+    const context = { document: { hidden: false, querySelector: () => stage }, window: {
+      isSecureContext: true, DeviceOrientationEvent: { requestPermission }, screen: { orientation: { angle: 0 } },
+      matchMedia: (query: string) => query.includes("coarse") ? { matches: true } : motion,
+      addEventListener: vi.fn((name: string, callback: Function) => { listeners[name] = callback; }), removeEventListener: vi.fn(),
+    }, requestAnimationFrame: vi.fn((callback: Function) => { tick = callback; return 1; }), cancelAnimationFrame: vi.fn(), setTimeout: vi.fn(() => 2), clearTimeout: vi.fn() };
+    const api = new Function(...Object.keys(context), "let splashCleanup=null;" + definition("initSplashTilt") + ";return {start:initSplashTilt,stop:()=>splashCleanup()};")(...Object.values(context));
+    api.start();
+    expect(button.hidden).toBe(false);
+    expect(requestPermission).not.toHaveBeenCalled();
+    expect(context.window.addEventListener).not.toHaveBeenCalled();
+    await button.onclick();
+    expect(requestPermission).toHaveBeenCalledOnce();
+    if (permission === "granted") {
+      listeners.deviceorientation!({ beta: 40, gamma: 0 });
+      listeners.deviceorientation!({ beta: 130, gamma: 80 });
+      for (let i = 0; i < 120; i++) tick();
+      const values = scene.style.setProperty.mock.calls.slice(-2).map(call => parseFloat(call[1]));
+      expect(values[0]).toBeGreaterThan(5);
+      expect(values[0]).toBeLessThanOrEqual(6);
+      expect(values[1]).toBeGreaterThan(7);
+      expect(values[1]).toBeLessThanOrEqual(8);
+      await button.onclick();
+      expect(button.textContent).toBe("Enable map tilt");
+    } else {
+      expect(context.window.addEventListener).not.toHaveBeenCalled();
+      expect(button.textContent).toBe("Map tilt unavailable");
+    }
+    api.stop();
+    expect(motion.removeEventListener).toHaveBeenCalled();
+  });
+
   it("opens a trip from its map preview with a tap or keyboard without hijacking attribution links", () => {
     const openTrip = vi.fn();
     const h = (tag: string, attrs: any, children: any[]) => ({ tag, attrs, children });

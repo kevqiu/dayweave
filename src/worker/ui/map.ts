@@ -64,7 +64,7 @@ export function signInMap(): string {
     const y = u ** 3 * a.y + 3 * u ** 2 * t * y1 + 3 * u * t ** 2 * y2 + t ** 3 * b.y;
     const angle = Math.atan2(3 * u ** 2 * (y1 - a.y) + 6 * u * t * (y2 - y1) + 3 * t ** 2 * (b.y - y2), 3 * u ** 2 * (x1 - a.x) + 6 * u * t * (x2 - x1) + 3 * t ** 2 * (b.x - x2)) * 180 / Math.PI;
     if (nodes.some((node) => Math.hypot(node.x - x, node.y - y) < 16)) return "";
-    return `<div class="trail-block" style="left:${x / 4}%;top:${y / 3.6}%;--block-angle:${angle}deg;--wave-delay:${-(10 - (leg * 6 + step) * .32)}s"><div class="trail-block-solid"><i class="block-top"></i><i class="block-front"></i><i class="block-back"></i><i class="block-left"></i><i class="block-right"></i></div></div>`;
+    return `<div class="trail-block" style="left:${x / 4}%;top:${y / 3.6}%;--block-angle:${angle}deg;--wave-delay:${-(14 - (leg * 6 + step) * .448)}s"><div class="trail-block-solid"><i class="block-top"></i><i class="block-front"></i><i class="block-back"></i><i class="block-left"></i><i class="block-right"></i></div></div>`;
   })).join("");
   return `<div class="daytrail-scene" aria-label="A dotted daytrail rises from a map into a gently waving gold path" role="img">
     <div class="daytrail-plane">
@@ -89,5 +89,5 @@ export function signInMap(): string {
       ${blocks}
       ${layer(`<g class="trail-nodes">${pins}</g>`, "trail-top", 12)}
     </div>
-  </div>`;
+  </div><button class="map-tilt-control" data-map-tilt aria-pressed="false" hidden>Enable map tilt</button>`;
 }

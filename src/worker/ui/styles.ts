@@ -1638,10 +1638,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 @media (prefers-reduced-motion: reduce) { .trail-wave-dot { animation: none; opacity: .55; } }
 .map-trail-layer { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
 .daytrail-scene { width: min(88%, 640px); aspect-ratio: 400 / 360; perspective: 900px; position: relative; }
-.daytrail-plane { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; animation: trail-isometric 2.6s cubic-bezier(.22,.68,.2,1) .5s both, trail-zoom 1.7s cubic-bezier(.22,.68,.2,1) 3.1s forwards; }
+.daytrail-scene { transform-style: preserve-3d; transform: rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)); }
+.map-tilt-control { position: absolute; bottom: 18px; right: 18px; border: 1px solid ${C.brandLight}; border-radius: 20px; padding: 9px 13px; background: ${C.card}; color: ${C.brandInk}; font-size: 12px; z-index: 2; }
+.daytrail-plane { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; animation: trail-isometric 3.8s cubic-bezier(.42,0,.22,1) .6s both, trail-zoom 2.6s cubic-bezier(.42,0,.22,1) 4.4s forwards; }
 .trail-ground { position: absolute; left: -300%; top: -300%; width: 700%; height: 700%; max-width: none; }
 .trail-block { position: absolute; width: 1.5%; height: 1.667%; transform: translate(-50%, -50%) rotateZ(var(--block-angle)); transform-style: preserve-3d; pointer-events: none; }
-.trail-block-solid { position: absolute; inset: 0; transform-style: preserve-3d; animation: trail-block-wave 10s ease-in-out var(--wave-delay) infinite; }
+.trail-block-solid { position: absolute; inset: 0; transform-style: preserve-3d; animation: trail-block-wave 14s ease-in-out var(--wave-delay) infinite; }
 .trail-block-solid i { position: absolute; display: block; background: ${C.brandSolid}; }
 .block-top { inset: 0; transform: translateZ(8px); background: ${C.brandLight} !important; }
 .block-front, .block-back { left: 0; width: 100%; height: 8px; transform-origin: top; transform: rotateX(90deg); }
@@ -1650,12 +1652,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .block-left, .block-right { top: 0; width: 8px; height: 100%; transform-origin: left; transform: rotateY(-90deg); }
 .block-left { left: 0; }
 .block-right { left: 100%; }
-@keyframes trail-block-wave { 0%,100% { transform: scaleZ(.9); } 35% { transform: scaleZ(1.1); } 70% { transform: scaleZ(.9); } }
+@keyframes trail-block-wave { 0%,100% { transform: scaleZ(.9); } 50% { transform: scaleZ(1.1); } }
 .trail-shadow { opacity: .12; filter: blur(3px); }
-.trail-layer { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; transform: translateZ(0); animation: trail-lift 1.7s cubic-bezier(.16,.7,.25,1) 1.8s both; }
-.trail-depth { stroke: ${C.brand}; opacity: 0; animation: trail-lift 1.7s cubic-bezier(.16,.7,.25,1) 1.8s both, trail-depth-in .6s 1.8s forwards; }
+.trail-layer { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; transform: translateZ(0); animation: trail-lift 2.5s cubic-bezier(.42,0,.22,1) 2.5s both; }
+.trail-depth { stroke: ${C.brand}; opacity: 0; animation: trail-lift 2.5s cubic-bezier(.42,0,.22,1) 2.5s both, trail-depth-in .6s 1.8s forwards; }
 .trail-surface { stroke: #ADA394; animation: trail-gold 1.3s 1.8s both; }
-.trail-nodes circle { fill: var(--node-color); stroke: ${C.paper}; stroke-width: 2.5; animation: node-gold 1.3s 1.8s both; }
+.trail-nodes circle { fill: var(--node-color); stroke: ${C.paper}; stroke-width: 2.5; animation: node-gold 2s 2.5s both; }
 .trail-nodes text { fill: white; font: 600 11px ${SANS}; }
 .trail-glint { opacity: 0; animation: trail-depth-in 1s 3s forwards; }
 .signin-brand { display: flex; align-items: center; gap: 12px; font-family: ${SERIF}; font-size: 25px; color: ${C.brand}; margin-bottom: 18px; animation: splash-fade .7s .15s both; }
@@ -1663,10 +1665,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .splash .signin-sub { animation: splash-fade .9s .6s both; }
 .splash .signin-google { animation: splash-fade .9s .85s both; }
 .splash .invite-card { animation: splash-fade .9s .7s both; }
-.splash .signin-map { animation: splash-fade 1s both; }
+.splash .signin-map { animation: splash-fade 1.4s ease-in-out both; }
 @keyframes splash-fade { from { opacity: 0; } to { opacity: 1; } }
-@keyframes trail-isometric { from { transform: rotateX(0) rotateZ(0) scale(.94); } to { transform: rotateX(52deg) rotateZ(-28deg) scale(.9); } }
-@keyframes trail-zoom { from { transform: rotateX(52deg) rotateZ(-28deg) scale(.9); } to { transform: rotateX(52deg) rotateZ(-28deg) scale(1.18); } }
+@keyframes trail-isometric { from { transform: rotateX(0) rotateZ(0) scale(.94); } to { transform: rotateX(42deg) rotateZ(-20deg) scale(.9); } }
+@keyframes trail-zoom { from { transform: rotateX(42deg) rotateZ(-20deg) scale(.9); } to { transform: rotateX(42deg) rotateZ(-20deg) scale(1.18); } }
 @keyframes trail-lift { from { transform: translateZ(0); } to { transform: translateZ(var(--lift)); } }
 @keyframes trail-depth-in { to { opacity: 1; } }
 @keyframes trail-gold { to { stroke: ${C.brandLight}; } }
@@ -1685,7 +1687,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 @media (prefers-reduced-motion: reduce) {
   .splash *, .trail-layer { animation: none !important; }
-  .daytrail-plane { transform: rotateX(52deg) rotateZ(-28deg) scale(1.18); }
+  .daytrail-plane { transform: rotateX(42deg) rotateZ(-20deg) scale(1.18); }
   .trail-layer { transform: translateZ(var(--lift)); }
   .trail-depth, .trail-glint { opacity: 1; }
   .trail-surface { stroke: ${C.brandLight}; }
