@@ -157,7 +157,7 @@ yvr.kocho.sh
    │      ├── Places proxy  Autocomplete + Details, key server-side, KV-cached
    │      ├── D1             relational truth: trips, days, stops, places, members
    │      ├── DO  TripRoom   one per trip. WebSocket hibernation, op sequencing, presence
-   │      ├── R2  tiles      Protomaps basemap (.pmtiles) — self-hosted, no per-tile cost
+   │      ├── R2  tiles      empty — the basemap is Google's after all, see below
    │      ├── R2  uploads    Takeout CSVs, photos
    │      ├── KV  sessions   signed session lookup, OAuth state
    │      ├── Queue          import jobs
@@ -176,10 +176,23 @@ yvr.kocho.sh
 - **Workflows** for imports specifically. An import is: fetch list → resolve 46 places → match 34
   sheet rows → write. Any step can fail on a rate limit. Workflows checkpoint each step and retry
   just that one, which a Queue consumer would have to reimplement badly.
-- **R2 + Protomaps** instead of Google's map tiles. One `.pmtiles` file for Japan is a few hundred
-  MB, R2 has no egress fee, and MapLibre lets us style it to the warm palette. Google tiles would
-  cost per load, cannot be restyled past their preset themes, and force Google's UI attributions
-  into a design meant to be calm.
+- ~~**R2 + Protomaps** instead of Google's map tiles.~~ **Reversed, 2026-09-13, and closed.** The
+  reasoning was: one `.pmtiles` file for Japan is a few hundred MB, R2 has no egress fee, MapLibre
+  styles it to the warm palette, and Google tiles cost per load, cannot be restyled past their
+  presets, and force Google's furniture into a calm design.
+
+  Three things killed it. **Google's Maps Platform terms forbid showing Places content on a
+  non-Google map** — the trip's pins *are* Places content, so "Protomaps underneath, Google Places
+  on top" is precisely the combination the terms name, and moving the basemap would mean moving
+  place search too, losing the ratings and the Japanese POI coverage that make the rows in
+  `PlaceSearch.dc.html` worth having. **"A few hundred MB" was wrong**: a country extract lands in
+  the low gigabytes even capped at z14. And **two of the three objections were already answered**
+  without it — `gmap.ts` styles the Google map down to `tokens.ts` and turns every default control
+  off, so the only furniture is ours. The per-load cost is real, remains, and is what the Dynamic
+  Maps quota is for.
+
+  So the map is Google's, the R2 bucket stays empty, and MapLibre is not a dependency. If the
+  per-load cost ever bites, the decision to revisit is *both* halves at once: basemap and search.
 - **Better Auth on D1** for sign-in, sessions and the Google tokens Drive will need later. See §5.
 - **No Gmail and no Sheets integration in v1.** Sign-in asks for `openid email profile` only.
 
@@ -191,8 +204,10 @@ tie an MVP to an alpha IaC tool. The 0.x line is what the ecosystem guides descr
 `alchemy/cloudflare/vite` integration the frontend needs, and its resource names are the ones this
 document assumes. Revisit when v2 is stable.
 
-**Frontend**: React 19 + Vite + TanStack Router + MapLibre GL JS. Tailwind v4 with the palette as
-CSS variables; no component library, the UI is small and specific. Framer Motion only for the sheet.
+**Frontend**: React 19 + Vite + TanStack Router. Tailwind v4 with the palette as CSS variables; no
+component library, the UI is small and specific. Framer Motion only for the sheet. MapLibre is off
+this list with Protomaps — the map is the Maps JavaScript API, styled in `gmap.ts`. None of this is
+built: the UI today is one plain script, and PLAN.md §2's framework is a later decision.
 
 **Offline is a requirement, not a nice-to-have.** You will open this in a basement ramen shop with
 no signal. Ops are written to IndexedDB first, applied optimistically, and flushed to the DO when
@@ -485,12 +500,31 @@ header.
 
 ## 5. Auth
 
-*Status: built. Google sign-in, sessions in KV, invites, membership and the checks that enforce it,
-and all three screens — `design/SignIn.dc.html`, the invite card on `design/Trips.dc.html`,
-`design/Members.dc.html`. What is **not** here is Better Auth: the flow below is the Authorization
-Code flow with PKCE written out by hand in `src/lib/oauth.ts`, for the reason in that file's own
-comment. What is also not here is the view-only share link. It needs the Google OAuth client in
-INFRA.md §4 to work at all; without one the screen says so rather than drawing a dead button.*
+*Status: **built and deployed** — Google sign-in through Better Auth, sessions in KV with D1 behind
+them, invites, membership and the checks that enforce it, and all three screens:
+`design/SignIn.dc.html`, the invite card on `design/Trips.dc.html`, `design/Members.dc.html`. The
+anonymous cookie and the `app_user` stub are both gone, avatars are real initials from a real name,
+and membership is enforced rather than merely described. What is **not** here is the view-only share
+link. Sign-in needs the Google OAuth client in INFRA.md item 4 to work at all.*
+
+*This section was written for Better Auth, then a branch hand-rolled the Authorization Code flow
+with PKCE in `src/lib/oauth.ts` instead, and that file is now deleted. The reason it went back is
+worth recording, because it is not that the hand-rolled flow was wrong: it worked, it was tested,
+and it was about 200 lines. It is that Better Auth had already landed on another branch and was
+already deployed, with **both redirect URIs registered with Google**, and `src/worker/auth.ts` gets
+the refresh-token handling that §9's Drive consent needs for free. Two implementations of one door
+is one too many, and the one that was already serving real traffic is the one that stays.*
+
+*Two things in this section are out of date and the code is what to read: sessions reach D1 directly
+rather than through Drizzle, because Better Auth's Kysely adapter recognises a D1 binding on its own;
+and the KV session store sits in front of D1 rather than replacing it, because KV is eventually
+consistent and a session that misses its own write is a person bounced back to the sign-in screen.
+`src/worker/auth.ts` has the reasoning.*
+
+*One thing the invite work settled that this section did not. An invite is **a link, not an email**
+— there is no email service and adding one so four friends can be told about a trip is a whole
+dependency for one sentence — so there is one reusable, revocable link per trip, and following it
+joins nobody: the yes is the Join button on `design/Trips.dc.html`'s card. CLAUDE.md has the detail.*
 
 **Better Auth**, which is the right call. Alternatives considered:
 
@@ -502,19 +536,25 @@ INFRA.md §4 to work at all; without one the screen says so rather than drawing 
 | Clerk, WorkOS, Stack Auth | Hosted, good, and a third party plus a bill for a trip app for your friends. |
 | Hand-rolled OAuth | About 200 lines and genuinely viable, but you own session rotation, CSRF, token refresh and invite tokens forever. **This is what is built**, at 180 lines across `src/lib/oauth.ts` and four routes. |
 
-**Why the hand-rolled one won, for now.** Three of those four liabilities were already ours: invite
-tokens are §5's own design, the `state` parameter and the single-use PKCE verifier are the CSRF
-story, and a random session token in KV with a 30-day TTL is the rotation story. The fourth, token
-refresh, is needed by nothing until Drive, and the refresh token is stored from the first sign-in so
-it is there when it is.
+**Why the hand-rolled one was written, and why it lost.** Three of Better Auth's four liabilities
+were already ours: invite tokens are §5's own design, the `state` parameter and the single-use PKCE
+verifier are the CSRF story, and a random session token in KV is the rotation story. The fourth,
+token refresh, is needed by nothing until Drive. What decided it at the time was that **Better Auth
+could not be exercised from a session with no Cloudflare token and no OAuth client**, so installing
+it would have meant shipping a sign-in nobody had ever run, while a flow small enough to test could
+at least be tested.
 
-What actually decided it: **Better Auth cannot be exercised from a session with no Cloudflare token
-and no OAuth client**, so installing it would have meant shipping a sign-in nobody had ever run. The
-flow that is here is small enough to test, and it is tested — `src/worker/__tests__/invites.test.ts`
-walks the whole round trip against a stubbed Google, including the two ways the state check refuses.
-Everything above it is indifferent to which of the two is underneath: swapping in Better Auth
-replaces `identity`, the two `/auth/google` routes and `signInWithGoogle`, and no screen, invite or
-membership check changes. The `account` table is already the shape Better Auth uses.
+That reasoning expired twice over. The credentials came back, so the door can be walked for real —
+and by then Better Auth had already landed on another branch, was already **deployed**, and had
+**both redirect URIs registered with Google**. Two implementations of one door is one too many, and
+the one already serving real traffic is the one that stays. `src/lib/oauth.ts` is deleted; what
+replaced it is `src/worker/auth.ts`, which is about forty lines of configuration and gets the
+refresh-token handling Drive needs for free.
+
+The part of the old reasoning that held up is the test. `src/worker/__tests__/invites.test.ts` still
+walks the whole round trip against a stubbed Google — it stubs `oauth2.googleapis.com/token` now
+instead of our own exchange, because Better Auth's Google provider reads the profile by decoding the
+`id_token` rather than fetching userinfo, so one endpoint is still the whole of the stand-in.
 
 The sign-in screen is one button and nothing else: no email form, no password, no second provider.
 The button reads **"Continue with Google"** rather than "Connect with", because Google's sign-in
@@ -525,14 +565,21 @@ The screen also says, in one line, that we ask for a name and an email and nothi
 promise §5 has to keep, and it is why Drive is a separate later consent.
 
 **Setup**: Google as the only social provider, sessions in a cookie with the lookup in KV, and the
-tables in D1 alongside ours. That is what is built, including the KV part: the cookie is 32 random
-bytes naming a KV entry, so it asserts nothing on its own and signing out deletes the entry rather
-than trusting a browser to forget. `app_user` and `account` stand in for Better Auth's `user` and
-`account` and use its column names.
+tables in D1 alongside ours. That is what is built, including the KV part — but KV sits **in front
+of** D1 rather than instead of it. Secondary storage on its own is the only store, and KV is
+eventually consistent: the read immediately after a sign-in can miss the write, and a miss with
+nothing behind it is a person bounced back to this screen for a minute. `storeSessionInDatabase`
+puts the row in D1 as well, so KV saves the read it can and never costs a session.
 
-**A browser that made trips before there was a door keeps them.** The first Google sign-in adopts
-the id in the old `yvr_dev_uid` cookie, but only when nobody has ever signed in as it — a cookie
-anybody can write may add trips to an account and must never open one.
+`user`, `session`, `account` and `verification` are Better Auth's own tables, created by migration
+0003 from its generated SQL. The two stand-ins that came before — `app_user` and a hand-written
+`account` — are gone.
+
+**A browser that made trips before there was a door keeps them.** The Google sign-in adopts the id
+in the old `yvr_dev_uid` cookie, on the way out of the callback rather than on the next API call: if
+it waited, a browser could sign in, stop, and a second Google account waving the same cookie would
+take those trips. A cookie anybody can write may add trips to a session that already exists and must
+never open one.
 
 **There are no roles.** Inviting someone to a trip means you want them editing it, so membership
 itself is the permission: if you are in `trip_members`, you can change anything — and as of the
@@ -645,6 +692,15 @@ own hue appears as a small dot next to its header in the list, and on the thin r
 map. Opening a day's accordion dims every other day's pins, which is what actually makes a day's
 cluster readable — dimming, not hue.
 
+*Built differently, 2026-09-13, deliberately.* **Pin fill carries the day**, and the map shows every
+day of the trip rather than the open one alone. The paragraph above is still right that eleven hues
+at once destroys the progress reading — which is why the size and the dimming it identifies are
+doing that work instead: the open day is full size and numbered, every other day is a mini dot, and
+grey still means done. What it got wrong is that the pin and the row beside it were then answering
+different questions in the same channel, one by clock and one by day. Two things are exempt: a stop
+ticked off or a day gone by is grey, and somewhere you sleep is a solid green pin with a roof that
+never dims. CLAUDE.md has the full set of rules; `src/worker/__tests__/pins.test.ts` enforces them.
+
 **Decided.** The alternative — hue = day, status as fill style — makes multi-day clusters legible
 at a glance but makes "what have I done today" harder, and today is what you look at while
 travelling.
@@ -704,19 +760,21 @@ spend a Directions call if you ask for the real walking time.
 D1, SQLite. Abbreviated; timestamps and audit columns omitted.
 
 ```sql
--- Better Auth owns these four when it lands. Two of them exist now, under its
---   own column names, so that day is a rename rather than a reshape (§5)
-user             id, email, name, image
-                 -- built, as `app_user`. filled from Google's id token
-session          id, user_id, token, expires_at
-                 -- NOT a table. A session is a random token in a cookie naming
-                 --   a KV entry with a 30-day TTL, which is what §5 asks for
-account          id, user_id, provider_id, provider_account_id,
-                 access_token, refresh_token, scope, expires_at
-                 -- built. provider_account_id is Google's `sub`
+-- Better Auth owns these four. All of them are built, by migration 0003, from
+--   its own generated SQL — camelCase and `date` columns included. Regenerate
+--   rather than edit (§5)
+user             id, email, name, emailVerified, image
+                 -- filled from Google's id token. usersById is the only place
+                 --   this app reads it; everywhere else a person is an id
+session          id, userId, token, expiresAt, ipAddress, userAgent
+                 -- a row here AND an entry in KV. KV is the cache in front, so
+                 --   a read that misses its own write still finds a session
+account          id, userId, providerId, accountId,
+                 accessToken, refreshToken, idToken, scope, expiresAt
+                 -- accountId is Google's `sub`
                  -- account.scope is how we know whether Drive was ever granted (§5)
-verification     id, identifier, value, expires_at
-                 -- not built, and nothing needs it: there is no email to verify
+verification     id, identifier, value, expiresAt
+                 -- Better Auth's, and it uses it: the OAuth state in flight
 
 -- ours
 trips            id, name, slug, start_date, end_date, timezone, owner_id, cover_color

@@ -1,214 +1,256 @@
-# Infrastructure: what is wired, and what is waiting for you
+# Infrastructure: what is wired, and what it took
 
 `ENVIRONMENT.md` explains how to configure a Claude Code cloud session so a
 deploy can work at all. This file is the running state of the actual
-infrastructure, and in particular **the things only you can do, at a computer,
-signed in to Cloudflare and Google Cloud.**
+infrastructure, and it used to be a list of things only you could do at a
+computer. **That list is empty.** Items 1 through 7 are closed; what is left
+below is the state, the load-bearing warnings, and enough of the reasoning that
+nobody re-opens a decision without knowing why it went the way it did.
 
-Last checked against the live account: 2026-09-12.
+Last checked against the live account: 2026-09-13.
 
----
-
-## Needs you, at a computer
-
-### 1. Replace the Places API key with a server key — blocking eventually, working for now
-
-The key on the environment is restricted by **HTTP referrer**, which is a
-browser restriction. The Worker is a server and sends no referrer, so Google
-refuses it outright:
-
-```
-403 API_KEY_HTTP_REFERRER_BLOCKED — Requests from referer <empty> are blocked.
-```
-
-The Worker currently works around this by sending `Referer: https://yvr.kocho.sh`
-itself, via the `PLACES_REFERRER` binding. **That is not a security control.**
-A referrer the caller writes is one anyone holding the key can also write, so
-the key is effectively unrestricted while it looks restricted.
-
-In the Google Cloud console, on the project that owns the key
-(`projects/1034596355389`):
-
-- Create a key restricted by **API** to the Places API, and leave the
-  application restriction as **None**, or restrict by IP if you can enumerate
-  Cloudflare's egress (you probably cannot, so None plus an API restriction is
-  the realistic answer).
-- Put it on the environment as `GOOGLE_PLACES_KEY`, then start a new session.
-- Delete `PLACES_REFERRER` from `alchemy.run.ts` and the `Referer` header from
-  `src/lib/places.ts`.
-
-Also worth doing while you are there: set a **quota** on the Places API so a
-loop in a future session cannot spend real money. Autocomplete and Details are
-billed per session, and the app is careful about that, but a quota is the only
-thing that actually stops a mistake.
-
-### 2. Alchemy state does not survive a session
-
-Alchemy keeps state in `.alchemy/`, which is gitignored. A cloud session clones
-the repo fresh, so it has no state and a plain deploy fails on resources that
-already exist. `alchemy.run.ts` now passes `adopt: true`, which takes over the
-existing resources instead, so `npm run deploy` works.
-
-That is a workaround. The durable fix is a state store that outlives the
-container:
-
-- Generate a token, keep it somewhere you will not lose it, and add
-  `ALCHEMY_STATE_TOKEN=...` to the environment.
-- Switch `alchemy.run.ts` to `CloudflareStateStore`.
-
-It must be the **same value for every deploy on the account**, forever, which
-is why this is your decision and not a session's.
-
-### 3. The custom domain is not wired
-
-`yvr.kocho.sh` does not exist yet. The zone `kocho.sh` is on the account and the
-API token can read zones, but **DNS reads and writes are denied**, so the token
-is missing the zone-level scopes:
-
-| Scope | Level |
-| --- | --- |
-| Zone: Read | already working |
-| DNS: Edit | **missing** |
-| Workers Routes: Edit | **missing** |
-
-Add both, scoped to `kocho.sh` only. Then uncomment `domains: ["yvr.kocho.sh"]`
-in `alchemy.run.ts` and drop `url: true`.
-
-Until then the app lives at the workers.dev hostname below.
-
-### 4. Google sign-in is not set up — BLOCKING, the whole app
-
-**The code is written and deployed and it cannot work until you do this.**
-Everything in the app is behind signing in, so without an OAuth client nobody
-can get past the first screen — which says so plainly rather than drawing a
-button that fails.
-
-`GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are already on the environment
-and bound into the Worker. In the Google Cloud console, on the project that
-owns them:
-
-1. **Configure the OAuth consent screen.** External, and it can stay in Testing
-   with your own accounts as test users — the scopes are `openid email profile`,
-   which are non-sensitive, so no verification review is involved. Only Drive
-   would change that, and Drive is a later, separate consent (PLAN.md 5).
-2. **Add the authorised redirect URIs**, both of them, exactly:
-
-   ```
-   https://yvr-kocho-sh-api-dev.yvr-kocho.workers.dev/auth/google/callback
-   https://yvr.kocho.sh/auth/google/callback
-   ```
-
-   The Worker builds the redirect from the host that served the request, so
-   whichever hostname is being used has to be registered. A missing one is the
-   `redirect_uri_mismatch` error on Google's own screen.
-3. **Add the authorised JavaScript origins** — not needed. The flow is
-   server-side; nothing calls Google from the page.
-
-The session also needs `accounts.google.com` and `oauth2.googleapis.com` added
-to the network allowlist if a session is ever to exercise the flow itself;
-ENVIRONMENT.md lists them as not-yet. The deployed Worker reaches Google from
-Cloudflare's network, so the allowlist does not gate the live app.
-
-**What replaced the two stand-ins.** A session is a random token in a
-`yvr_sid` cookie naming an entry in the `sessions` KV namespace, and `app_user`
-plus `account` hold the person and their Google tokens. The old `yvr_dev_uid`
-cookie is read in exactly one place — the first Google sign-in, to bring trips
-made before any of this into the account — and it can no longer sign anybody
-in by itself.
-
-**Better Auth is still not installed**, and PLAN.md 5 explains why the flow was
-written by hand instead and what swapping it in would cost.
-
-### 5. The map needs its own browser key
-
-The app can draw the real Google map with the trip's stops on it, and the code
-is deployed, but it is **switched off** until you provision a key for it. Until
-then the screen shows the drawn map from the artboards, which is a real
-fallback rather than a placeholder.
-
-Three things, in the Google Cloud console on the same project:
-
-1. **Maps JavaScript API is already enabled** — no action. Maps Static API and
-   Map Tiles API are **not**, and are not needed by this approach.
-2. **Create a second key**, restricted by HTTP referrer to the app's hosts:
-
-   ```
-   https://yvr-kocho-sh-api-dev.yvr-kocho.workers.dev/*
-   https://yvr.kocho.sh/*
-   ```
-
-   Restrict it by API to the Maps JavaScript API only.
-3. Put it on the environment as `GOOGLE_MAPS_BROWSER_KEY` and start a new
-   session.
-
-**It must not be the Places key.** A Maps JavaScript key is public by design —
-it is in the page, and its referrer list is all that protects it. The Places
-key is a server credential. Sharing one key between them would put a key that
-can spend Places quota into every page load.
-
-Note the cost: PLAN.md section 2 chose a self-hosted Protomaps basemap partly
-to avoid per-load tile charges. Google tiles bill per map load, so set a quota
-on the Maps JavaScript API at the same time.
-
-### 6. The basemap bucket is empty
-
-The R2 bucket `yvr-kocho-sh-dev-tiles` exists and has **zero objects**. PLAN.md
-section 2 wants a Protomaps `.pmtiles` extract for Japan served from it, which
-is a few hundred MB and has to be uploaded once. Until then the map in the UI is
-the drawn placeholder from the artboards, not real tiles.
-
-### 7. Give the API token an expiry
-
-Not checked from here — the token cannot read its own metadata. If it has no
-expiry, set one. `D1: Edit` and `R2: Edit` both include deletion, because
-Cloudflare does not split those into create-only.
+The numbering is stable — items keep their number once they are done, so
+"item 3" means the same thing in a week's time as it does today.
 
 ---
 
-## What is already wired
+## The one thing still open
+
+**Two quotas, in the Google Cloud console.** Neither is urgent and neither is
+reachable from a session: `console.cloud.google.com` answers 403 to the proxy's
+CONNECT, and while `cloudquotas.googleapis.com` *is* reachable it refuses the
+only credentials on the environment —
+
+```
+401 UNAUTHENTICATED — API keys are not supported by this API.
+Expected OAuth2 access token or other authentication credentials
+that assert a principal.
+```
+
+— which is correct and worth leaving that way. Setting them from here would
+mean putting a `cloud-platform` refresh token for the whole GCP project into an
+environment that every session can read, to save two clicks.
+
+| Quota | Where | Suggested |
+| --- | --- | --- |
+| Places API, requests per day | `console.cloud.google.com/apis/api/places.googleapis.com/quotas` | 1,000 |
+| Maps JavaScript, map loads per day | `console.cloud.google.com/apis/api/maps-backend.googleapis.com/quotas` | 500 |
+
+The app makes at most one Text Search per debounced keystroke-burst plus one
+Details per add, and caches searches in KV for an hour, so 1,000 is generous.
+Dynamic Maps is 10,000 free loads a month — about 330 a day — so 500 leaves
+room for a heavy planning session without exposing the monthly cap. These are
+not there to ration you; they are there so a loop in a future session cannot
+spend real money.
+
+---
+
+## What is wired
 
 | Thing | Name | State |
 | --- | --- | --- |
 | Worker | `yvr-kocho-sh-api-dev` | deployed |
 | URL | `https://yvr-kocho-sh-api-dev.yvr-kocho.workers.dev` | live |
-| D1 | `yvr-kocho-sh-dev-db` (`8c0a0c37-…`) | migrations 0001 and 0002 applied |
-| KV | `yvr-kocho-sh-dev-sessions` | created, unused until auth lands |
+| Custom domain | `yvr.kocho.sh` | bound to the Worker, proxied AAAA, no route |
+| D1 | `yvr-kocho-sh-dev-db` (`8c0a0c37-…`) | migrations 0001–0004 applied |
+| D1 tables | `user`, `session`, `account`, `verification` | Better Auth's |
+| D1 tables | `trip_invites` | reshaped by 0004: one copyable token per trip |
+| KV | `yvr-kocho-sh-dev-sessions` | the session lookup, D1 behind it |
 | KV | `yvr-kocho-sh-dev-places-cache` | in use, 1 hour TTL |
-| R2 | `yvr-kocho-sh-dev-tiles` | created, empty |
-| Google APIs | Places (New), Maps JavaScript | enabled; Static Maps and Map Tiles are not |
+| R2 | `yvr-kocho-sh-dev-tiles` | created, empty, and staying that way — item 6 |
 | Durable Object | `TripRoom` | deployed, still a stub |
-| Zone | `kocho.sh` | on the account, not pointed at the Worker |
+| Zone | `kocho.sh` (`72e8cdb9…`) | on the account, wildcard DNS |
+| State store | `alchemy-state-service` | DO-backed, survives a container |
+| Google APIs | Places (New), Maps JavaScript | enabled; Static Maps and Map Tiles are not |
+| Google OAuth | web client, two redirect URIs | registered and working |
+| Cloudflare token | `49f7be3a…` | active, expires **2027-09-13** |
 
 The account's workers.dev subdomain is `yvr-kocho`, which is why the hostname
 reads `…-api-dev.yvr-kocho.workers.dev` and not something with your name in it.
 
-### Drift that was corrected
+## The four things that will hurt if you forget them
 
-The deployed database had a migration `0002_stub_user.sql` applied that was
-**not in the repo** — a previous session created it and the file was lost with
-the container. It has been reconstructed from the live schema and committed, so
-a fresh database now matches the deployed one. Worth knowing that this class of
-loss is possible: anything a session writes and does not commit is gone.
+- **`ALCHEMY_PASSWORD` is load-bearing.** Secrets go into Alchemy's state as
+  `@secret` ciphertext and that state now outlives the container. Lose the
+  password and the state store is still there and still unreadable.
+- **`ALCHEMY_STATE_TOKEN` must be the same value forever.** A different one
+  does not make a second store, it makes the existing one answer 401. The
+  state service is a public URL — `alchemy-state-service.yvr-kocho.workers.dev`
+  — and that token is the only thing in front of it.
+- **`BETTER_AUTH_SECRET` signs the session cookie.** Change it and everyone is
+  signed out.
+- **The two Google keys are not interchangeable.** `GOOGLE_MAPS_BROWSER_KEY` is
+  in the page and protected only by its referrer list;
+  `GOOGLE_PLACES_KEY` is a server credential. Sharing one key between them puts
+  something that can spend Places quota into every page load. `page.test.ts`
+  asserts the served page carries no `AIza…` when no browser key is set.
+
+---
+
+## How each item was closed
+
+**1. The Places key is a server key.** It was restricted by HTTP referrer,
+which is a browser restriction, so the Worker — which sends no referrer — was
+refused outright. It was replaced, and the workaround went with it: there is no
+`PLACES_REFERRER` binding and no `Referer` header in `src/lib/places.ts` any
+more. Put a referrer-restricted key back and place search starts answering 403.
+*Still worth confirming in the console:* that the key is restricted **by API,
+to Places**, rather than unrestricted. Absence of a referrer check does not
+prove presence of an API restriction.
+
+**2. Alchemy's state lives on the account.** `alchemy.run.ts` uses
+`CloudflareStateStore`, which keeps state in a SQLite Durable Object behind a
+Worker Alchemy provisions itself. Proved by deploying from a fresh clone with
+no `.alchemy/` at all and watching four resources skip as unchanged.
+`adopt: true` stays, no longer as the mechanism but as the recovery path for
+the day the state is lost anyway — a rotated token, a store deleted by hand —
+because without it that day ends with a deploy that cannot proceed and a
+database it will not touch.
+
+**3. `yvr.kocho.sh` is a Workers custom domain, not a route.** There was a
+hand-made route on the hostname, and **a Cloudflare route pattern with no path
+has an implied path of `/`** — so the front page would have loaded and every
+`/api/...` call would have fallen through to the zone's wildcard CNAME and a
+parking page. A custom domain has no path to get wrong and brings its own
+proxied record (`AAAA yvr.kocho.sh -> 100::`, which is Cloudflare's placeholder
+for proxied-only and is correct). The two cannot both hold a hostname, so the
+route was deleted to make room.
+
+`url: true` stays alongside it: `yvr.kocho.sh` is not on the session network
+allowlist, so the workers.dev hostname is the only one a session can reach to
+check its own work.
+
+**4. Google sign-in is built.** Better Auth 1.7.4 in `src/worker/auth.ts`, its
+schema in migration 0003, the screen from `design/SignIn.dc.html`. Both
+redirect URIs are registered and Google serves its real sign-in page for the
+URL the Worker builds. `app_user` is dropped and the `yvr_dev_uid` cookie is no
+longer issued.
+
+**The two registered redirect URIs are these, and the path is Better Auth's:**
+
+```
+https://yvr.kocho.sh/api/auth/callback/google
+https://yvr-kocho-sh-api-dev.yvr-kocho.workers.dev/api/auth/callback/google
+```
+
+Measured from a session, by fetching the authorize URL the Worker builds and
+reading what Google answers with: both serve the real *Sign in with Google*
+page. `/auth/google/callback` — the path a hand-rolled flow used on a branch
+that has since been merged away — answers `redirect_uri_mismatch` on both
+hosts, which is the right answer and is worth leaving that way. **If you ever
+change `basePath` in `src/worker/auth.ts`, the URIs above stop matching and
+sign-in breaks in production with nothing failing in a test.**
+
+The client is a **Web application** client, which is the only kind that can do
+the code exchange, and the consent screen is configured and serving. Neither of
+those needs anything done to it.
+
+*The one piece of housekeeping left in the data:* the deployed database holds
+65 trips with 65 distinct owners and one member each — one per `dev_…` cookie
+from before sign-in, plus a single `local-user` one. Every name is a session's
+own test litter: `Drag test`, `Planner grid`, `Map test`, `Circle`, `Audit`,
+`Infra check`. None of it is deleted here, because a cookie that is gone cannot
+be told from one still in your phone. When you want it gone:
+
+```sql
+-- Read it first. Not reversible, and there is no delete-trip endpoint.
+SELECT COUNT(*) FROM trips WHERE owner_id LIKE 'dev_%' OR owner_id = 'local-user';
+DELETE FROM trips WHERE owner_id LIKE 'dev_%' OR owner_id = 'local-user';
+```
+
+Days, stops, places and members go with each trip — `ON DELETE CASCADE` is on
+every one of those foreign keys. Do it **after** signing in, because a browser
+still carrying one of those cookies hands its trips to the account on the next
+request, and a trip that came with you no longer matches that `LIKE`.
+
+**5. The map's browser key is deployed and working.** A different key from
+`GOOGLE_PLACES_KEY`, confirmed by comparing the string in the served page
+against both. **Its referrer list needs both hostnames** —
+`yvr-kocho-sh-api-dev.yvr-kocho.workers.dev/*` and `yvr.kocho.sh/*` — because
+the app is served on both, and a list holding only the custom domain leaves
+every session's own check falling back to the drawn map. That fallback is also
+what a silent misconfiguration looks like: `RefererNotAllowedMapError` in the
+console, and the drawn map after 8 seconds.
+
+**6. The Protomaps basemap is not happening.** Closed as a decision, not as a
+chore. **Google's Maps Platform terms forbid showing Places content on a
+non-Google map**, and the trip's pins *are* Places content — so "Protomaps
+underneath, Google Places on top" is exactly the combination the terms name.
+Moving the basemap would mean moving search off Google too, losing the ratings
+and Japanese POI coverage that are the best thing about `PlaceSearch.dc.html`.
+Two of the three original objections to Google tiles were also already answered
+without it: `gmap.ts` styles the map down to `tokens.ts` and turns every
+default control off. The per-load cost is the one that remains, and the Dynamic
+Maps quota above is what bounds it. PLAN.md §2 carries the reversal.
+
+Two things worth keeping in case it is ever reopened. **"A few hundred MB" was
+wrong**: the published planet is ~120 GB at z0–z15 and a country extract lands
+in the low gigabytes, roughly halved by capping `maxzoom` at 14 (vector tiles
+overzoom cleanly, so z14 still draws sharp at z17). And **the coordinates line
+up**: Places returns WGS84, OpenStreetMap is WGS84, and both tile sets are Web
+Mercator drawn from it. The old Tokyo-datum offset Japanese mapping is famous
+for — some 400 m — is in neither source.
+
+**7. The Cloudflare token runs to 2027-09-13.** Extended rather than rolled, so
+the id and secret are unchanged. All eight permissions were re-checked live
+afterwards, since editing a token is a chance to drop one by accident: the
+account-level five and the three on the `kocho.sh` zone. An expired token
+breaks deploys and nothing else — the Worker's bindings are baked in at deploy
+and it never calls this API, so the site would keep serving with nobody able to
+ship to it. The failure reads `1000 Invalid API Token`, which looks like a
+wrong secret rather than an expired one.
+
+Check it with the **account** path; the user-level one refuses an
+account-scoped token, which is what left this item unchecked for days:
+
+```
+curl -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+  https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/tokens/verify
+```
+
+### Two things learned the hard way
+
+**Anything a session writes and does not commit is gone.** The deployed
+database had a migration `0002_stub_user.sql` applied that was **not in the
+repo** — a previous session created it and the file went with the container. It
+was reconstructed from the live schema and committed, so a fresh database now
+matches the deployed one.
+
+**A session cannot write to the deployed database, and should not want to.**
+Minting a `user` and a `session` row by hand, to exercise the signed-in half of
+item 4 without a Google account, was refused as a write to a shared resource —
+which is the right answer. A forged session proves the forgery works, not that
+sign-in does. The check that counts is a person signing in, and that is how it
+was eventually checked.
 
 ---
 
 ## Things that are not infrastructure problems, so do not chase them
 
-- **`www.google.com` is blocked from a session.** That is the egress policy and
-  it does not matter: the My Maps fetch runs in the deployed Worker, on
-  Cloudflare's network, which has no such restriction.
+- **`www.google.com` is blocked from a session** — it was on the allowlist and
+  is not any more. It does not matter: the My Maps fetch runs in the deployed
+  Worker, on Cloudflare's network, which has no such restriction.
 - **Chromium cannot reach workers.dev from a session.** The TLS tunnel resets.
-  Screenshots are taken through a loopback relay instead. Not a deploy problem.
+  Screenshots are taken through a loopback relay — a small node server that
+  proxies to the deployed Worker and forwards cookies — or, for a screen behind
+  sign-in, against a local harness serving `page()` with a stub API. Not a
+  deploy problem.
 - **`/user/tokens/verify` returns "Invalid API Token".** The token is
-  account-scoped, so it cannot use a user-level endpoint. It is fine — check it
-  against `/accounts/<id>` instead.
-- **Fonts fall back in session screenshots.** `fonts.googleapis.com` is not on
-  the network allowlist, so Newsreader and Figtree do not load in a screenshot
-  taken from here and the page renders in Georgia and the system sans. On a
-  real device they load normally. Add the two font hosts to the allowlist only
-  if you want screenshots from a session to be typographically accurate:
-
-  ```
-  fonts.googleapis.com
-  fonts.gstatic.com
-  ```
+  account-scoped, so it cannot use a user-level endpoint. It is fine, and the
+  same check does work on the account path:
+  `/accounts/<id>/tokens/verify` returns the token's id, status and
+  `expires_on`. This used to say the token could not read its own metadata at
+  all, which is what left item 7 unchecked for so long.
+- **Fonts no longer fall back in session screenshots.** `fonts.googleapis.com`
+  and `fonts.gstatic.com` are on the allowlist now, so Newsreader and Figtree
+  load and a screenshot taken from here is typographically honest. This used to
+  be the note that said they did not.
+- **`yvr.kocho.sh` cannot be reached from a session** — the proxy answers 403
+  to the CONNECT, because the host is not on the allowlist. Item 3 has landed,
+  so this is now the one thing stopping a session checking the custom domain
+  directly; add it to the allowlist (ENVIRONMENT.md §1) when that matters. The
+  workers.dev hostname serves the same Worker in the meantime, which is why
+  `url: true` stays in `alchemy.run.ts`.
+- **`console.cloud.google.com` is blocked too**, and the Cloud Quotas API
+  refuses API keys. See the top of this file: that is why the quotas are a job
+  for a browser, and why it is better that way.

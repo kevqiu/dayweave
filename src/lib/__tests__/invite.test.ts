@@ -3,7 +3,6 @@ import {
   agoLabel,
   contributionLine,
   firstName,
-  initialsOfName,
   inviteSentence,
   inviteToken,
   inviteUrl,
@@ -25,26 +24,6 @@ describe("inviteUrl", () => {
 
   it("does not double the slash when the origin carries one", () => {
     expect(inviteUrl("https://yvr.kocho.sh/", "abc")).toBe("https://yvr.kocho.sh/i/abc");
-  });
-});
-
-describe("initialsOfName", () => {
-  it("writes the initials the artboards draw", () => {
-    expect(initialsOfName("Kevin Qiu")).toBe("KQ");
-    expect(initialsOfName("Mika Tanaka")).toBe("MT");
-    expect(initialsOfName("Jordan Lee")).toBe("JL");
-  });
-
-  it("takes the first and the last, not the middle", () => {
-    expect(initialsOfName("Ada Byron Lovelace")).toBe("AL");
-  });
-
-  it("gives one name two letters rather than one", () => {
-    expect(initialsOfName("mika")).toBe("MI");
-  });
-
-  it("has nothing to say about an empty name", () => {
-    expect(initialsOfName("   ")).toBe("");
   });
 });
 

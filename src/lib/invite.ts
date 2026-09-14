@@ -24,22 +24,6 @@ export function inviteUrl(origin: string, token: string): string {
 }
 
 /**
- * Two letters for an avatar.
- *
- * The artboards draw KQ, MT, JL — a first and a last initial. One name gets
- * its first two letters instead, because a single letter in a 24px circle
- * reads as a bullet rather than a person.
- */
-export function initialsOfName(name: string): string {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return "";
-  const first = words[0] as string;
-  if (words.length === 1) return first.slice(0, 2).toUpperCase();
-  const last = words[words.length - 1] as string;
-  return `${first[0] ?? ""}${last[0] ?? ""}`.toUpperCase();
-}
-
-/**
  * `Mika Tanaka` -> `Mika`. The invite banner uses a first name, because
  * *Mika invited you to Korea* is how someone would say it out loud.
  */
@@ -82,10 +66,11 @@ export function monthLabel(startIso: string, endIso: string): string {
  * The grey line under a person on the People screen.
  *
  * `design/Members.dc.html` writes it as `added 9 places` for everyone but you,
- * and shows your own email under your own name. There is no email until
- * Better Auth lands (PLAN.md section 5), so you get the same count as everyone
- * else — a person who has added nothing yet says so rather than saying `0`,
- * because "added 0 places" reads as a scoreboard.
+ * and shows your own email under your own name. Better Auth knows the email
+ * now, so the artboard gets both halves as drawn: your row says which account
+ * you are signed in as, and everyone else's counts what they have added. A
+ * person who has added nothing yet says so rather than saying `0`, because
+ * "added 0 places" reads as a scoreboard.
  */
 export function contributionLine(places: number): string {
   if (places === 0) return "nothing added yet";

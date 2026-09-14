@@ -8,9 +8,8 @@
  */
 
 import { orderKeyAppend, orderKeyBetween } from "../lib/order.ts";
-import { initialsOfName, inviteToken } from "../lib/invite.ts";
-import type { GoogleIdentity } from "../lib/oauth.ts";
-import { describeStop, tripCities } from "../lib/derive.ts";
+import { inviteToken } from "../lib/invite.ts";
+import { describeStop, isAccommodation, tripCities } from "../lib/derive.ts";
 import type { PlaceDetails } from "../lib/places.ts";
 import type { DayGeo, LatLng } from "../lib/geo.ts";
 import { AVATAR_COLORS, avatarColor, dayHue } from "./ui/tokens.ts";
@@ -442,6 +441,15 @@ export interface StopView {
   author: string;
   authorColor: string;
   city: string | null;
+  /**
+   * Somewhere you sleep, worked out from the category (`isAccommodation`).
+   *
+   * Not a route stop: it is not numbered, its pin carries a roof rather than a
+   * number, and it keeps its colour when the rest of the day dims. A hotel is
+   * where the day starts and ends, so it stays legible whatever else is
+   * selected.
+   */
+  accommodation: boolean;
   /** Where Navigate goes. Built rather than stored — see navigateUrl. */
   navigateUrl: string | null;
   location: LatLng | null;
@@ -472,13 +480,29 @@ export function navigateUrl(
 }
 
 /**
- * Two letters for the avatar on a row.
+ * Two letters for the avatar on a row, from a real name.
  *
- * The artboards show real initials, KQ and MT, because they draw named people.
- * There are no names until Better Auth lands (PLAN.md section 5), so these are
- * derived from the id: arbitrary, but stable per person and shaped like
- * initials, which is what the avatar has to read as. Digits would read as a
- * count.
+ * The artboards show KQ and MT because they draw named people, and there are
+ * named people now: Better Auth keeps the name Google gave us. Two words give
+ * a letter each; one word gives its first two, because a single initial in a
+ * 32px circle reads as an unfinished one.
+ */
+export function initialsForName(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "";
+  const first = words[0] as string;
+  if (words.length === 1) return first.slice(0, 2).toUpperCase();
+  const last = words[words.length - 1] as string;
+  return `${first[0]}${last[0]}`.toUpperCase();
+}
+
+/**
+ * Two letters for someone with no name to read.
+ *
+ * Kept for the member whose row has outlived the account it named — a trip
+ * still lists a `user_id` after that user is gone, and an empty circle would
+ * read as a bug rather than as an absence. Arbitrary, but stable per id and
+ * shaped like initials. Digits would read as a count.
  */
 export function initialsFor(userId: string): string {
   const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -497,6 +521,16 @@ export function initialsFor(userId: string): string {
 export function stopsForDay(
   stops: readonly StopRow[],
   dayId: string | null,
+  /**
+   * Who wrote each stop, and what circle they wear on this trip.
+   *
+   * Without it the avatar falls back to two letters hashed out of the user id,
+   * which is what it did when nobody had a name. That is why a stop added by
+   * a signed-in Kevin Qiu was labelled MZ: the hash never knew about the
+   * account, and nothing told it once there was one. The colour comes from the
+   * map too rather than from the id, because on this trip it is dealt by join
+   * order — see `peopleOfTrip`.
+   */
   people?: ReadonlyMap<string, Person>,
 ): StopView[] {
   const ordered = stops.filter((s) => s.day_id === dayId);
@@ -532,6 +566,7 @@ export function stopsForDay(
       author: author.initials,
       authorColor: author.color,
       city: stop.city,
+      accommodation: isAccommodation(stop.category),
       navigateUrl: navigateUrl(location, stop.google_place_id),
       location,
     };
@@ -548,17 +583,46 @@ export function citiesForTrip(days: readonly DayRow[], stops: readonly StopRow[]
   return tripCities(inDayOrder);
 }
 
-// --- people -----------------------------------------------------------------
+/* ------------------------------------------------------------------ people */
+
+export interface UserRow {
+  id: string;
+  name: string;
+  email: string;
+  image: string | null;
+}
+
+/**
+ * The people behind a set of ids, in one read.
+ *
+ * `user` is Better Auth's table and this is the only place the app reads it:
+ * everywhere else a person is an id on a row, which is what keeps membership
+ * a foreign key rather than a copy of somebody's name.
+ */
+export async function usersById(
+  db: D1Database,
+  ids: readonly string[],
+): Promise<Map<string, UserRow>> {
+  const wanted = [...new Set(ids)].filter(Boolean);
+  if (wanted.length === 0) return new Map();
+
+  const { results } = await db
+    .prepare(`SELECT id, name, email, image FROM "user" WHERE id IN (${wanted.map(() => "?").join(", ")})`)
+    .bind(...wanted)
+    .all<UserRow>();
+
+  return new Map((results ?? []).map((row) => [row.id, row]));
+}
 
 /**
  * A person, in the shape an avatar needs.
  *
- * `name` is what someone typed at the door and the initials come from it; the
- * colour comes from where they sit on the trip, which is what keeps two people
- * on one trip from wearing the same circle (see `peopleOfTrip`). Someone with
- * no row yet — a browser that owned trips before sign-in existed — keeps the
- * two derived letters `initialsFor` has always given it, so nothing it made
- * loses its author.
+ * `name` is Better Auth's, which is Google's, and the initials come from it;
+ * the colour comes from where they sit on the trip, which is what keeps two
+ * people on one trip from wearing the same circle (see `peopleOfTrip`).
+ * Someone with no `user` row — a browser that owned trips before sign-in
+ * existed and never signed in on it — keeps the two derived letters
+ * `initialsFor` has always given it, so nothing it made loses its author.
  */
 export interface Person {
   id: string;
@@ -571,15 +635,6 @@ export function personOf(userId: string, people?: ReadonlyMap<string, Person>): 
   const known = people?.get(userId);
   if (known) return known;
   return { id: userId, name: "", initials: initialsFor(userId), color: avatarColor(userId) };
-}
-
-export async function getUser(db: D1Database, userId: string): Promise<Person | null> {
-  const row = await db
-    .prepare(`SELECT id, name FROM app_user WHERE id = ?`)
-    .bind(userId)
-    .first<{ id: string; name: string }>();
-  if (!row) return null;
-  return { id: row.id, name: row.name, initials: initialsOfName(row.name), color: avatarColor(row.id) };
 }
 
 /**
@@ -597,178 +652,69 @@ export async function peopleOfTrip(
   tripId: string,
 ): Promise<Map<string, Person>> {
   const ids = await memberIds(db, tripId);
-  const named = await peopleFor(db, ids);
+  const named = await usersById(db, ids);
 
   const out = new Map<string, Person>();
   ids.forEach((id, index) => {
-    const known = named.get(id);
+    const name = named.get(id)?.name ?? "";
     out.set(id, {
       id,
-      name: known?.name ?? "",
-      initials: known?.initials ?? initialsFor(id),
+      name,
+      initials: name ? initialsForName(name) : initialsFor(id),
       color: AVATAR_COLORS[index % AVATAR_COLORS.length] as string,
     });
   });
   return out;
 }
 
-/** Names for a set of ids, in one read rather than one per avatar. */
-export async function peopleFor(
-  db: D1Database,
-  userIds: readonly string[],
-): Promise<Map<string, Person>> {
-  const ids = [...new Set(userIds)].filter(Boolean);
-  const out = new Map<string, Person>();
-  if (!ids.length) return out;
-
-  const { results } = await db
-    .prepare(`SELECT id, name FROM app_user WHERE id IN (${ids.map(() => "?").join(", ")})`)
-    .bind(...ids)
-    .all<{ id: string; name: string }>();
-
-  for (const row of results ?? []) {
-    out.set(row.id, {
-      id: row.id,
-      name: row.name,
-      initials: initialsOfName(row.name),
-      color: avatarColor(row.id),
-    });
-  }
-  return out;
-}
-
 /**
- * Signing in with Google.
+ * What happens to the trips a `yvr_dev_uid` cookie owns: they follow the
+ * browser that made them, once, into the account that signs in on it.
  *
- * Three things have to line up, in this order, and the order is the whole
- * function: the Google account if we have seen it before, then the email
- * address if this is the same person arriving through a second Google account,
- * then a new person. Matching on the account first is what makes a changed
- * email address harmless; matching on email at all is what stops one person
- * ending up with two piles of trips.
+ * Before sign-in existed, a trip was owned by a per-browser id in a cookie.
+ * That id is a bearer token — whoever holds the cookie already has every one
+ * of those trips — so handing them to the account signing in from that same
+ * browser gives nobody access they did not have a second earlier. It is the
+ * one moment when the two ids are provably the same person, which is why this
+ * runs then and never again: the cookie is cleared on the way out.
  *
- * `adoptUserId` is the id a browser was already carrying — see `claimable` in
- * `src/worker/index.ts`. A browser that has been making trips since before
- * there was any sign-in brings them through the door rather than meeting its
- * own trips as a stranger.
+ * Everything the id touches moves together. A trip whose owner moved but whose
+ * stops still read `created_by: dev_…` would put a stranger's initials on the
+ * cards of a trip with one member.
+ *
+ * `UPDATE OR IGNORE` on the membership, then a delete: the primary key is
+ * (trip_id, user_id), so a browser that somehow held both ids on one trip
+ * would collide, and the row to keep in that case is the one already there.
  */
-export async function signInWithGoogle(
+export async function adoptDevIdentity(
   db: D1Database,
-  input: {
-    identity: GoogleIdentity;
-    tokens: { accessToken: string | null; refreshToken: string | null; scope: string | null; expiresAt: number | null };
-    adoptUserId?: string | null;
-  },
-): Promise<Person> {
-  const { identity, tokens } = input;
-
-  const linked = await db
-    .prepare(`SELECT user_id FROM account WHERE provider_id = 'google' AND provider_account_id = ?`)
-    .bind(identity.sub)
-    .first<{ user_id: string }>();
-
-  const byEmail = linked
-    ? null
-    : identity.email
-      ? await db
-          .prepare(`SELECT id FROM app_user WHERE email = ?`)
-          .bind(identity.email)
-          .first<{ id: string }>()
-      : null;
-
-  const userId = linked?.user_id ?? byEmail?.id ?? input.adoptUserId ?? `u_${crypto.randomUUID()}`;
-
-  await db
-    .prepare(
-      `INSERT INTO app_user (id, email, name, image, created_at) VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT (id) DO UPDATE SET
-           email = excluded.email, name = excluded.name, image = excluded.image`,
-    )
-    .bind(userId, identity.email, identity.name, identity.picture, now())
-    .run();
-
-  await db
-    .prepare(
-      `INSERT INTO account (id, user_id, provider_id, provider_account_id,
-                            access_token, refresh_token, scope, expires_at, created_at, updated_at)
-       VALUES (?, ?, 'google', ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT (provider_id, provider_account_id) DO UPDATE SET
-           access_token = excluded.access_token,
-           -- Google sends a refresh token once, on the first consent. A later
-           -- sign-in comes back without one, and overwriting the stored token
-           -- with that null is how an app quietly loses its own Drive access.
-           refresh_token = COALESCE(excluded.refresh_token, account.refresh_token),
-           scope = excluded.scope,
-           expires_at = excluded.expires_at,
-           updated_at = excluded.updated_at`,
-    )
-    .bind(
-      crypto.randomUUID(),
-      userId,
-      identity.sub,
-      tokens.accessToken,
-      tokens.refreshToken,
-      tokens.scope,
-      tokens.expiresAt,
-      now(),
-      now(),
-    )
-    .run();
-
-  return {
-    id: userId,
-    name: identity.name,
-    initials: initialsOfName(identity.name),
-    color: avatarColor(userId),
-  };
+  devId: string,
+  userId: string,
+): Promise<void> {
+  await db.batch([
+    db.prepare(`UPDATE trips SET owner_id = ? WHERE owner_id = ?`).bind(userId, devId),
+    db.prepare(`UPDATE OR IGNORE trip_members SET user_id = ? WHERE user_id = ?`).bind(userId, devId),
+    db.prepare(`DELETE FROM trip_members WHERE user_id = ?`).bind(devId),
+    db.prepare(`UPDATE trip_invites SET invited_by = ? WHERE invited_by = ?`).bind(userId, devId),
+    db.prepare(`UPDATE stops SET created_by = ? WHERE created_by = ?`).bind(userId, devId),
+    db.prepare(`UPDATE stops SET visited_by = ? WHERE visited_by = ?`).bind(userId, devId),
+    db.prepare(`UPDATE ops SET actor_id = ? WHERE actor_id = ?`).bind(userId, devId),
+  ]);
 }
 
-/**
- * Whether an id a browser is carrying is one we may adopt into a new account.
- *
- * Only an id that has never signed in: the moment there is an `app_user` row
- * for it, the cookie naming it is a claim about who somebody is, and a claim
- * is exactly what the old cookie could not make. This is the one place the
- * pre-sign-in cookie is still read, and it can only ever add trips to an
- * account, never open one.
- */
-export async function claimableUserId(
-  db: D1Database,
-  userId: string | null,
-): Promise<string | null> {
-  if (!userId) return null;
-
-  const known = await db
-    .prepare(`SELECT 1 AS ok FROM app_user WHERE id = ?`)
-    .bind(userId)
-    .first<{ ok: number }>();
-  if (known) return null;
-
-  const owns = await db
-    .prepare(`SELECT 1 AS ok FROM trip_members WHERE user_id = ? LIMIT 1`)
-    .bind(userId)
-    .first<{ ok: number }>();
-  return owns ? userId : null;
-}
-
-// --- membership -------------------------------------------------------------
+/* -------------------------------------------------------------- membership */
 
 /**
  * Membership IS the permission (PLAN.md section 5), which only means anything
  * once there is a second person, so this is the check the invite feature turns
- * from a comment into a rule.
+ * from a comment into a rule. There is no role to read.
  */
-export async function isMember(
-  db: D1Database,
-  tripId: string,
-  userId: string | null,
-): Promise<boolean> {
-  if (!userId) return false;
+export async function isMember(db: D1Database, tripId: string, userId: string): Promise<boolean> {
   const row = await db
     .prepare(`SELECT 1 AS ok FROM trip_members WHERE trip_id = ? AND user_id = ?`)
     .bind(tripId, userId)
     .first<{ ok: number }>();
-  return Boolean(row);
+  return row !== null;
 }
 
 export async function memberIds(db: D1Database, tripId: string): Promise<string[]> {
@@ -878,4 +824,60 @@ export async function inviteByToken(db: D1Database, token: string): Promise<Invi
     )
     .bind(token)
     .first<InviteRow>();
+}
+
+/**
+ * A stop that is not a place: "Pick up the rental car", "Get ready".
+ *
+ * `0001_init.sql` has always allowed this — `stops.place_id` is nullable and
+ * the column comment reads "NULL = a note, no pin" — and nothing could make
+ * one. Now something can. It behaves as every other stop does: it sits on a
+ * day, takes a time, drags between days and hours, and can be ticked off. What
+ * it does not have is a place, so it has no pin on the map, no walk on its
+ * second line and no Navigate.
+ *
+ * The title is the whole of it. A place's title comes from Google and its note
+ * is the thing a person wrote; here the person wrote the title, and the note
+ * stays available for the detail underneath.
+ */
+export async function addNoteAsStop(
+  db: D1Database,
+  input: {
+    tripId: string;
+    dayId: string | null;
+    title: string;
+    userId: string;
+    startTime?: string | null;
+  },
+): Promise<{ stopId: string }> {
+  const siblings = await db
+    .prepare(
+      `SELECT order_key FROM stops
+        WHERE trip_id = ? AND deleted_at IS NULL
+          AND day_id IS ?`,
+    )
+    .bind(input.tripId, input.dayId)
+    .all<{ order_key: string }>();
+
+  const stopId = crypto.randomUUID();
+  await db
+    .prepare(
+      `INSERT INTO stops (id, trip_id, day_id, place_id, title, start_time, order_key,
+                          created_by, created_at, updated_at)
+       VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      stopId,
+      input.tripId,
+      input.dayId,
+      input.title,
+      input.startTime ?? null,
+      orderKeyAppend((siblings.results ?? []).map((r) => r.order_key)),
+      input.userId,
+      now(),
+      now(),
+    )
+    .run();
+
+  return { stopId };
 }

@@ -25,6 +25,20 @@ button { font-family: ${SANS}; cursor: pointer; }
 [hidden] { display: none !important; }
 
 /* Every phone artboard is 375x667 and clips. On a real phone it fills. */
+/*
+ * The frame is the phone, and only while there is a phone to be.
+ *
+ * It used to be 375 x 667 at every size above a phone, so a 2560px monitor got
+ * a business card of an app floating in the middle of an ocean of cream, with
+ * the Planner as the one exception — and even that was capped at 1440 x 900
+ * and floated too. There is no reading of "the artboards are 375 wide" that
+ * makes that right: the artboards are drawn at the size of the device they are
+ * for, and a desk is a different device.
+ *
+ * So: below 780px it is the phone, filling whatever the phone gives it. At or
+ * above, it fills the window, and each screen lays itself out for the room —
+ * see the desk rules below, and design/Desktop.dc.html.
+ */
 #frame {
   position: relative; width: ${FRAME.width}px; height: ${FRAME.height}px;
   overflow: hidden; background: ${C.paper};
@@ -33,8 +47,18 @@ button { font-family: ${SANS}; cursor: pointer; }
   body { display: block; }
   #frame { width: 100vw; height: 100dvh; }
 }
+@media (min-width: 780px) and (min-height: 560px) {
+  body { display: block; }
+  #frame { width: 100vw; height: 100dvh; }
+}
 
 .screen { position: absolute; inset: 0; display: flex; flex-direction: column; background: ${C.paper}; }
+/* A one-column screen. On a phone the column is the screen; the desk rules
+   further down turn it into a card the window holds. */
+.card-column {
+  flex-grow: 1; min-height: 0; width: 100%;
+  display: flex; flex-direction: column; position: relative;
+}
 .serif { font-family: ${SERIF}; font-weight: 500; }
 
 /* ---- Trips (design/Trips.dc.html) ---- */
@@ -334,11 +358,16 @@ button { font-family: ${SANS}; cursor: pointer; }
   background: ${C.card}; box-shadow: 0 1px 3px rgba(80,66,44,0.10);
   display: flex; align-items: center; justify-content: center; padding: 0;
 }
-.pin { position: absolute; transform: translate(-50%, -100%); }
+/* Centred on the point, like the real map's markers. */
+.pin { position: absolute; transform: translate(-50%, -50%); }
 .pin > i {
-  display: block; border-radius: 50%; border: 2.5px solid ${C.card};
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; border: 2.5px solid ${C.card};
   box-shadow: 0 2px 6px rgba(70,58,40,0.22);
+  color: ${C.card}; font-family: ${SANS}; font-weight: 700; line-height: 1;
+  font-style: normal;
 }
+.pin > i > svg { display: block; }
 
 .sheet {
   position: absolute; left: 0; right: 0; bottom: 0; background: ${C.paper};
@@ -363,6 +392,12 @@ button { font-family: ${SANS}; cursor: pointer; }
 .sheet.stops { height: 46.8%; transition: height 160ms ease; }
 .sheet.stops.full { height: calc(100% - 50px); }
 .sheet.stops.dragging { transition: none; }
+
+/* Pulling a sheet down to put it away, iOS-style: the handle follows the
+   thumb, and a pull that does not get far enough springs back. The transform
+   is only animated on the way back, so the drag itself is not lagged. */
+.sheet { transition: transform 180ms cubic-bezier(0.2, 0.8, 0.3, 1); }
+.sheet.dragging { transition: none; }
 
 /* The header the sheet grows into (design/SheetFull.dc.html). */
 /* SheetFull.dc.html's header row, without its "All stops" title — see the
@@ -426,6 +461,22 @@ button { font-family: ${SANS}; cursor: pointer; }
 }
 .stop.done .stop-author { opacity: 0.45; }
 .stop-dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid; flex-shrink: 0; }
+
+/*
+ * The row's half of the map's numbered pin.
+ *
+ * Transparent, so it reads as a reference to the dot on the map rather than
+ * as a second dot. 17px is the smallest circle two digits still sit in at
+ * 9.5px, which is the size the artboards use for their smallest meta.
+ */
+.stop-index {
+  width: 17px; height: 17px; border-radius: 50%; border: 1.2px solid;
+  background: transparent; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9.5px; font-weight: 700; line-height: 1;
+}
+.stop-index.bed { border-style: solid; }
+.stop-index > svg { display: block; }
 
 /* ---- Dragging a stop (design/SheetFull.dc.html, PLAN.md section 4e) ---- */
 
@@ -568,12 +619,16 @@ button { font-family: ${SANS}; cursor: pointer; }
 /* Leaving the search, said in words rather than drawn as an X in the field.
    Matches the Back to trips item in design/TripMenu.dc.html: the same arrow at
    16px and the same 13px label. */
-.back-to-trip {
-  display: flex; align-items: center; gap: 7px; height: 32px; margin: 0 0 8px;
-  background: none; border: 0; padding: 0; font-family: ${SANS};
-  font-size: 13px; font-weight: 600; color: ${C.inkSoft};
+/*
+ * What the search is adding to. Where the "Back to trip" button used to be:
+ * the same place in the sheet, saying what this is for rather than what is
+ * behind it. The grabber above it is the way out.
+ */
+.search-target {
+  display: flex; align-items: center; gap: 6px; padding: 0 4px 8px;
+  font-size: 11.5px; font-weight: 600; color: ${C.grey};
 }
-.back-to-trip:active { color: ${C.ink}; }
+.search-target svg { opacity: 0.75; }
 .search-field {
   height: 40px; border-radius: 10px; border: 1.5px solid ${C.ink}; background: ${C.card};
   display: flex; align-items: center; gap: 10px; padding: 0 13px;
@@ -741,17 +796,149 @@ button { font-family: ${SANS}; cursor: pointer; }
 }
 
 
-/* ---- The Plan view, one day a screen (design/PlannerMobile.dc.html) ---- */
-.screen.plan { background: ${C.paper}; }
-/* Main.dc.html floats the bar over the map. Here it is the first row of a
-   column with nothing behind it, so it takes its own space. */
-.screen.plan .trip-bar { position: static; flex-shrink: 0; }
-/* The way into an empty stretch of the day, in the dashed language of the
-   free slot rather than the sheet's filled pill. */
-.clock-list .add-stop {
-  margin: 12px 0 16px; width: 100%; border-radius: 7px;
-  border: 1.2px dashed #E2D8C6; background: transparent; height: 26px;
+/* ---- The trip at a desk (design/Desktop.dc.html) ---- */
+
+.desk-body { flex-grow: 1; display: flex; min-height: 0; }
+.desk-title { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.desk-sub { font-size: 12.5px; color: ${C.grey}; white-space: nowrap; }
+
+/* The itinerary. 316 at the artboard's width. */
+.desk-rail {
+  width: 316px; flex-shrink: 0; border-right: 1px solid ${C.border};
+  display: flex; flex-direction: column; min-height: 0; background: ${C.paper};
 }
+.rail-head { padding: 14px 16px 10px; display: flex; align-items: center; gap: 8px; }
+.rail-title { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: ${C.greyer}; }
+.rail-done { font-size: 11px; color: ${C.grey}; }
+.rail-list { flex-grow: 1; overflow-y: auto; min-height: 0; }
+
+.rail-day {
+  width: 100%; display: flex; align-items: center; gap: 10px; height: 42px;
+  padding: 0 16px; border-top: 1px solid ${C.line}; background: none; border-left: 0;
+  border-right: 0; border-bottom: 0; text-align: left; font-family: ${SANS};
+}
+.rail-day.open {
+  height: 44px; background: ${C.highlight};
+  border-top: 1px solid ${C.sheetEdge}; border-bottom: 1px solid ${C.sheetEdge};
+}
+.rail-day.past .rail-hue { opacity: 0.45; }
+.rail-day.past .rail-label { color: ${C.greyer}; }
+.rail-day.droppable { background: #FCF6E6; border-bottom: 1px dashed #C7B98F; }
+.rail-hue { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.rail-label {
+  font-size: 13px; color: ${C.inkSoft}; flex-grow: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rail-day.open .rail-label { font-weight: 700; color: ${C.ink}; }
+.rail-count { font-size: 11px; color: ${C.greyer}; font-variant-numeric: tabular-nums; }
+.rail-day .drop-here {
+  font-size: 9px; font-weight: 700; letter-spacing: 0.1em; color: #96752F;
+}
+
+.rail-stops { padding: 6px 10px; }
+.rail-stop { display: flex; align-items: center; gap: 4px; border-radius: 10px; }
+.rail-stop.selected { background: ${C.card}; border: 1px solid ${C.borderWarm}; }
+.rail-stop.ghost { opacity: 0.45; }
+.rail-stop .grip { opacity: 0.35; }
+.rail-stop-tap {
+  flex-grow: 1; min-width: 0; display: flex; align-items: center; gap: 10px;
+  height: 46px; padding: 0 8px 0 2px; background: none; border: 0; text-align: left;
+}
+.rail-time {
+  width: 38px; flex-shrink: 0; font-size: 11.5px; font-weight: 600;
+  color: ${C.todayInk}; font-variant-numeric: tabular-nums;
+}
+.rail-time.unset { color: ${C.faint}; }
+.rail-name {
+  display: block; font-size: 13px; font-weight: 500;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rail-meta {
+  display: block; font-size: 10.5px; color: ${C.meta};
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rail-stop.done .rail-name {
+  color: ${C.greyer}; font-weight: 400; text-decoration: line-through;
+}
+.rail-stop.done .rail-time { color: ${C.faint}; }
+.rail-stops .add-place { margin-top: 4px; }
+
+.desk-map { position: relative; flex-grow: 1; min-width: 0; }
+
+/* The stop being looked at. 334 at the artboard's width. */
+.desk-detail {
+  width: 334px; flex-shrink: 0; border-left: 1px solid ${C.border};
+  background: ${C.paper}; display: flex; flex-direction: column;
+  overflow-y: auto; min-height: 0;
+}
+.detail-head { padding: 18px 18px 14px; border-bottom: 1px solid ${C.sheetEdge}; }
+.detail-when {
+  display: flex; align-items: center; gap: 7px; margin-bottom: 7px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.07em; color: ${C.todayInk};
+}
+.detail-dot { width: 9px; height: 9px; border-radius: 50%; }
+.detail-name {
+  font-family: ${SERIF}; font-size: 25px; font-weight: 500; line-height: 1.2;
+}
+.detail-sub { font-size: 12.5px; color: ${C.grey}; margin-top: 5px; }
+.detail-actions { display: flex; gap: 7px; margin-top: 14px; }
+.detail-btn {
+  flex-grow: 1; height: 40px; border-radius: 10px; border: 1px solid ${C.border};
+  background: ${C.card}; color: ${C.inkSoft}; font-family: ${SANS};
+  font-size: 13px; font-weight: 600; display: flex; align-items: center;
+  justify-content: center; text-decoration: none;
+}
+.detail-btn.dark { border: none; background: ${C.ink}; color: ${C.paper}; }
+.detail-btn.on { background: ${C.todayRing}; border-color: #CBDCC6; color: ${C.todayInk}; }
+.detail-btn.square { flex-grow: 0; width: 40px; }
+.detail-block { padding: 16px 18px; border-bottom: 1px solid ${C.sheetEdge}; }
+.detail-label {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: ${C.greyer};
+  margin-bottom: 9px;
+}
+.detail-note { font-size: 12.5px; color: #55504A; line-height: 1.6; }
+.detail-empty { font-size: 12.5px; color: ${C.faint}; }
+.detail-link {
+  margin-top: 10px; background: none; border: 0; padding: 0;
+  font-family: ${SANS}; font-size: 12px; font-weight: 600; color: ${C.link};
+}
+
+/*
+ * The screens with no desk artboard, given room rather than left stranded.
+ *
+ * Trips, New trip and Sign in are one column of content each; there is no
+ * second pane for them to grow into, and inventing one would be furniture. So
+ * the column keeps its width and the window holds it, centred, on a card —
+ * which is what it always was, minus the pretence that the browser window is
+ * a phone.
+ */
+@media (min-width: 780px) and (min-height: 560px) {
+  .screen.centred {
+    align-items: center; justify-content: center;
+    background: ${C.map};
+  }
+  .screen.centred > .card-column {
+    /* Hugs its content: a trip list with one trip on it should not hold 700px
+       of cream open underneath. */
+    /* flex-grow: 0 undoes the base rule, which stretches the column down the
+       main axis of the screen and was holding the card open to full height. */
+    flex-grow: 0;
+    width: 420px; max-width: 100%; height: auto; max-height: min(760px, 100%);
+    display: flex; flex-direction: column; background: ${C.paper};
+    border: 1px solid ${C.border}; border-radius: 18px; overflow: hidden;
+    box-shadow: 0 12px 40px rgba(84,68,44,0.10);
+  }
+  .screen.centred.roomy > .card-column { width: 560px; }
+  /* Except where the design is anchored to the bottom of a full height — the
+     sign-in button sits under a spacer, and New trip scrolls its months. */
+  .screen.centred.tall > .card-column { height: min(760px, 100%); }
+}
+
+/* ---- The Plan view on a phone: the trip bar, the rail, one column ---- */
+/* Main.dc.html floats the bar over the map. Here it is the first row of a
+   column with nothing behind it, so it takes its own space — without this the
+   rail slides up underneath it. */
+.screen.desk.narrow .trip-bar { position: static; flex-shrink: 0; }
 
 .day-rail {
   height: 46px; flex-shrink: 0; display: flex; align-items: center; gap: 6px;
@@ -772,73 +959,11 @@ button { font-family: ${SANS}; cursor: pointer; }
 }
 .rail-hue { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
 
-/* The day as a clock: the time down the side, the rows beside it, the gaps
-   drawn to scale. */
-.day-clock {
-  flex-grow: 1; overflow-y: auto; display: flex; padding: 10px 12px 0 0; min-height: 0;
-}
-.clock-gutter {
-  width: 44px; flex-shrink: 0; display: flex; flex-direction: column;
-  align-items: flex-end; padding-right: 8px;
-}
-.clock-time {
-  background: none; border: 0; padding: 0; width: 100%;
-  display: flex; align-items: flex-start; justify-content: flex-end;
-  font-family: ${SANS}; font-size: 9.5px; color: ${C.faint};
-  font-variant-numeric: tabular-nums;
-}
-.clock-time.unset { opacity: 0.55; }
-.clock-rule { width: 1.5px; background: ${C.sheetEdge}; flex-shrink: 0; margin-right: 11px; }
-.clock-list { flex-grow: 1; min-width: 0; display: flex; flex-direction: column; }
-
-.plan-row { display: flex; flex-direction: column; }
-.plan-row-top { display: flex; align-items: flex-start; gap: 7px; }
-.plan-row .grip { margin-top: 3px; opacity: 0.35; }
-.plan-name {
-  font-size: 12.5px; font-weight: 500; display: block;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.plan-row.done .plan-name { color: ${C.greyer}; font-weight: 400; text-decoration: line-through; }
-.plan-meta {
-  font-size: 9.5px; color: ${C.meta}; margin-top: 1px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.plan-meta:empty { display: none; }
-.plan-meta.note { color: #736C62; }
-.plan-author {
-  width: 15px; height: 15px; border-radius: 50%; color: #FFF9F0; font-size: 6.5px;
-  font-weight: 700; display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-}
-.plan-row.done .plan-author { opacity: 0.45; }
-.plan-row.ghost { opacity: 0.45; }
-
-/* The gap the day is holding open, and the plus that fills it. */
-.free-slot {
-  margin-top: 9px; height: 22px; border-radius: 7px; border: 1.2px dashed #E2D8C6;
-  background: transparent; display: flex; align-items: center; justify-content: center;
-  gap: 6px; font-family: ${SANS}; font-size: 9.5px; color: ${C.faint};
-}
-
-/* The tray, which is why the Plan view is worth building on a phone. */
-.plan-tray {
-  flex-shrink: 0; border-top: 1px solid ${C.border}; background: ${C.highlight};
-  padding: 8px 12px 12px; max-height: 38%; display: flex; flex-direction: column;
-}
-.plan-tray.full { max-height: 72%; }
-.plan-tray .grabber { height: auto; padding-bottom: 8px; }
-.tray-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+/* Shared by the drawer and the desk panel: the label, the count and the card
+   To be planned is a list of. The phone's own tray — a strip under the day's
+   clock, with a grabber and a pull-up — went with the clock it sat under. */
 .tray-label { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; color: ${C.greyer}; }
 .tray-count { font-size: 10.5px; color: ${C.greyer}; font-variant-numeric: tabular-nums; }
-.tray-more {
-  background: none; border: 0; padding: 0; font-family: ${SANS};
-  font-size: 10.5px; font-weight: 600; color: ${C.link};
-}
-.tray-sep { width: 1px; height: 12px; background: #E0D5BF; }
-.round-btn.small { width: 22px; height: 22px; border-radius: 6px; }
-.tray-strip { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
-.tray-strip::-webkit-scrollbar { display: none; }
-.tray-list { display: flex; flex-direction: column; gap: 5px; overflow-y: auto; min-height: 0; }
 .tray-empty { font-size: 10.5px; color: ${C.faint}; line-height: 1.5; }
 .tray-card {
   border-radius: 9px; border: 1px solid ${C.borderWarm}; background: ${C.card};
@@ -848,7 +973,7 @@ button { font-family: ${SANS}; cursor: pointer; }
 .tray-card.ghost { opacity: 0.45; border-style: dashed; }
 .tray-name { font-size: 11px; font-weight: 600; white-space: nowrap; }
 .tray-meta { font-size: 9px; color: ${C.meta}; white-space: nowrap; }
-.tray-list .tray-name, .tray-list .tray-meta {
+.tray-side-list .tray-name, .tray-side-list .tray-meta {
   overflow: hidden; text-overflow: ellipsis; display: block;
 }
 .tray-put { background: none; border: 0; padding: 0 2px; display: flex; }
@@ -862,7 +987,9 @@ button { font-family: ${SANS}; cursor: pointer; }
 }
 
 /* ---- The Planner at a desk (design/Planner.dc.html) ---- */
-#frame.wide { width: min(1440px, 100vw); height: min(900px, 100dvh); }
+/* The Planner used to be the one screen that grew, to 1440 x 900 and no
+   further, which left a hard-edged box on a bare page. Every screen fills the
+   window now — see the media query at the top — so it needs no class. */
 .screen.desk { background: ${C.paper}; }
 
 .desk-bar {
@@ -921,7 +1048,12 @@ button { font-family: ${SANS}; cursor: pointer; }
 
 /* 10px of air so the 08:00 label, which the artboard hangs at -6px, is not
    sliced in half by the top of the scroller. */
-.grid-scroll { flex-grow: 1; overflow-y: auto; min-height: 0; padding-top: 10px; }
+/* pan-y: the column scrolls vertically and a sideways drag is the day swipe,
+   so the browser must not claim the horizontal axis for a scroll of its own. */
+.grid-scroll {
+  flex-grow: 1; overflow-y: auto; min-height: 0; padding-top: 10px;
+  touch-action: pan-y;
+}
 .grid-inner { display: flex; position: relative; }
 .grid-gutter { width: 56px; flex-shrink: 0; border-right: 1px solid ${C.sheetEdge}; position: relative; z-index: 2; }
 .hour-label { position: absolute; right: 9px; font-size: 10px; color: ${C.faint}; }
@@ -997,11 +1129,34 @@ button { font-family: ${SANS}; cursor: pointer; }
 .gpop-item.danger { color: #A06B52; }
 .gcol.flip .gpop { left: auto; right: calc(100% + 7px); }
 
+/*
+ * One column: below the card, not beside it.
+ *
+ * Beside it means off the screen at 375px — the popover hung to the right of a
+ * card that already reaches the right edge, and the flip rule (meant for the
+ * last columns of a week) then hung it off the left instead. There is no room
+ * either side of a single column, and there is plenty underneath.
+ */
+.screen.desk.narrow .gpop,
+.screen.desk.narrow .gcol.flip .gpop {
+  left: 4px; right: 4px; top: calc(100% + 6px); width: auto;
+}
+
 /* The bar a dragged card would land on, and the hour it would land at. */
 .grid-drop { position: absolute; height: 3px; border-radius: 2px; background: ${C.today}; z-index: 61; }
+/*
+ * Centred, not left-aligned.
+ *
+ * The card is held by the grip on its left edge, so a hand dragging one sits
+ * exactly over the left end of the line it is about to land on — which is
+ * where the time was. In the middle of the column it is clear of the finger
+ * whichever hand is holding the phone.
+ */
 .grid-drop span {
-  position: absolute; left: 0; top: -16px; font-size: 9.5px; font-weight: 700;
-  color: ${C.todayInk}; letter-spacing: 0.04em; white-space: nowrap;
+  position: absolute; left: 50%; transform: translateX(-50%); top: -16px;
+  font-size: 9.5px; font-weight: 700; color: ${C.todayInk};
+  letter-spacing: 0.04em; white-space: nowrap;
+  background: ${C.paper}; padding: 0 5px; border-radius: 4px;
 }
 
 .tray-side {
@@ -1028,7 +1183,152 @@ button { font-family: ${SANS}; cursor: pointer; }
   font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px;
 }
 
+/* ---- The Plan view on a phone: one column, and a drawer ---- */
+
+/* One day, so the header has nothing to line up with and can breathe. */
+.screen.desk.narrow .grid-head { height: auto; min-height: 30px; }
+.screen.desk.narrow .gcol-head { padding: 5px 12px 7px; }
+.screen.desk.narrow .grid-main { position: relative; }
+
+/*
+ * Where you are sleeping, above the hours and outside the scroller.
+ *
+ * A hotel is not an event at a time — it is the fact the whole day hangs off —
+ * so it does not scroll away with the morning.
+ */
+.lodging-row {
+  display: flex; flex-shrink: 0; border-bottom: 1px solid ${C.sheetEdge};
+  background: ${C.card};
+}
+.lodging-gutter {
+  width: 56px; flex-shrink: 0; display: flex; align-items: center;
+  justify-content: center; opacity: 0.7;
+}
+.lodging-cell {
+  flex: 1 1 0; min-width: 0; padding: 6px 6px; display: flex; gap: 5px;
+  border-left: 1px solid ${C.line};
+}
+.lodging-card {
+  flex-grow: 1; min-width: 0; text-align: left; padding: 5px 9px;
+  border-radius: 9px; border: 1px solid #CBDCC6; background: #EEF4EC;
+}
+.lodging-card.selected { border-color: ${C.todayInk}; }
+.lodging-name {
+  display: block; font-size: 11.5px; font-weight: 600; color: #3F6B4A;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/*
+ * To be planned, as a drawer over the calendar.
+ *
+ * Shut, it is a tab on the right edge carrying the count. Open, it slides over
+ * the grid — there is no room beside it at 375px, and the grid is what the
+ * screen is for.
+ */
+/* Above the grid, below any sheet: a sheet is the topmost thing on the screen,
+   and the tab used to float over the search field. */
+.tray-dock { position: absolute; inset: 0; pointer-events: none; z-index: 15; }
+.tray-tab {
+  position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+  pointer-events: auto; display: flex; flex-direction: column; align-items: center;
+  gap: 6px; padding: 12px 5px; border: 1px solid ${C.border}; border-right: 0;
+  border-radius: 10px 0 0 10px; background: ${C.card};
+  box-shadow: -2px 0 10px rgba(84,68,44,0.10);
+}
+.tray-tab-label {
+  writing-mode: vertical-rl; font-size: 8.5px; font-weight: 700;
+  letter-spacing: 0.12em; color: ${C.greyer};
+}
+.tray-tab-count {
+  min-width: 17px; height: 17px; border-radius: 9px; background: ${C.highlight};
+  color: ${C.inkSoft}; font-size: 9.5px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.tray-dock.open .tray-tab { opacity: 0; pointer-events: none; }
+.tray-scrim {
+  position: absolute; inset: 0; pointer-events: auto;
+  background: rgba(51,48,43,0.14);
+}
+.tray-side.drawer {
+  position: absolute; top: 0; right: 0; bottom: 0; pointer-events: auto;
+  width: min(280px, 78%); background: ${C.paper};
+  box-shadow: -8px 0 24px rgba(84,68,44,0.18);
+  transform: translateX(101%); transition: transform 200ms cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+.tray-side.drawer.open { transform: translateX(0); }
+.tray-close { background: none; border: 0; padding: 2px; display: flex; }
+
 /* A quiet inline error, in the terracotta the palette already uses. */
 .err { padding: 10px 16px; font-size: 11.5px; color: ${C.link}; }
+
+/* ---- Sign in (design/SignIn.dc.html) ---- */
+.signin { justify-content: flex-start; }
+.signin-map { height: 272px; flex-shrink: 0; position: relative; background: ${C.mapFill}; }
+.signin-fade {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 90px;
+  background: linear-gradient(to bottom, rgba(251,246,238,0), ${C.paper});
+}
+/*
+ * Above the map band, not behind it.
+ *
+ * The artboard pulls the heading up 16px so it sits *in* the fade at the foot
+ * of the map. The map band is positioned and the body is not, so without this
+ * the band paints over those 16px and the first line reads as cut in half —
+ * which is exactly how it came out on the deployed page.
+ */
+.signin-body {
+  position: relative; flex-grow: 1; display: flex; flex-direction: column;
+  padding: 0 26px 26px;
+}
+.signin-head { margin-top: -16px; }
+.signin-title {
+  font-family: ${SERIF}; font-size: 31px; font-weight: 500;
+  letter-spacing: -0.015em; line-height: 1.12;
+}
+.signin-sub {
+  font-size: 13px; color: #8C8479; line-height: 1.5; margin-top: 11px;
+  max-width: 280px; text-wrap: pretty;
+}
+.signin-google {
+  width: 100%; height: 48px; border-radius: 12px; border: 1px solid ${C.borderWarm};
+  background: ${C.card}; display: flex; align-items: center; justify-content: center;
+  gap: 11px; box-shadow: 0 1px 3px rgba(80,66,44,0.08); padding: 0;
+}
+.signin-google[disabled] { opacity: 0.6; }
+.signin-google span:last-child { font-size: 15px; font-weight: 600; color: ${C.ink}; }
+/*
+ * The G, and it is Google's now.
+ *
+ * The artboard drew a dashed circle round a letter and PLAN.md section 5 said
+ * so: a placeholder, with the real asset to come from Google. It has come. The
+ * dashed ring goes with the placeholder — a border round their mark is a
+ * restyling of it, which their branding terms do not allow — and what is left
+ * is the artboard's 22px box holding the mark at its own size.
+ */
+.signin-g {
+  width: 22px; height: 22px; display: flex;
+  align-items: center; justify-content: center;
+}
+.signin-promise {
+  display: flex; align-items: flex-start; gap: 8px; margin-top: 13px;
+}
+.signin-promise svg { flex-shrink: 0; margin-top: 1px; }
+.signin-promise span { font-size: 11.5px; color: ${C.grey}; line-height: 1.5; }
+
+/* The account menu behind the header avatar, in the trip menu's own shape. */
+.me-menu {
+  position: absolute; top: 46px; right: 14px; z-index: 40; min-width: 148px;
+  border-radius: 12px; border: 1px solid ${C.border}; background: ${C.card};
+  box-shadow: 0 10px 24px rgba(80,66,44,0.14); overflow: hidden;
+}
+.me-menu-who {
+  padding: 9px 13px 8px; border-bottom: 1px solid ${C.line};
+  font-size: 11px; color: ${C.grey}; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.me-menu button {
+  display: block; width: 100%; text-align: left; padding: 10px 13px;
+  border: 0; background: none; font-size: 13px; color: ${C.ink};
+}
 `;
 }
