@@ -7,9 +7,12 @@
  */
 
 export const COLOR = {
-  brand: "#86558F",
-  brandLight: "#C6A0CD",
-  brandWash: "#F0E5F2",
+  brand: "#B78B26",
+  brandLight: "#E8C45B",
+  brandWash: "#FBF1CF",
+  brandButton: "#F5DE91",
+  brandSolid: "#D5AB38",
+  brandInk: "#514936",
   /** Page ground, on every phone artboard. */
   paper: "#FBF6EE",
   /** A raised card or a field sitting on the paper. */
@@ -35,7 +38,7 @@ export const COLOR = {
   /** Terracotta: the caret, the owner avatar, the bias circle. */
   accent: "#C4826A",
   /** Link text. */
-  link: "#86558F",
+  link: "#514936",
 
   /** Status, PLAN.md section 7. Pin fill carries status and nothing else. */
   today: "#6F9A6B",

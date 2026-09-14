@@ -63,10 +63,10 @@ export function signInMap(): string {
     const x = u ** 3 * a.x + 3 * u ** 2 * t * x1 + 3 * u * t ** 2 * x2 + t ** 3 * b.x;
     const y = u ** 3 * a.y + 3 * u ** 2 * t * y1 + 3 * u * t ** 2 * y2 + t ** 3 * b.y;
     const angle = Math.atan2(3 * u ** 2 * (y1 - a.y) + 6 * u * t * (y2 - y1) + 3 * t ** 2 * (b.y - y2), 3 * u ** 2 * (x1 - a.x) + 6 * u * t * (x2 - x1) + 3 * t ** 2 * (b.x - x2)) * 180 / Math.PI;
-    const block = `<path d="M${x - 3} ${y}h6" transform="rotate(${angle} ${x} ${y})" fill="none" stroke-width="6"/>`;
-    return `<div class="trail-block" style="--wave-delay:${-(10 - (leg * 6 + step) * .32)}s">${Array.from({ length: 8 }, (_, i) => layer(block, "trail-depth", 30 + i * 2)).join("")}${layer(`<g class="trail-surface">${block}</g><g class="trail-glint" stroke="url(#trail-shine)">${block}</g>`, "trail-top", 46)}</div>`;
+    if (nodes.some((node) => Math.hypot(node.x - x, node.y - y) < 16)) return "";
+    return `<div class="trail-block" style="left:${x / 4}%;top:${y / 3.6}%;--block-angle:${angle}deg;--wave-delay:${-(10 - (leg * 6 + step) * .32)}s"><div class="trail-block-solid"><i class="block-top"></i><i class="block-front"></i><i class="block-back"></i><i class="block-left"></i><i class="block-right"></i></div></div>`;
   })).join("");
-  return `<div class="daytrail-scene" aria-label="A dotted daytrail rises from a map into a shimmering purple path" role="img">
+  return `<div class="daytrail-scene" aria-label="A dotted daytrail rises from a map into a gently waving gold path" role="img">
     <div class="daytrail-plane">
       <svg class="trail-ground" viewBox="-1200 -1080 2800 2520" aria-hidden="true">
         <rect x="-1200" y="-1080" width="2800" height="2520" fill="${C.mapFill}"/>
@@ -87,9 +87,7 @@ export function signInMap(): string {
         <g class="trail-shadow" stroke="${C.brand}">${path}</g>
       </svg>
       ${blocks}
-      ${layer(`<g class="trail-nodes">${pins}</g>
-        <defs><linearGradient id="trail-shine" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="400" y2="0"><stop offset=".25" stop-color="white" stop-opacity="0"/><stop offset=".5" stop-color="white"/><stop offset=".75" stop-color="white" stop-opacity="0"/></linearGradient></defs>
-        `, "trail-top", 46)}
+      ${layer(`<g class="trail-nodes">${pins}</g>`, "trail-top", 12)}
     </div>
-  </div><button class="tilt-shimmer" data-tilt hidden>Enable tilt shimmer</button>`;
+  </div>`;
 }

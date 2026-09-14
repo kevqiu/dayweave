@@ -143,10 +143,9 @@ function render() {
   // frame only grows for the wide one; every other screen stays 375.
   const grid = planning() && wideNow();
 
-  if (splashCleanup) { splashCleanup(); splashCleanup = null; }
   stopTrailWave();
   frame.replaceChildren();
-  if (state.screen === "signIn") { frame.append(screenSignIn()); initSplash(); return; }
+  if (state.screen === "signIn") { frame.append(screenSignIn()); return; }
   if (state.screen === "trips") { frame.append(screenTrips()); paintTripMaps(); }
   else if (state.screen === "newTrip") frame.append(screenNewTrip());
   else if (state.screen === "trip") {
@@ -686,7 +685,7 @@ function tripCard(trip) {
   const pct = trip.stopCount ? Math.round((trip.visitedCount / trip.stopCount) * 100) : 0;
 
   return h("article", { class: "trip-card" }, [
-    h("div", { class: "trip-card-map", "data-trip-map": trip.id }, [
+    h("div", { class: "trip-card-map", "data-trip-map": trip.id, role: "link", tabindex: "0", "aria-label": "Open " + trip.name, onclick: (event) => { if (!event.target.closest("a, button, .gm-style")) openTrip(trip.id); }, onkeydown: (event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); openTrip(trip.id); } } }, [
       h("span", { class: "map-preview-empty", text: (trip.mapPoints || []).length ? "Loading map…" : "Add a place to see this trip on the map" }, []),
     ]),
     h("button", { class: "trip-card-body", onclick: () => openTrip(trip.id) }, [
@@ -742,6 +741,7 @@ async function paintTripMap(host) {
   if (!cached) {
     host.replaceChildren();
     const map = new maps.Map(host, { center: points[0], zoom: 12, styles: window.__MAP_STYLE__, disableDefaultUI: true, gestureHandling: "none", keyboardShortcuts: false, clickableIcons: false });
+    map.addListener("click", () => openTrip(trip.id));
     cached = { host, map, markers: [], key: null };
     tripMapCache.set(trip.id, cached);
   }
@@ -1022,51 +1022,6 @@ async function createTrip() {
  * nothing to do from this screen until there is something to open. See
  * CLAUDE.md.
  */
-let splashCleanup = null;
-function initSplash() {
-  const stage = document.querySelector(".signin-map");
-  if (!stage || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  const shine = stage.querySelector("#trail-shine");
-  const tilt = stage.querySelector("[data-tilt]");
-  let aimX = 0, aimY = 0, x = 0, y = 0, tick = null, listening = false;
-  const start = performance.now();
-  const pointer = (event) => {
-    const box = stage.getBoundingClientRect();
-    aimX = (event.clientX - box.left) / box.width * 2 - 1;
-    aimY = (event.clientY - box.top) / box.height * 2 - 1;
-  };
-  const orient = (event) => {
-    if (event.gamma === null || event.beta === null) return;
-    aimX = Math.max(-1, Math.min(1, event.gamma / 35));
-    aimY = Math.max(-1, Math.min(1, (event.beta - 35) / 40));
-  };
-  stage.addEventListener("pointermove", pointer);
-  const animate = (now) => {
-    if (!stage.isConnected) return;
-    x += (aimX - x) * .08; y += (aimY - y) * .08;
-    shine.setAttribute("gradientTransform", "translate(" + (Math.sin((now - start) / 1800) * 140 + x * 120) + " " + y * 80 + ") rotate(" + (25 + x * 30) + " 200 180)");
-    tick = requestAnimationFrame(animate);
-  };
-  tick = requestAnimationFrame(animate);
-  if (window.DeviceOrientationEvent && window.isSecureContext && window.matchMedia("(pointer: coarse)").matches) {
-    tilt.hidden = false;
-    tilt.onclick = async () => {
-      try {
-        const access = typeof DeviceOrientationEvent.requestPermission === "function" ? await DeviceOrientationEvent.requestPermission() : "granted";
-        if (!stage.isConnected) return;
-        if (access !== "granted") throw new Error("denied");
-        window.addEventListener("deviceorientation", orient);
-        listening = true; tilt.textContent = "Tilt shimmer on"; tilt.disabled = true;
-      } catch (_) { tilt.textContent = "Use touch to shimmer"; tilt.disabled = true; }
-    };
-  }
-  splashCleanup = () => {
-    cancelAnimationFrame(tick);
-    stage.removeEventListener("pointermove", pointer);
-    if (listening) window.removeEventListener("deviceorientation", orient);
-  };
-}
-
 function screenSignIn() {
   return column([
     h("div", { class: "signin-map", html: window.__SIGNIN_MAP__ }, []),
@@ -2123,9 +2078,9 @@ function stopTrailWave() {
   trailWaveTimer = null;
 }
 function trailWaveOpacity(position, elapsed, legs) {
-  const distance = ((position - elapsed / 6000) % legs + legs * 1.5) % legs - legs / 2;
+  const distance = ((position - elapsed / 4000) % legs + legs * 1.5) % legs - legs / 2;
   const width = distance > 0 ? .18 : .55;
-  return .4 + .28 * Math.exp(-Math.pow(distance / width, 2));
+  return .24 + .44 * Math.exp(-Math.pow(distance / width, 2));
 }
 function animateTrailWave(update) {
   stopTrailWave();
@@ -2479,7 +2434,7 @@ function mapPins(day, wide) {
     if (points.length > 1) {
       const depth = wide ? 62 : 26;
       const legs = (points.length - 1) / 20;
-      const dots = points.map((point, i) => '<circle class="trail-wave-dot" cx="' + (16 + (point.lng - minLng) / spanLng * 68) + '" cy="' + (14 + depth - (point.lat - minLat) / spanLat * depth) + '" r=".36" style="animation-duration:' + (legs * 6) + 's;animation-delay:-' + (legs * 6 - i / 20 * 6) + 's"/>').join("");
+      const dots = points.map((point, i) => '<circle class="trail-wave-dot" cx="' + (16 + (point.lng - minLng) / spanLng * 68) + '" cy="' + (14 + depth - (point.lat - minLat) / spanLat * depth) + '" r=".36" style="animation-duration:' + (legs * 4) + 's;animation-delay:-' + (legs * 4 - i / 20 * 4) + 's"/>').join("");
       pins.unshift(h("div", { class: "map-trail-layer", html: '<svg viewBox="0 0 100 100" preserveAspectRatio="none" width="100%" height="100%" fill="' + day.hue + '">' + dots + '</svg>' }, []));
     }
   }

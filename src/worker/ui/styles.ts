@@ -91,7 +91,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .section-label.spaced { padding-top: 10px; }
 
 .trip-card {
-  margin: 0 14px 12px; border-radius: 16px; border: 1.5px solid #C6DBC2;
+  margin: 0 14px 12px; border-radius: 16px; border: 1.5px solid ${C.brandLight};
   background: ${C.card}; overflow: hidden; width: calc(100% - 28px);
   padding: 0; text-align: left; display: block; color: inherit; font: inherit;
 }
@@ -116,7 +116,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .trip-card-foot { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
 .trip-card-count { font-size: 11px; color: ${C.grey}; font-variant-numeric: tabular-nums; }
 .progress { height: 5px; border-radius: 3px; background: #EFE6D6; margin-top: 8px; overflow: hidden; }
-.progress > div { height: 100%; background: ${C.brand}; }
+.progress > div { height: 100%; background: ${C.brandSolid}; }
 
 .trip-row {
   margin: 0 14px 10px; border-radius: 14px; border: 1px solid ${C.borderWarm};
@@ -130,7 +130,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 .date-tile.past { width: 38px; height: 38px; background: ${C.greyTile}; }
 .date-tile .m { font-size: 8.5px; font-weight: 700; color: ${C.aheadInk}; letter-spacing: 0.06em; }
-.date-tile .d { font-size: 14px; font-weight: 700; color: #6B5426; line-height: 1; }
+.date-tile .d { font-size: 14px; font-weight: 700; color: ${C.ink}; line-height: 1; }
 .date-tile.past .m { font-size: 8px; color: ${C.greyer}; }
 .date-tile.past .d { font-size: 13px; color: #8C8479; }
 .trip-row-text { display: flex; flex-direction: column; gap: 2px; flex-grow: 1; min-width: 0; }
@@ -156,12 +156,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   background: linear-gradient(to top, ${C.paper} 68%, rgba(251,246,238,0));
 }
 .btn-dark {
-  width: 100%; height: 40px; border-radius: 10px; border: none; background: ${C.brand};
-  color: ${C.paper}; font-size: 14px; font-weight: 600;
+  width: 100%; height: 40px; border-radius: 10px; border: none; background: ${C.brandButton};
+  color: ${C.ink}; font-size: 14px; font-weight: 600;
   display: flex; align-items: center; justify-content: center; gap: 8px;
 }
 .btn-dark:disabled { opacity: 0.4; }
-.btn-dark svg { stroke: currentColor; }
+.btn-dark svg, .action.dark svg, .detail-btn.dark svg, .empty-actions .primary svg, .best-actions .go svg { stroke: currentColor; }
+.btn-dark svg [stroke]:not([stroke="none"]), .action.dark svg [stroke]:not([stroke="none"]), .detail-btn.dark svg [stroke]:not([stroke="none"]) { stroke: currentColor; }
 
 /* ---- Sign in (design/SignIn.dc.html) ----
 
@@ -183,7 +184,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .invite-text .line { font-size: 12.5px; font-weight: 600; }
 .invite-text .when { font-size: 10.5px; color: ${C.noticeInk}; }
 .invite-join {
-  height: 30px; border-radius: 8px; border: none; background: ${C.brand}; color: ${C.paper};
+  height: 30px; border-radius: 8px; border: none; background: ${C.brandButton}; color: ${C.ink};
   font-family: ${SANS}; font-size: 12px; font-weight: 600; padding: 0 13px; flex-shrink: 0;
 }
 .invite-join:disabled { opacity: 0.5; }
@@ -217,7 +218,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   width: 42px; height: 25px; border-radius: 999px; background: #E4D9C5; border: 0; padding: 2px;
   display: flex; align-items: center; justify-content: flex-start; flex-shrink: 0;
 }
-.toggle[aria-pressed="true"] { background: ${C.brand}; justify-content: flex-end; }
+.toggle[aria-pressed="true"] { background: ${C.brandButton}; justify-content: flex-end; }
 .toggle > i { width: 21px; height: 21px; border-radius: 50%; background: ${C.card}; display: block; }
 .link-row {
   margin-top: 11px; display: flex; align-items: center; gap: 8px;
@@ -303,12 +304,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .cal button.e { background: ${C.brandWash}; border-radius: 0 999px 999px 0; }
 .cal button.s.e { border-radius: 999px; }
 .cal .cap {
-  width: 28px; height: 28px; border-radius: 50%; background: ${C.brand}; color: ${C.paper};
+  width: 28px; height: 28px; border-radius: 50%; background: ${C.brandButton}; color: ${C.ink};
   font-weight: 700; display: flex; align-items: center; justify-content: center;
 }
 /* Today, so a calendar opened on a month you did not choose still says where
    you are in it. */
-.cal button.now { font-weight: 700; color: ${C.brand}; }
+.cal button.now { font-weight: 700; color: ${C.brandInk}; }
 .cal button.off { opacity: 0.55; }
 .month-name { font-size: 13.5px; font-weight: 700; }
 .new-trip-foot {
@@ -403,7 +404,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   color: ${C.inkSoft}; font-size: 11.5px; font-weight: 600; padding: 0 11px; font-family: ${SANS};
 }
 .filter-pill[aria-pressed="true"] {
-  background: ${C.brandWash}; border-color: ${C.brandLight}; color: ${C.brand};
+  background: ${C.brandWash}; border-color: ${C.brandLight}; color: ${C.brandInk};
 }
 .sheet-scroll { flex-grow: 1; overflow-y: auto; padding: 0 0 16px; }
 
@@ -456,7 +457,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   font-family: ${SANS}; font-size: 13px; font-weight: 500; color: ${C.ink};
   caret-color: ${C.accent}; outline: none;
 }
-.day-name-field:focus { border-color: ${C.brand}; }
+.day-name-field:focus { border-color: ${C.brandInk}; }
 .day-name-field::placeholder { color: ${C.faint}; font-weight: 400; }
 .day-edit-done {
   background: none; border: 0; padding: 0 2px; font-family: ${SANS};
@@ -494,7 +495,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   font-size: 11.5px; font-weight: 600; color: ${C.inkSoft}; padding: 0 6px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.sheet-tab.on { background: ${C.brand}; border-color: ${C.brand}; color: ${C.paper}; }
+.sheet-tab.on { background: ${C.brandButton}; border-color: ${C.brandInk}; color: ${C.ink}; }
 
 .stay-row {
   display: flex; align-items: center; gap: 11px; padding: 0 14px; height: 52px;
@@ -660,8 +661,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   font-size: 11px; font-weight: 600; display: flex; align-items: center;
   justify-content: center; gap: 4px; padding: 0;
 }
-.action.dark { border: none; background: ${C.brand}; color: ${C.paper}; }
-.action.on { background: ${C.brandWash}; border-color: ${C.brandLight}; color: ${C.brand}; }
+.action.dark { border: none; background: ${C.brandButton}; color: ${C.ink}; }
+.action.on { background: ${C.brandWash}; border-color: ${C.brandLight}; color: ${C.brandInk}; }
 .action.kebab { width: 34px; flex-grow: 0; flex-basis: auto; flex-shrink: 0; }
 .add-stop {
   margin: 3px 9px 2px; width: calc(100% - 18px); height: 22px; border-radius: 8px;
@@ -677,7 +678,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   flex-grow: 1; height: 38px; border-radius: 10px; font-size: 12.5px; font-weight: 600;
   display: flex; align-items: center; justify-content: center; gap: 6px;
 }
-.empty-actions .primary { border: none; background: ${C.brand}; color: ${C.paper}; }
+.empty-actions .primary { border: none; background: ${C.brandButton}; color: ${C.ink}; }
 .empty-actions .secondary { border: 1px solid ${C.border}; background: ${C.card}; color: ${C.inkSoft}; }
 
 /* ---- Place search (design/PlaceSearch.dc.html) ---- */
@@ -812,8 +813,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .best-detail strong { font-weight: 600; }
 .best-actions { display: flex; gap: 8px; margin-top: 12px; }
 .best-actions .go {
-  flex-grow: 1; height: 40px; border-radius: 10px; border: none; background: ${C.brand};
-  color: #F6FBF5; font-size: 13.5px; font-weight: 600;
+  flex-grow: 1; height: 40px; border-radius: 10px; border: none; background: ${C.brandButton};
+  color: ${C.ink}; font-size: 13.5px; font-weight: 600;
 }
 .best-actions .preview {
   height: 40px; border-radius: 10px; border: 1px solid #C6D6C2; background: transparent;
@@ -874,7 +875,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .note-editor textarea::placeholder { color: ${C.faint}; }
 .note-actions { display: flex; gap: 8px; margin-top: 12px; }
 .note-actions button { height: 40px; border-radius: 10px; font-size: 13.5px; font-weight: 600; }
-.note-actions .save { flex-grow: 1; border: none; background: ${C.brand}; color: ${C.paper}; }
+.note-actions .save { flex-grow: 1; border: none; background: ${C.brandButton}; color: ${C.ink}; }
 .note-actions .cancel {
   border: 1px solid ${C.border}; background: ${C.card}; color: ${C.inkSoft}; padding: 0 14px;
 }
@@ -988,7 +989,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   font-size: 13px; font-weight: 600; display: flex; align-items: center;
   justify-content: center; text-decoration: none;
 }
-.detail-btn.dark { border: none; background: ${C.brand}; color: ${C.paper}; }
+.detail-btn.dark { border: none; background: ${C.brandButton}; color: ${C.ink}; }
 .detail-btn.on { background: ${C.todayRing}; border-color: #CBDCC6; color: ${C.todayInk}; }
 .detail-btn.square { flex-grow: 0; width: 40px; }
 .detail-block { padding: 16px 18px; border-bottom: 1px solid ${C.sheetEdge}; }
@@ -1054,7 +1055,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 .rail-pill.past { border-color: transparent; background: ${C.doneRing}; color: ${C.greyer}; }
 .rail-pill.on {
-  height: 30px; border-color: transparent; background: ${C.brand}; color: ${C.paper};
+  height: 30px; border-color: transparent; background: ${C.brandButton}; color: ${C.ink};
   font-size: 11.5px; font-weight: 700; padding: 0 12px; gap: 6px;
 }
 .rail-hue { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
@@ -1105,7 +1106,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   font-family: ${SANS}; font-size: 12px; font-weight: 600; color: #8C8479;
   padding: 5px 13px; border-radius: 7px; border: 0; background: none;
 }
-.segmented button.on { color: ${C.brand}; background: ${C.brandWash}; box-shadow: 0 1px 2px rgba(80,66,44,0.10); }
+.segmented button.on { color: ${C.brandInk}; background: ${C.brandWash}; box-shadow: 0 1px 2px rgba(80,66,44,0.10); }
 .segmented button:disabled { opacity: 0.45; }
 .desk-pager { display: flex; align-items: center; gap: 4px; }
 .sq-btn {
@@ -1118,7 +1119,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   min-width: 92px; text-align: center;
 }
 .desk-share {
-  height: 35px; border-radius: 10px; border: none; background: ${C.brand}; color: ${C.paper};
+  height: 35px; border-radius: 10px; border: none; background: ${C.brandButton}; color: ${C.ink};
   font-family: ${SANS}; font-size: 12.5px; font-weight: 600; padding: 0 14px;
 }
 
@@ -1177,7 +1178,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .gcard {
   position: absolute; left: 5px; right: 5px; border-radius: 8px; padding: 6px 8px;
   overflow: hidden; display: flex; align-items: flex-start; gap: 6px;
-  background: #FBF2DC; border: 1px solid #E6D5A8;
+  background: #FFFAE9; border: 1px solid #E9DAB2;
 }
 .gcard.done { background: ${C.doneRing}; border-color: #DFD6C7; }
 .gcard.now { background: #E9F1E6; border-color: #C6DBC2; }
@@ -1191,7 +1192,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .gcard-text { min-width: 0; flex-grow: 1; }
 .gcard-top { display: flex; align-items: center; gap: 5px; min-width: 0; }
 .gcard-title {
-  font-size: 11.5px; font-weight: 600; line-height: 1.25; color: #6B5426;
+  font-size: 11.5px; font-weight: 600; line-height: 1.25; color: ${C.ink};
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; min-width: 0;
 }
 .gcard.done .gcard-title { color: #8C8479; text-decoration: line-through; }
@@ -1203,7 +1204,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 .gcard.done .gcard-author { opacity: 0.45; }
 .gcard-sub {
-  display: block; font-size: 9.5px; margin-top: 2px; color: #97803F;
+  display: block; font-size: 9.5px; margin-top: 2px; color: #817969;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .gcard.done .gcard-sub { color: ${C.greyer}; }
@@ -1557,6 +1558,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .trip-card-body { display: block; width: 100%; text-align: left; border: 0; color: inherit; background: ${C.card}; }
 .trip-card-map { min-height: 150px; background: ${C.map}; }
 .map-preview-empty { display: flex; align-items: center; justify-content: center; height: 100%; padding: 16px; font-size: 12px; color: ${C.inkSoft}; }
+.trip-card-map { cursor: pointer; }
+.trip-card-map:focus-visible { outline: 2px solid ${C.brand}; outline-offset: -3px; }
 .trip-card-map .gm-style { font-family: ${SANS}; }
 .search-close { position: absolute; right: 6px; top: 6px; z-index: 2; display: flex; padding: 7px; border: 0; background: transparent; border-radius: 8px; }
 .search-close:hover { background: ${C.highlight}; }
@@ -1569,7 +1572,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .roomy .trips-scroll { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 16px 24px; padding-bottom: 24px; }
   .roomy .section-label, .roomy .invite-card, .roomy .empty-state { grid-column: 1 / -1; padding-left: 0; }
   .roomy .section-label { padding-top: 12px; font-size: 11px; }
-  .roomy .trip-card { margin: 0; width: 100%; border-color: ${C.border}; border-radius: 18px; }
+  .roomy .trip-card { margin: 0; width: 100%; border-color: ${C.brandLight}; border-radius: 18px; }
   .roomy .trip-card:not(.trip-card + .trip-card):not(:has(+ .trip-card)) { grid-column: 1 / -1; display: grid; grid-template-columns: 42% 1fr; }
   .roomy .trip-card:not(.trip-card + .trip-card):not(:has(+ .trip-card)) .trip-card-map { height: 100%; min-height: 190px; }
   .roomy .trip-card-map { height: 130px; }
@@ -1630,20 +1633,29 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 
 .splash .signin-map { display: grid; place-items: center; perspective: 900px; background: ${C.mapFill}; overflow: hidden; }
-.trail-wave-dot { opacity: .4; animation: trail-wave-opacity linear infinite; }
-@keyframes trail-wave-opacity { 0%,100% { opacity: .68; } 14% { opacity: .54; } 35%,90% { opacity: .4; } }
+.trail-wave-dot { opacity: .24; animation: trail-wave-opacity linear infinite; }
+@keyframes trail-wave-opacity { 0%,100% { opacity: .68; } 14% { opacity: .44; } 35%,90% { opacity: .24; } }
 @media (prefers-reduced-motion: reduce) { .trail-wave-dot { animation: none; opacity: .55; } }
 .map-trail-layer { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
 .daytrail-scene { width: min(88%, 640px); aspect-ratio: 400 / 360; perspective: 900px; position: relative; }
 .daytrail-plane { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; animation: trail-isometric 2.6s cubic-bezier(.22,.68,.2,1) .5s both, trail-zoom 1.7s cubic-bezier(.22,.68,.2,1) 3.1s forwards; }
 .trail-ground { position: absolute; left: -300%; top: -300%; width: 700%; height: 700%; max-width: none; }
-.trail-block { position: absolute; inset: 0; transform-style: preserve-3d; animation: trail-block-wave 10s ease-in-out var(--wave-delay) infinite; pointer-events: none; }
-@keyframes trail-block-wave { 0%,100% { transform: scaleZ(.95); } 35% { transform: scaleZ(1.09); } 70% { transform: scaleZ(.95); } }
+.trail-block { position: absolute; width: 1.5%; height: 1.667%; transform: translate(-50%, -50%) rotateZ(var(--block-angle)); transform-style: preserve-3d; pointer-events: none; }
+.trail-block-solid { position: absolute; inset: 0; transform-style: preserve-3d; animation: trail-block-wave 10s ease-in-out var(--wave-delay) infinite; }
+.trail-block-solid i { position: absolute; display: block; background: ${C.brandSolid}; }
+.block-top { inset: 0; transform: translateZ(8px); background: ${C.brandLight} !important; }
+.block-front, .block-back { left: 0; width: 100%; height: 8px; transform-origin: top; transform: rotateX(90deg); }
+.block-front { top: 100%; }
+.block-back { top: 0; }
+.block-left, .block-right { top: 0; width: 8px; height: 100%; transform-origin: left; transform: rotateY(-90deg); }
+.block-left { left: 0; }
+.block-right { left: 100%; }
+@keyframes trail-block-wave { 0%,100% { transform: scaleZ(.9); } 35% { transform: scaleZ(1.1); } 70% { transform: scaleZ(.9); } }
 .trail-shadow { opacity: .12; filter: blur(3px); }
 .trail-layer { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; transform: translateZ(0); animation: trail-lift 1.7s cubic-bezier(.16,.7,.25,1) 1.8s both; }
 .trail-depth { stroke: ${C.brand}; opacity: 0; animation: trail-lift 1.7s cubic-bezier(.16,.7,.25,1) 1.8s both, trail-depth-in .6s 1.8s forwards; }
-.trail-surface { stroke: #ADA394; animation: trail-purple 1.3s 1.8s both; }
-.trail-nodes circle { fill: var(--node-color); stroke: ${C.paper}; stroke-width: 2.5; animation: node-purple 1.3s 1.8s both; }
+.trail-surface { stroke: #ADA394; animation: trail-gold 1.3s 1.8s both; }
+.trail-nodes circle { fill: var(--node-color); stroke: ${C.paper}; stroke-width: 2.5; animation: node-gold 1.3s 1.8s both; }
 .trail-nodes text { fill: white; font: 600 11px ${SANS}; }
 .trail-glint { opacity: 0; animation: trail-depth-in 1s 3s forwards; }
 .signin-brand { display: flex; align-items: center; gap: 12px; font-family: ${SERIF}; font-size: 25px; color: ${C.brand}; margin-bottom: 18px; animation: splash-fade .7s .15s both; }
@@ -1652,15 +1664,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .splash .signin-google { animation: splash-fade .9s .85s both; }
 .splash .invite-card { animation: splash-fade .9s .7s both; }
 .splash .signin-map { animation: splash-fade 1s both; }
-.tilt-shimmer { position: absolute; right: 18px; bottom: 20px; border: 1px solid ${C.brandLight}; background: ${C.card}; color: ${C.brand}; border-radius: 20px; padding: 8px 12px; font-size: 11px; animation: splash-fade .8s 3.5s both; }
-.tilt-shimmer:disabled { cursor: default; }
 @keyframes splash-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes trail-isometric { from { transform: rotateX(0) rotateZ(0) scale(.94); } to { transform: rotateX(52deg) rotateZ(-28deg) scale(.9); } }
 @keyframes trail-zoom { from { transform: rotateX(52deg) rotateZ(-28deg) scale(.9); } to { transform: rotateX(52deg) rotateZ(-28deg) scale(1.18); } }
 @keyframes trail-lift { from { transform: translateZ(0); } to { transform: translateZ(var(--lift)); } }
 @keyframes trail-depth-in { to { opacity: 1; } }
-@keyframes trail-purple { to { stroke: ${C.brandLight}; } }
-@keyframes node-purple { to { fill: ${C.brand}; } }
+@keyframes trail-gold { to { stroke: ${C.brandLight}; } }
+@keyframes node-gold { to { fill: ${C.brand}; } }
 @media (max-width: 779px) {
   .splash .signin-map { height: min(330px, 42dvh); }
   .splash .signin-head { margin-top: 0; }

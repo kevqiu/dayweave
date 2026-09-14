@@ -118,31 +118,25 @@ describe("stay search", () => {
 });
 
 describe("search and drag transitions", () => {
-  it.each(["granted", "denied"])("only enables device shimmer after a user gesture and %s permission", async (permission) => {
-    const tilt: any = { hidden: true };
-    const stage = { isConnected: true, querySelector: (selector: string) => selector === "[data-tilt]" ? tilt : { setAttribute: vi.fn() }, addEventListener: vi.fn(), removeEventListener: vi.fn() };
-    const requestPermission = vi.fn(async () => permission);
-    const orientation = { requestPermission };
-    const window = { DeviceOrientationEvent: orientation, isSecureContext: true, matchMedia: (query: string) => ({ matches: query.includes("coarse") }), addEventListener: vi.fn(), removeEventListener: vi.fn() };
-    const context = { window, DeviceOrientationEvent: orientation, document: { querySelector: () => stage }, performance: { now: () => 0 }, requestAnimationFrame: () => 1, cancelAnimationFrame: vi.fn() };
-    const api = new Function(...Object.keys(context), "let splashCleanup=null;" + definition("initSplash") + ";return {start:initSplash, stop:()=>splashCleanup()};")(...Object.values(context));
-    api.start();
-    expect(requestPermission).not.toHaveBeenCalled();
-    expect(window.addEventListener).not.toHaveBeenCalled();
-    await tilt.onclick();
-    expect(requestPermission).toHaveBeenCalledOnce();
-    expect(window.addEventListener).toHaveBeenCalledTimes(permission === "granted" ? 1 : 0);
-    api.stop();
-    expect(window.removeEventListener).toHaveBeenCalledTimes(permission === "granted" ? 1 : 0);
-    expect(context.cancelAnimationFrame).toHaveBeenCalledWith(1);
+  it("opens a trip from its map preview with a tap or keyboard without hijacking attribution links", () => {
+    const openTrip = vi.fn();
+    const h = (tag: string, attrs: any, children: any[]) => ({ tag, attrs, children });
+    const api = load(["tripCard"], { h, openTrip, avatars: () => null });
+    const card = api.tripCard({ id: "trip", name: "Lisbon", members: [], stopCount: 0, visitedCount: 0 });
+    const preview = card.children[0];
+    expect(preview.attrs.role).toBe("link");
+    preview.attrs.onclick({ target: { closest: () => null } });
+    expect(openTrip).toHaveBeenCalledWith("trip");
+    openTrip.mockClear();
+    preview.attrs.onclick({ target: { closest: () => ({}) } });
+    expect(openTrip).not.toHaveBeenCalled();
+    const target = {};
+    const preventDefault = vi.fn();
+    preview.attrs.onkeydown({ target, currentTarget: target, key: "Enter", preventDefault });
+    expect(preventDefault).toHaveBeenCalled();
+    expect(openTrip).toHaveBeenCalledWith("trip");
   });
 
-  it("does not start shimmer animation or sensor controls with reduced motion", () => {
-    const requestAnimationFrame = vi.fn();
-    const api = load(["initSplash"], { document: { querySelector: () => ({}) }, window: { matchMedia: () => ({ matches: true }) }, requestAnimationFrame });
-    api.initSplash();
-    expect(requestAnimationFrame).not.toHaveBeenCalled();
-  });
   it("builds a smooth trail from the current accommodation through every destination in order", () => {
     const api = load(["dayTrailPoints", "smoothTrail"], {});
     const day = { date: "2026-10-02", stops: [
@@ -165,14 +159,14 @@ describe("search and drag transitions", () => {
     expect(Math.abs(crossing.at(-1).lng - crossing[0].lng)).toBeCloseTo(.2);
   });
 
-  it("moves a subtle opacity crest forward one node every six seconds", () => {
+  it("moves a subtle opacity crest forward one node every four seconds", () => {
     const api = load(["trailWaveOpacity"], {});
-    expect(api.trailWaveOpacity(1, 6000, 4)).toBeCloseTo(.68);
-    expect(api.trailWaveOpacity(2, 12000, 4)).toBeCloseTo(.68);
-    expect(api.trailWaveOpacity(.8, 6000, 4)).toBeGreaterThan(api.trailWaveOpacity(1.2, 6000, 4));
+    expect(api.trailWaveOpacity(1, 4000, 4)).toBeCloseTo(.68);
+    expect(api.trailWaveOpacity(2, 8000, 4)).toBeCloseTo(.68);
+    expect(api.trailWaveOpacity(.8, 4000, 4)).toBeGreaterThan(api.trailWaveOpacity(1.2, 4000, 4));
     for (let time = 0; time < 24000; time += 100) {
       const opacity = api.trailWaveOpacity(1, time, 4);
-      expect(opacity).toBeGreaterThanOrEqual(.4);
+      expect(opacity).toBeGreaterThanOrEqual(.24);
       expect(opacity).toBeLessThanOrEqual(.68);
     }
   });
