@@ -21,6 +21,7 @@ describe("the browser copy of the plan arithmetic", () => {
     for (const name of [
       "minutesOf", "formatClock", "formatFree", "planRows",
       "gridSpan", "gridY", "gridTime", "cardBox", "hourLines", "hourLabels",
+      "lodgingBars", "staysOn",
     ]) {
       expect(typeof (browser as unknown as Record<string, unknown>)[name]).toBe("function");
     }
@@ -60,6 +61,19 @@ describe("the browser copy of the plan arithmetic", () => {
         expect(browser.cardBox(span, box[0], box[1], true))
           .toEqual(plan.cardBox(span, box[0], box[1], true));
       }
+    }
+  });
+
+  it("puts the stays in the same places", () => {
+    const dates = ["2026-09-30", "2026-10-01", "2026-10-02", "2026-10-03"];
+    const stays = [
+      { id: "a", name: "Blossom", checkIn: "2026-09-28", checkOut: "2026-10-01" },
+      { id: "b", name: "Ryokan", checkIn: "2026-10-01", checkOut: "2026-10-03" },
+      { id: "c", name: "Elsewhere", checkIn: "2026-11-01", checkOut: "2026-11-03" },
+    ];
+    expect(browser.lodgingBars(dates, stays)).toEqual(plan.lodgingBars(dates, stays));
+    for (const date of [...dates, "2026-11-02"]) {
+      expect(browser.staysOn(date, stays)).toEqual(plan.staysOn(date, stays));
     }
   });
 });

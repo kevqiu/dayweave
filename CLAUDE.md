@@ -19,9 +19,9 @@ That is the map of what exists:
 | Artboard | The screen it specifies | Built |
 | --- | --- | --- |
 | `Trips.dc.html` | The trip list: happening now, coming up, past | yes, less the invite banner |
-| `NewTrip.dc.html` | Starting a trip — name, then the date range (§4d) | yes |
+| `NewTrip.dc.html` | Starting a trip — name, then the date range (§4d) | yes, with two date fields rather than the open calendar |
 | `EmptyTrip.dc.html` | A trip with no stops yet | yes |
-| `Main.dc.html` | The phone home screen: map, bottom sheet, days, stops (§4c, §7) | yes |
+| `Main.dc.html` | The phone home screen: map, bottom sheet, days, stops (§4c, §7) | yes, less the legend; the sheet has two tabs |
 | `PlaceSearch.dc.html` | Adding a place from inside the app (§4b) | yes |
 | `KebabMenu.dc.html` | The stop's kebab (§4e) | yes |
 | `MoveToDay.dc.html` | Move to another date, with the §8 suggestion | yes |
@@ -29,7 +29,7 @@ That is the map of what exists:
 | `SheetFull.dc.html` | The sheet expanded, and drag-to-reorder | yes, less the title |
 | `AddNote.dc.html` | Only the button reading Add note. See below | n/a |
 | `SignIn.dc.html` | Sign in (§5) | no — needs Better Auth |
-| `Planner.dc.html`, `PlannerStop.dc.html`, `PlannerMobile.dc.html` | The day grid (§4f) | yes, less the travel and lodging rows |
+| `Planner.dc.html`, `PlannerStop.dc.html`, `PlannerMobile.dc.html` | The day grid (§4f) | yes, less the travel row |
 | `Offline.dc.html`, `Import.dc.html`, `Members.dc.html` | The other states (§4g) | no |
 | `Desktop.dc.html` | The wide layout | no |
 | `DirectionA/B/C.dc.html` | Rejected directions. Reference only — do not build these | n/a |
@@ -63,7 +63,13 @@ source, not run.
 
 Implemented in `src/worker/ui/tokens.ts`. Change them there and nowhere else.
 
-**Frame**: the phone artboards are all `375 x 667`, `overflow: hidden`.
+**Frame**: the phone artboards are all `375 x 667`, `overflow: hidden`. On a
+real device the frame fills instead, and the threshold for that is **779px
+wide or 700px tall**, not the 420 it used to be: an iPhone Pro Max is 430 CSS
+pixels across and 932 down, so it matched neither half of the old query and
+got the artboard floating in the middle of the screen. 779 is one below the
+width at which the Planner's grid starts working, so the phone layout and the
+filling agree about what a phone is.
 
 **Type**: `Newsreader` (serif) for trip names, screen titles and section
 headings. `Figtree` for everything else. Both from Google Fonts, weights
@@ -85,11 +91,20 @@ the bias circle. `#A8663C` is link text.
 **Status** (pin fill, PLAN.md §7): `#6F9A6B` today, `#E0B355` ahead,
 `#BDB4A7` done. The rings around them are `#E4EEE1`, `#F8EECF`, `#EFE9DF`.
 
-**Day hues** are a green-to-yellow ramp, one per day. `Main.dc.html` pins the
-first four of an eleven-day trip exactly: `#3F6B4A`, `#57794C`, `#70864D`,
-`#8C8C4C`. Those four are copied verbatim; the rest of the ramp is interpolated
-on to a pale yellow, because no artboard shows a trip's later days. The
-To be planned bucket is `#94897A`, which is not on the ramp.
+**Day colours** are a palette of eight, handed out in order, then a
+golden-angle step past them for a trip longer than eight days. `dayColor` in
+`tokens.ts` is the whole rule, and a day's colour is a person's to change
+afterwards (see the day's pencil, below). The To be planned bucket is
+`#94897A`, which is not in the palette.
+
+This replaced a green-to-yellow ramp interpolated out of the four days
+`Main.dc.html` pins exactly (`#3F6B4A`, `#57794C`, `#70864D`, `#8C8C4C`). The
+first of those four is still the first colour of the palette, because it is the
+green every artboard draws on day one and on the today pin. The other three are
+gone, and deliberately: a ramp has one axis, and past about day six the step
+between neighbouring days is smaller than the eye separates, so half of a
+three-week trip came out the same olive. The eight are as far apart on the
+wheel as the palette's register allows.
 
 ## Rules the artboards imply
 
@@ -117,6 +132,66 @@ To be planned bucket is `#94897A`, which is not on the ramp.
   under it, down or back along the strip, whichever is the smaller lie about
   where the day is. A day hidden behind a label is a day the strip failed to
   preview.
+- **A day is a thing a person names and colours.** Every day header carries a
+  pencil to the right of its `done/total` count, and it opens a panel under
+  that header with a name field and ten swatches: the eight of `DAY_PALETTE`,
+  white, and a colour input for anything else. The name is `days.label`, a
+  column the first migration declared and nothing wrote to until now; the date
+  stays the day's heading, because it is the thing that cannot be wrong, and
+  the name sits under it beside the city. An empty name is *no* name, so the
+  line goes away rather than becoming blank.
+
+  **The day's colour dot is drawn at the size the map draws it**: 16px on a
+  2.5px cream ring with the pin's own shadow, and it does not dim when the day
+  is closed. `Main.dc.html` draws a 9px dot at 45% opacity, from a time when
+  the colour was one step of a ramp and carried almost nothing. It is now the
+  thing that says which day a pin belongs to, so it is drawn like one.
+
+- **The sheet has two tabs: Destinations and Accommodations.** Everything else
+  in the app is a place you go on a day. Where you sleep is not: it is one
+  thing covering a run of days, and there is no honest way to put it in a
+  day's list — repeated on six days it reads as six hotels, and shown on one
+  it reads as a single night. So the sheet lists stays separately, with the
+  dates on them, and the Plan view draws them (below). No artboard draws the
+  tabs; they are the sheet's own row.
+
+- **The three-key map legend is gone.** `Main.dc.html` puts *today · ahead ·
+  done* over the top left of the map. The ring around a pin already says done
+  or not, the open day in the list beside it says which day is which, and
+  three words of glossary cost more of a 375px map than they explain. The
+  same chip still appears, once, to say a trip has nothing on the map yet.
+
+- **The map's two controls do something.** The artboard draws a layers button
+  and a locate button, and PLAN.md's own bug list had both of them doing
+  nothing. Layers had nothing behind it — §2 turns Google's basemaps off and
+  there is no second one — so the pair is now *fit the whole trip* and *where
+  I am*. They are drawn **only over the real Google map**: the drawn fallback
+  has no camera to move, and a control that responds to nothing is worse than
+  one that is not there.
+
+  **The camera is only fitted when what it is showing changes.** It used to be
+  re-fitted on every render, so ticking a stop off or saving a note threw away
+  a pan. `dayFitKey()` is the token: opening another day changes it and the map
+  follows, and the two controls stamp it so a camera somebody moved by hand is
+  left where they put it.
+
+- **Both ends of a date range are fields, and the calendar is a picker.**
+  `NewTrip.dc.html` opens six months of calendar and asks for two taps on it.
+  That works on an artboard whose trip starts in the month already showing;
+  on a phone the range is invisible until both taps land, a mis-tap silently
+  restarts it, and a trip in April means scrolling for a month that may not be
+  among the six. So there are two fields saying which end is which and what has
+  been chosen, and tapping one opens the same calendar on that end's month.
+  One calendar serves all of it: a new trip, a trip being changed, and a stay.
+
+- **A trip can be renamed and its dates moved** (§4d's *changing the dates
+  later*, written and unbuilt). *Change trip* is the third item in the one
+  dropdown. Days inside both the old range and the new one keep their rows,
+  which is what keeps their stops, their names and the colours somebody chose;
+  anything on a day that falls outside the new range lands in To be planned,
+  because the one thing a date change must never do is throw away places
+  somebody found.
+
 - **Search rows are 52px** with a 30px rounded icon tile, and read
   `Ramen · 4.3 · 450 m from Ohori Park` — category, rating, then distance from
   the named bias anchor. A place already on the trip gets the `#F6EFE2` row,
@@ -262,11 +337,29 @@ To be planned bucket is `#94897A`, which is not on the ramp.
     artboard's *Edit* can actually do: the name comes from the place and the
     note has its own item. No artboard draws the editor itself; it is the note
     editor's sheet with a time field.
-  - **The travel and lodging rows are not built.** `Planner.dc.html` rules two
-    strips under the grid for flights, trains and hotels. `travel_legs` and
-    `lodging` are tables with no API and no way to put anything in them, so
-    drawing the rows would be furniture with nothing behind it. The same goes
-    for the add-a-day rails either side of the grid.
+  - **The lodging row is one bar per stay, not one cell per day.**
+    `Planner.dc.html` writes the hotel's name into every column it covers, so
+    "The Blossom Hakata" is drawn three times in a row and reads at a glance as
+    three hotels. A stay is one thing spanning days, so it is drawn as one bar
+    spanning columns. The day you change hotels belongs to both of them and the
+    artboard has no answer for that — it prints one name per cell and picks —
+    so that day is split down the middle: the stay you are leaving keeps the
+    left half, the one you are arriving at takes the right, and the seam falls
+    on the change. Three stays on one day would put two of them in one half;
+    that is a trip nobody is planning, and lanes for it would cost the strip
+    the height that makes it legible. A bar running off the edge of the page
+    squares that end off and dashes it. All of it is `lodgingBars` in
+    `src/lib/plan.ts`, tested there and mirrored into `plan-client.ts`.
+
+    On a phone there is one day showing and nothing to span, so the stays for
+    that day sit as chips under the rail — both of them, in order, on the day
+    of a change.
+
+  - **The travel row is not built.** `Planner.dc.html` rules a second strip
+    under the grid for flights and trains. `travel_legs` is a table with no API
+    and no way to put anything in it, so drawing the row would be furniture
+    with nothing behind it. The same goes for the add-a-day rails either side
+    of the grid.
 
   **What is being dragged decides how the drop is read.** A sheet stacks its
   days, so the finger's y says which one it is over. The Planner's columns sit

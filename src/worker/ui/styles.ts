@@ -29,10 +29,24 @@ button { font-family: ${SANS}; cursor: pointer; }
   position: relative; width: ${FRAME.width}px; height: ${FRAME.height}px;
   overflow: hidden; background: ${C.paper};
 }
-@media (max-width: 420px), (max-height: 700px) {
+/* 420 was too narrow to be "a phone": an iPhone Pro Max is 430 CSS pixels
+   across and 932 down, so it matched neither half of the query and got the
+   375x667 artboard floating in the middle of the screen. The threshold is
+   now the width at which the Planner's grid starts working (see WIDE in
+   client.ts), so anything narrower than a small tablet fills. */
+@media (max-width: 779px), (max-height: 700px) {
   body { display: block; }
   #frame { width: 100vw; height: 100dvh; }
 }
+
+/* The home indicator sits over the bottom of the viewport once Safari hides
+   its toolbar, so everything anchored to the floor keeps clear of it. On a
+   browser without an inset these all resolve to the padding they already had. */
+.trips-foot { padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
+.new-trip-foot { padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+.sheet-scroll { padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+.sheet.modal { padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+.plan-tray { padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
 
 .screen { position: absolute; inset: 0; display: flex; flex-direction: column; background: ${C.paper}; }
 .serif { font-family: ${SERIF}; font-weight: 500; }
@@ -138,6 +152,32 @@ button { font-family: ${SANS}; cursor: pointer; }
 }
 .underlined input::placeholder { color: ${C.faint}; }
 
+/* ---- The date fields, and the one calendar behind all of them ----
+   NewTrip.dc.html opens six months of calendar and asks for two taps on it.
+   Two fields say which end is being picked and what has been chosen so far,
+   and each opens the calendar on its own month. */
+.date-fields { display: flex; align-items: stretch; gap: 8px; }
+.date-field {
+  flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 3px;
+  border-radius: 12px; border: 1.5px solid ${C.borderWarm}; background: ${C.card};
+  padding: 9px 12px 10px; text-align: left; font-family: ${SANS};
+}
+.date-field.set { border-color: ${C.ink}; }
+.date-field-label { font-size: 9px; font-weight: 700; letter-spacing: 0.1em; color: ${C.greyer}; }
+.date-field-value {
+  font-size: 14px; font-weight: 600; color: ${C.faint};
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.date-field.set .date-field-value { color: ${C.ink}; }
+.date-field-arrow { display: flex; align-items: center; opacity: 0.6; flex-shrink: 0; }
+
+.sheet.modal.picker { padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
+.month-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 14px 6px; flex-shrink: 0;
+}
+.sheet.modal .cal { padding: 0 10px; }
+
 .cal { display: grid; grid-template-columns: repeat(7, 1fr); }
 .dw { height: 22px; display: flex; align-items: center; justify-content: center;
       font-size: 10px; font-weight: 700; color: ${C.greyer}; }
@@ -155,13 +195,17 @@ button { font-family: ${SANS}; cursor: pointer; }
   width: 28px; height: 28px; border-radius: 50%; background: ${C.ink}; color: ${C.paper};
   font-weight: 700; display: flex; align-items: center; justify-content: center;
 }
-.month-name { font-size: 13px; font-weight: 700; padding: 16px 4px 2px; }
+/* Today, so a calendar opened on a month you did not choose still says where
+   you are in it. */
+.cal button.now { font-weight: 700; color: ${C.todayInk}; }
+.cal button.off { opacity: 0.55; }
+.month-name { font-size: 13.5px; font-weight: 700; }
 .new-trip-foot {
   flex-shrink: 0; border-top: 1px solid ${C.sheetEdge}; background: ${C.paper}; padding: 12px 14px 16px;
 }
-.range-line { display: flex; align-items: center; gap: 9px; margin-bottom: 16px; }
-.range-line .r { font-size: 14px; font-weight: 600; flex-grow: 1; }
-.range-line .n { font-size: 12px; color: ${C.grey}; }
+.range-note {
+  margin-top: 11px; font-size: 11px; color: ${C.meta}; line-height: 1.5;
+}
 
 /* ---- Trip: top bar, map, sheet (design/Main.dc.html, EmptyTrip.dc.html) ---- */
 .trip-bar {
@@ -186,8 +230,6 @@ button { font-family: ${SANS}; cursor: pointer; }
   background: rgba(255,252,246,0.94); border: 1px solid ${C.borderWarm}; border-radius: 999px;
   padding: 5px 10px 5px 9px; box-shadow: 0 1px 3px rgba(80,66,44,0.08);
 }
-.map-chip .k { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; }
-.map-chip .k i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
 .map-chip .empty { font-size: 10.5px; color: ${C.grey}; }
 .map-controls { position: absolute; right: 10px; top: 10px; display: flex; flex-direction: column; gap: 7px; }
 .map-controls button {
@@ -195,6 +237,7 @@ button { font-family: ${SANS}; cursor: pointer; }
   background: ${C.card}; box-shadow: 0 1px 3px rgba(80,66,44,0.10);
   display: flex; align-items: center; justify-content: center; padding: 0;
 }
+.map-controls button.busy { opacity: 0.5; }
 .pin { position: absolute; transform: translate(-50%, -100%); }
 .pin > i {
   display: block; border-radius: 50%; border: 2.5px solid ${C.card};
@@ -242,13 +285,22 @@ button { font-family: ${SANS}; cursor: pointer; }
 }
 .sheet-scroll { flex-grow: 1; overflow-y: auto; padding: 0 0 16px; }
 
-.day-head {
-  display: flex; align-items: center; gap: 9px; padding: 0 14px; height: 40px;
-  width: 100%; background: transparent; border: 0; text-align: left; font-family: ${SANS};
-}
+/* The header is a row of three targets now — open the day, change the day,
+   open the day — rather than one button, because the pencil cannot be nested
+   inside a button. */
+.day-head { display: flex; align-items: center; padding: 0 10px 0 14px; height: 44px; }
 .day-head.open { background: ${C.highlight}; }
-.day-hue { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; opacity: 0.45; }
-.day-head.open .day-hue { opacity: 1; }
+.day-head-tap {
+  display: flex; align-items: center; gap: 10px; flex-grow: 1; min-width: 0; height: 44px;
+  background: transparent; border: 0; padding: 0; text-align: left; font-family: ${SANS};
+}
+/* The day's colour, drawn the size it is drawn on the map: a disc in a cream
+   ring. It is the thing that says which day a pin belongs to, so it is not a
+   4px detail on a header and it does not dim when the day is closed. */
+.day-hue {
+  width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0;
+  border: 2.5px solid ${C.card}; box-shadow: 0 1px 3px rgba(70,58,40,0.22);
+}
 .day-head-text { display: flex; flex-direction: column; flex-grow: 1; min-width: 0; }
 .day-head-top { display: flex; align-items: baseline; gap: 7px; }
 .day-label { font-size: 12.5px; font-weight: 500; color: ${C.inkSoft}; }
@@ -257,8 +309,108 @@ button { font-family: ${SANS}; cursor: pointer; }
   font-size: 9.5px; font-weight: 700; letter-spacing: 0.07em; color: ${C.todayInk};
   background: ${C.greenTile}; border-radius: 4px; padding: 2px 5px;
 }
-.day-place { font-size: 10px; color: ${C.greyer}; }
+.day-place {
+  font-size: 10px; color: ${C.greyer};
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .day-progress { font-size: 10px; color: ${C.greyer}; font-variant-numeric: tabular-nums; }
+.day-pencil, .day-chevron {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 30px; height: 40px; background: none; border: 0; padding: 0;
+}
+.day-pencil { opacity: 0.7; }
+.day-pencil.on { opacity: 1; }
+.day-pencil.on > span { background: ${C.card}; border-radius: 6px; padding: 4px; margin: -4px; }
+
+/* The panel the pencil opens, under the header it belongs to. No artboard
+   draws it; it is the note editor's field and a row of discs. */
+.day-edit-panel {
+  background: ${C.highlight}; padding: 2px 14px 12px; border-bottom: 1px solid ${C.sheetEdge};
+}
+.day-edit-row { display: flex; align-items: center; gap: 9px; }
+.day-name-field {
+  flex-grow: 1; min-width: 0; height: 34px; border-radius: 9px;
+  border: 1.5px solid ${C.borderWarm}; background: ${C.card}; padding: 0 11px;
+  font-family: ${SANS}; font-size: 13px; font-weight: 500; color: ${C.ink};
+  caret-color: ${C.accent}; outline: none;
+}
+.day-name-field:focus { border-color: ${C.ink}; }
+.day-name-field::placeholder { color: ${C.faint}; font-weight: 400; }
+.day-edit-done {
+  background: none; border: 0; padding: 0 2px; font-family: ${SANS};
+  font-size: 12px; font-weight: 700; color: ${C.link};
+}
+.swatches { display: flex; align-items: center; gap: 7px; margin-top: 10px; flex-wrap: wrap; }
+.swatch {
+  width: 26px; height: 26px; border-radius: 50%; padding: 0; flex-shrink: 0;
+  border: 2.5px solid ${C.card}; box-shadow: 0 0 0 1px rgba(120,108,90,0.22);
+  display: flex; align-items: center; justify-content: center;
+}
+/* The chosen one wears the ink ring a selected pin wears. */
+.swatch.on { box-shadow: 0 0 0 2px ${C.ink}; }
+/* White, and anything near it, cannot carry a cream tick. */
+.swatch.pale { box-shadow: 0 0 0 1px ${C.borderWarm}; }
+.swatch.pale.on { box-shadow: 0 0 0 2px ${C.ink}; }
+/* Any other colour at all: the wheel stands for the rest of them. */
+.swatch.custom {
+  position: relative; overflow: hidden; cursor: pointer;
+  background: conic-gradient(#C4826A, #C0913C, #7E8C42, #3F6B4A, #2F7D86, #3F6BA6, #6A5FA6, #9C5E8E, #C4826A);
+}
+.swatch.custom input {
+  position: absolute; left: -8px; top: -8px; width: 44px; height: 44px;
+  opacity: 0; border: 0; padding: 0; cursor: pointer;
+}
+
+/* ---- The sheet's two lists ---- */
+.sheet-tabs {
+  display: flex; gap: 6px; padding: 2px 12px 8px; flex-shrink: 0;
+  border-bottom: 1px solid ${C.line};
+}
+.sheet-tab {
+  flex-grow: 1; flex-basis: 0; height: 30px; border-radius: 999px;
+  border: 1px solid ${C.border}; background: transparent; font-family: ${SANS};
+  font-size: 11.5px; font-weight: 600; color: ${C.inkSoft}; padding: 0 6px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sheet-tab.on { background: ${C.ink}; border-color: ${C.ink}; color: ${C.paper}; }
+
+.stay-row {
+  display: flex; align-items: center; gap: 11px; padding: 0 14px; height: 52px;
+  border-bottom: 1px solid ${C.line};
+}
+.stay-icon { flex-shrink: 0; opacity: 0.8; }
+.stay-tap {
+  display: flex; flex-direction: column; gap: 2px; flex-grow: 1; min-width: 0;
+  background: none; border: 0; padding: 0; text-align: left; font-family: ${SANS};
+}
+.stay-name {
+  font-size: 13.5px; font-weight: 600; color: ${C.ink};
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.stay-when { font-size: 10.5px; color: ${C.grey}; }
+.stay-remove {
+  width: 32px; height: 32px; border-radius: 9px; border: 1px solid ${C.border};
+  background: ${C.card}; display: flex; align-items: center; justify-content: center;
+  padding: 0; flex-shrink: 0;
+}
+.stay-gap { padding: 10px 16px 0; font-size: 10.5px; color: ${C.meta}; line-height: 1.5; }
+.stay-results {
+  border-radius: 10px; border: 1px solid ${C.border}; background: ${C.card};
+  overflow: hidden; margin-top: 10px;
+}
+.stay-result {
+  display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 8px 12px;
+  background: none; border: 0; border-top: 1px solid ${C.line}; text-align: left;
+  font-family: ${SANS};
+}
+.stay-result:first-child { border-top: 0; }
+.stay-result-name { font-size: 12.5px; font-weight: 600; }
+.stay-result-meta { font-size: 10px; color: ${C.grey}; }
+
+/* The trip and the stay are asked for in the same shape: a name, then dates. */
+.trip-edit { padding: 0 16px; flex-shrink: 0; }
+.trip-edit .date-fields { margin-top: 16px; }
+.trip-edit-note { font-size: 10.5px; color: ${C.meta}; line-height: 1.5; margin-top: 12px; }
 .day-wrap { border-bottom: 1px solid ${C.line}; }
 .day-wrap.open { border-bottom-color: ${C.sheetEdge}; }
 .day-body { padding: 0 0 8px; }
@@ -887,6 +1039,55 @@ button { font-family: ${SANS}; cursor: pointer; }
   width: 100%; height: 36px; border-radius: 10px; border: 1.5px dashed #DFD3BE;
   background: transparent; color: ${C.grey}; font-family: ${SANS}; font-size: 12px;
   font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+
+/* ---- Where you are sleeping ----
+   design/Planner.dc.html rules a 48px strip under the grid and writes the
+   hotel's name into every column it covers. A stay is one thing spanning
+   days, so it is drawn as one bar; the arithmetic, including the half-cell a
+   changeover day gets, is in src/lib/plan.ts. */
+.lodging-strip {
+  height: 46px; flex-shrink: 0; display: flex;
+  border-top: 1px solid ${C.border}; background: ${C.highlight};
+}
+.lodging-gutter {
+  width: 56px; flex-shrink: 0; border-right: 1px solid ${C.sheetEdge};
+  display: flex; align-items: center; justify-content: center;
+}
+.stay-lane { flex-grow: 1; position: relative; min-width: 0; cursor: pointer; }
+.stay-bar {
+  position: absolute; top: 8px; bottom: 8px; border-radius: 8px;
+  border: 1px solid ${C.borderWarm}; background: ${C.card};
+  display: flex; align-items: center; gap: 6px; padding: 0 10px;
+  font-family: ${SANS}; overflow: hidden;
+}
+/* A stay that carries on past the page squares off at that end, so the bar
+   reads as cut rather than as ending there. */
+.stay-bar.open-left { border-top-left-radius: 2px; border-bottom-left-radius: 2px; border-left-style: dashed; }
+.stay-bar.open-right { border-top-right-radius: 2px; border-bottom-right-radius: 2px; border-right-style: dashed; }
+.stay-bar-name {
+  font-size: 11px; font-weight: 600; color: ${C.inkSoft};
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.stay-lane-empty {
+  position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+  font-size: 10.5px; color: ${C.faint};
+}
+
+/* The same thing on a phone, where one day is showing so there is nothing to
+   span. On the day you change hotels both are named, in order. */
+.stay-line {
+  flex-shrink: 0; display: flex; align-items: center; gap: 7px;
+  padding: 7px 12px; border-bottom: 1px solid ${C.sheetEdge}; background: ${C.highlight};
+  overflow-x: auto; scrollbar-width: none;
+}
+.stay-line::-webkit-scrollbar { display: none; }
+.stay-line-icon { flex-shrink: 0; opacity: 0.75; }
+.stay-chip {
+  height: 24px; border-radius: 999px; border: 1px solid ${C.borderWarm};
+  background: ${C.card}; padding: 0 10px; flex-shrink: 0;
+  font-family: ${SANS}; font-size: 10.5px; font-weight: 600; color: ${C.inkSoft};
+  white-space: nowrap;
 }
 
 /* A quiet inline error, in the terracotta the palette already uses. */

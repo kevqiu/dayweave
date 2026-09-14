@@ -1,10 +1,10 @@
 import { CLIENT } from "./client.ts";
 import * as icons from "./icons.ts";
 import { cardMap, mapBackground } from "./map.ts";
-import { lookPinIcon, mapStyle, pinIcon } from "./gmap.ts";
+import { lookPinIcon, mapStyle, meIcon, pinIcon } from "./gmap.ts";
 import { PLAN_CLIENT } from "./plan-client.ts";
 import { styles } from "./styles.ts";
-import { COLOR as C, FONTS_HREF } from "./tokens.ts";
+import { COLOR as C, DAY_PALETTE, DAY_WHITE, FONTS_HREF } from "./tokens.ts";
 
 /**
  * The document.
@@ -34,11 +34,16 @@ function iconSet(): Record<string, string> {
     check: icons.check({ size: 12, color: C.inkSoft }),
     checkOn: icons.check({ size: 12, color: C.todayInk }),
     pencil: icons.pencil({ size: 12, color: C.inkSoft }),
+    // The pencil on a day header, which opens its name and its colour.
+    pencilDay: icons.pencil({ size: 12, color: C.greyer }),
+    house: icons.house({ size: 15 }),
+    pencilInk: icons.pencil({ size: 15, color: C.inkSoft }),
+    houseInk: icons.house({ size: 14, color: C.inkSoft }),
     kebab: icons.kebab({ size: 15 }),
     grip: icons.grip(),
     gripDark: icons.grip({ color: C.inkSoft }),
     trash: icons.trash({ size: 15 }),
-    layers: icons.layers({ size: 18, color: C.inkSoft }),
+    frameAll: icons.frameAll({ size: 17, color: C.inkSoft }),
     locate: icons.locate({ size: 18, color: C.inkSoft }),
     bowl: icons.bowl({ size: 17, color: C.greenStroke }),
     bowlGrey: icons.bowl({ size: 17, color: C.greyStroke }),
@@ -53,6 +58,10 @@ function iconSet(): Record<string, string> {
     arrowLeftSoft: icons.arrowLeft({ size: 16, color: C.inkSoft, width: 2.2 }),
     pinInk: icons.pinDot({ size: 16, color: C.ink }),
     checkGreen: icons.check({ size: 14, color: C.todayInk }),
+    checkSwatch: icons.check({ size: 12, color: "#FFFCF6", width: 3 }),
+    // The same tick on the white swatch, where cream on cream is invisible.
+    checkSwatchInk: icons.check({ size: 12, color: C.ink, width: 3 }),
+    trashSmall: icons.trash({ size: 13 }),
   };
 }
 
@@ -92,12 +101,18 @@ window.__CARD_MAP__ = ${JSON.stringify(boot.cardMap)};
 // Empty until a browser key is provisioned, and the drawn map stands in.
 window.__MAPS_KEY__ = ${JSON.stringify(mapsKey)};
 window.__MAP_STYLE__ = ${JSON.stringify(mapStyle())};
+// Keyed by what statusOf() in the client actually returns. It used to say
+// "today" here and "now" there, so every pin on today's day threw reading
+// undefined and the real map came up empty on the one day that matters.
 window.__PIN__ = ${JSON.stringify({
-  today: { plain: pinIcon(C.today, false), selected: pinIcon(C.today, true) },
+  now: { plain: pinIcon(C.today, false), selected: pinIcon(C.today, true) },
   ahead: { plain: pinIcon(C.ahead, false), selected: pinIcon(C.ahead, true) },
   done: { plain: pinIcon(C.done, false), selected: pinIcon(C.done, true) },
 })};
 window.__LOOK_PIN__ = ${JSON.stringify(lookPinIcon())};
+window.__ME_PIN__ = ${JSON.stringify(meIcon())};
+// The nine swatches a day's pencil offers: the palette, then white.
+window.__DAY_SWATCHES__ = ${JSON.stringify([...DAY_PALETTE, DAY_WHITE])};
 </script>
 <!-- The Plan view's arithmetic, checked against src/lib/plan.ts by a test. -->
 <script>${PLAN_CLIENT}</script>

@@ -11,9 +11,9 @@ import { orderKeyAppend, orderKeyBetween } from "../lib/order.ts";
 import { describeStop, tripCities } from "../lib/derive.ts";
 import type { PlaceDetails } from "../lib/places.ts";
 import type { DayGeo, LatLng } from "../lib/geo.ts";
-import { avatarColor, dayHue } from "./ui/tokens.ts";
+import { avatarColor, dayColor } from "./ui/tokens.ts";
 
-export { dayHue };
+export { dayColor };
 
 export interface TripRow {
   id: string;
@@ -118,7 +118,7 @@ export async function createTrip(
     ...dates.map((date, i) =>
       db
         .prepare(`INSERT INTO days (id, trip_id, date, hue) VALUES (?, ?, ?, ?)`)
-        .bind(crypto.randomUUID(), trip.id, date, dayHue(i, dates.length)),
+        .bind(crypto.randomUUID(), trip.id, date, dayColor(i)),
     ),
   ];
 
@@ -539,4 +539,228 @@ export function citiesForTrip(days: readonly DayRow[], stops: readonly StopRow[]
   }
   for (const stop of stops.filter((s) => s.day_id === null)) inDayOrder.push(stop.city);
   return tripCities(inDayOrder);
+}
+
+// --- changing a trip after it exists ----------------------------------------
+
+export interface LodgingRow {
+  id: string;
+  trip_id: string;
+  place_id: string | null;
+  name: string;
+  check_in: string;
+  check_out: string;
+  note: string;
+  lat?: number | null;
+  lng?: number | null;
+  address?: string | null;
+}
+
+/**
+ * Renaming a trip, and moving its dates. PLAN.md section 4d's "changing the
+ * dates later", which was written and left unbuilt.
+ *
+ * The days are reconciled rather than rebuilt: a date that is in both the old
+ * range and the new one keeps its row, which is what keeps its stops, its name
+ * and the colour somebody chose for it. A date that falls outside the new
+ * range loses its row, and `stops.day_id` is `ON DELETE SET NULL`, so whatever
+ * was on it lands in To be planned instead of disappearing — the one thing a
+ * date change must never do is throw away places somebody found.
+ *
+ * New days are coloured by their position in the whole trip, so a day added at
+ * the front is the deep green and the ones behind it keep what they had. The
+ * alternative — recolouring every day to its new index — would repaint a trip
+ * somebody has already coloured by hand.
+ */
+export async function updateTrip(
+  db: D1Database,
+  trip: TripRow,
+  input: { name: string; startDate: string; endDate: string },
+): Promise<{ added: number; removed: number }> {
+  const dates = datesBetween(input.startDate, input.endDate);
+  const existing = await listDays(db, trip.id);
+  const keep = new Set(dates);
+
+  const gone = existing.filter((d) => !keep.has(d.date));
+  const have = new Set(existing.map((d) => d.date));
+  const added = dates.filter((date) => !have.has(date));
+
+  const statements: D1PreparedStatement[] = [
+    db
+      .prepare(`UPDATE trips SET name = ?, start_date = ?, end_date = ?, updated_at = ? WHERE id = ?`)
+      .bind(input.name, input.startDate, input.endDate, now(), trip.id),
+    // Emptied before they are dropped rather than relying on ON DELETE SET
+    // NULL. The constraint says the same thing, but it only fires while
+    // foreign keys are enforced, and a stop left pointing at a day that is
+    // gone belongs to no list at all — it would simply stop being on the trip.
+    ...gone.map((day) =>
+      db
+        .prepare(`UPDATE stops SET day_id = NULL, updated_at = ? WHERE day_id = ?`)
+        .bind(now(), day.id),
+    ),
+    ...gone.map((day) => db.prepare(`DELETE FROM days WHERE id = ?`).bind(day.id)),
+    ...added.map((date) =>
+      db
+        .prepare(`INSERT INTO days (id, trip_id, date, hue) VALUES (?, ?, ?, ?)`)
+        .bind(crypto.randomUUID(), trip.id, date, dayColor(dates.indexOf(date))),
+    ),
+  ];
+
+  await db.batch(statements);
+  return { added: added.length, removed: gone.length };
+}
+
+/**
+ * A day's own name and colour.
+ *
+ * `days.label` has been in the schema since the first migration and nothing
+ * wrote to it; this is what it is for. The date stays the day's heading — it
+ * is the thing that cannot be wrong — and the name sits under it, the way a
+ * city already does.
+ */
+export async function updateDay(
+  db: D1Database,
+  dayId: string,
+  input: { label?: string | null; hue?: string },
+): Promise<void> {
+  const sets: string[] = [];
+  const values: (string | null)[] = [];
+  if (input.label !== undefined) {
+    sets.push("label = ?");
+    values.push(input.label);
+  }
+  if (input.hue !== undefined) {
+    sets.push("hue = ?");
+    values.push(input.hue);
+  }
+  if (!sets.length) return;
+  await db
+    .prepare(`UPDATE days SET ${sets.join(", ")} WHERE id = ?`)
+    .bind(...values, dayId)
+    .run();
+}
+
+/** `#A1B2C3`, or null for anything that is not one. */
+export function cleanHex(raw: string | null | undefined): string | null {
+  if (typeof raw !== "string") return null;
+  const hex = raw.trim().toUpperCase();
+  return /^#[0-9A-F]{6}$/.test(hex) ? hex : null;
+}
+
+// --- lodging ----------------------------------------------------------------
+
+/**
+ * Where you are sleeping, PLAN.md section 5b.
+ *
+ * A stay spans dates rather than sitting on one, which is why `lodging` has
+ * always been its own table and not a stop with a flag. `check_in` and
+ * `check_out` are the first and last date the stay applies to, inclusive —
+ * the range somebody picks on the sheet — rather than a hotel's own
+ * arrive-and-leave, because what the Planner draws is which days you have a
+ * bed on.
+ */
+export async function listLodging(db: D1Database, tripId: string): Promise<LodgingRow[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT l.id, l.trip_id, l.place_id, l.name, l.check_in, l.check_out, l.note,
+              p.lat, p.lng, p.address
+         FROM lodging l
+         LEFT JOIN places p ON p.id = l.place_id
+        WHERE l.trip_id = ?
+        ORDER BY l.check_in, l.check_out, l.name`,
+    )
+    .bind(tripId)
+    .all<LodgingRow>();
+  return results ?? [];
+}
+
+export async function addLodging(
+  db: D1Database,
+  input: {
+    tripId: string;
+    name: string;
+    checkIn: string;
+    checkOut: string;
+    note?: string;
+    details?: PlaceDetails | null;
+  },
+): Promise<LodgingRow> {
+  let placeId: string | null = null;
+
+  if (input.details) {
+    // The same dedup the stops take: one row per place per trip, so a hotel
+    // that is also a stop is one pin.
+    const d = input.details;
+    const existing = await db
+      .prepare(`SELECT id FROM places WHERE trip_id = ? AND google_place_id = ?`)
+      .bind(input.tripId, d.googlePlaceId)
+      .first<{ id: string }>();
+    placeId = existing?.id ?? crypto.randomUUID();
+    if (!existing) {
+      await db
+        .prepare(
+          `INSERT INTO places (id, trip_id, google_place_id, name, name_local, lat, lng,
+                               address, city, country_code, category, maps_url, source, refreshed_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          placeId,
+          input.tripId,
+          d.googlePlaceId,
+          d.name,
+          d.nameLocal,
+          d.lat,
+          d.lng,
+          d.address,
+          d.city,
+          d.countryCode,
+          d.category,
+          d.mapsUrl,
+          "search",
+          now(),
+        )
+        .run();
+    }
+  }
+
+  const id = crypto.randomUUID();
+  await db
+    .prepare(
+      `INSERT INTO lodging (id, trip_id, place_id, name, check_in, check_out, note)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(id, input.tripId, placeId, input.name, input.checkIn, input.checkOut, input.note ?? "")
+    .run();
+
+  return {
+    id,
+    trip_id: input.tripId,
+    place_id: placeId,
+    name: input.name,
+    check_in: input.checkIn,
+    check_out: input.checkOut,
+    note: input.note ?? "",
+    lat: input.details?.lat ?? null,
+    lng: input.details?.lng ?? null,
+    address: input.details?.address ?? null,
+  };
+}
+
+export async function updateLodging(
+  db: D1Database,
+  id: string,
+  input: { name?: string; checkIn?: string; checkOut?: string; note?: string },
+): Promise<void> {
+  const sets: string[] = [];
+  const values: string[] = [];
+  if (input.name !== undefined) { sets.push("name = ?"); values.push(input.name); }
+  if (input.checkIn !== undefined) { sets.push("check_in = ?"); values.push(input.checkIn); }
+  if (input.checkOut !== undefined) { sets.push("check_out = ?"); values.push(input.checkOut); }
+  if (input.note !== undefined) { sets.push("note = ?"); values.push(input.note); }
+  if (!sets.length) return;
+  await db.prepare(`UPDATE lodging SET ${sets.join(", ")} WHERE id = ?`).bind(...values, id).run();
+}
+
+export async function deleteLodging(db: D1Database, id: string): Promise<void> {
+  await db.prepare(`DELETE FROM lodging WHERE id = ?`).bind(id).run();
 }

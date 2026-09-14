@@ -66,6 +66,16 @@ const state = {
   newTrip: null,
   tripMenu: false,
   sheetFull: false,
+  /* The sheet's two tabs: the day list, and the stays that span days. */
+  sheetTab: "stops",
+  /* The day whose pencil is open, and the panel under its header. */
+  dayEdit: null,
+  /* Renaming a trip and moving its dates, from the one dropdown. */
+  tripEdit: null,
+  /* Adding or changing one stay. */
+  stayEdit: null,
+  /* The calendar hanging off whichever date field was tapped. */
+  picker: null,
   hideVisited: false,
   error: null,
   drag: null,
@@ -107,6 +117,10 @@ function render() {
   if (state.move) frame.append(...sheetMove());
   if (state.noteFor) frame.append(...sheetNote());
   if (state.timeFor) frame.append(...sheetTime());
+  if (state.tripEdit) frame.append(...sheetTripEdit());
+  if (state.stayEdit) frame.append(...sheetStay());
+  // Last, so the calendar sits over the sheet whose field opened it.
+  if (state.picker) frame.append(...sheetCalendar());
   // The lifted card is created by the render that starts a drag, so it has to
   // be put under the finger before the first paint rather than on the next move.
   if (state.drag) paintDrag();
@@ -282,8 +296,7 @@ function tripRow(trip, past) {
 
 function openNewTrip() {
   openLayer(() => { state.newTrip = null; showTrips(); });
-  const start = new Date();
-  state.newTrip = { name: "", start: null, end: null, month: new Date(start.getFullYear(), start.getMonth(), 1) };
+  state.newTrip = { name: "", start: null, end: null };
   state.screen = "newTrip";
   render();
   const field = $("trip-name");
@@ -294,18 +307,12 @@ function screenNewTrip() {
   const draft = state.newTrip;
   const ready = draft.name.trim() && draft.start && draft.end;
 
-  const months = h("div", { style: "flex-grow:1;overflow-y:auto;padding:0 12px;position:relative" }, []);
-  for (let i = 0; i < 6; i++) {
-    const month = new Date(draft.month.getFullYear(), draft.month.getMonth() + i, 1);
-    months.append(monthGrid(month, i === 0));
-  }
-
   return h("div", { class: "screen" }, [
     h("div", { class: "top-bar" }, [
       h("button", { class: "icon-btn", onclick: closeLayer }, [icon("close")]),
       h("div", { class: "top-bar-title", text: "New trip" }, []),
     ]),
-    h("div", { style: "padding:0 18px 12px;flex-shrink:0" }, [
+    h("div", { style: "padding:0 18px 18px;flex-shrink:0" }, [
       h("div", { class: "ask", text: "Where are we going?" }, []),
       h("div", { class: "underlined" }, [
         h("input", {
@@ -313,26 +320,89 @@ function screenNewTrip() {
           placeholder: "Give the trip a name",
           value: draft.name,
           autocomplete: "off",
-          oninput: (e) => { draft.name = e.target.value; const b = $("create"); if (b) b.disabled = !(draft.name.trim() && draft.start && draft.end); },
+          oninput: (e) => { draft.name = e.target.value; refreshCreate(); },
         }, []),
       ]),
     ]),
-    h("div", { style: "padding:0 18px 8px;flex-shrink:0" }, [
+    h("div", { style: "padding:0 18px;flex-shrink:0" }, [
       h("div", { class: "ask small", text: "And when?" }, []),
-    ]),
-    months,
-    h("div", { class: "new-trip-foot" }, [
-      h("div", { class: "range-line" }, [
-        icon("calendar"),
-        h("span", { class: "r", text: draft.start && draft.end ? rangeLabel(draft.start, draft.end) : "Pick the days" }, []),
+      dateFields(draft, refreshCreate),
+      // The length of the trip, under the two fields that decide it. The foot
+      // used to carry this as a second copy of the same dates; with the dates
+      // on screen in the fields, that row was saying it twice.
+      h("div", { class: "range-note" }, [
         h("span", {
-          class: "n",
-          text: draft.start && draft.end ? daysBetween(draft.start, draft.end) + 1 + " days" : "",
+          text: draft.start && draft.end
+            ? rangeLabel(draft.start, draft.end) + " · " + (daysBetween(draft.start, draft.end) + 1) + " days"
+            : "Both ends, and every day between them gets its own list.",
         }, []),
       ]),
+    ]),
+    h("div", { style: "flex-grow:1" }, []),
+    h("div", { class: "new-trip-foot" }, [
       h("button", { class: "btn-dark", id: "create", disabled: !ready, onclick: createTrip }, ["Create trip"]),
     ]),
   ]);
+}
+
+/** Keeps Create trip in step with the fields without re-rendering the name. */
+function refreshCreate() {
+  const draft = state.newTrip;
+  const button = $("create");
+  if (button) button.disabled = !(draft.name.trim() && draft.start && draft.end);
+}
+
+/**
+ * The two date fields, and the calendar behind them.
+ *
+ * design/NewTrip.dc.html draws six months of calendar open on the screen and
+ * asks for two taps on it. That works on the artboard, where the trip starts
+ * in the month already showing. It does not work on a phone: the range is
+ * invisible until both ends are tapped, a mis-tap silently restarts it, and a
+ * trip in April means scrolling a calendar looking for a month that may not be
+ * among the six. Two fields say what has been chosen and what has not, and
+ * each one opens the calendar on its own month.
+ */
+function dateFields(draft, after) {
+  const field = (which, label) => {
+    const value = draft[which];
+    return h("button", {
+      class: "date-field" + (value ? " set" : ""),
+      onclick: () => openDatePicker(draft, which, after),
+    }, [
+      h("span", { class: "date-field-label", text: label }, []),
+      h("span", { class: "date-field-value", text: value ? longDate(value) : "Pick a date" }, []),
+    ]);
+  };
+
+  return h("div", { class: "date-fields" }, [
+    field("start", "STARTS"),
+    h("span", { class: "date-field-arrow", html: ICONS.chevronRight }, []),
+    field("end", "ENDS"),
+  ]);
+}
+
+/**
+ * Opening the calendar on one of the two fields.
+ *
+ * Moving the start past the end takes the end with it rather than refusing the
+ * tap: the field you touched is the one you meant, and a trip that ends before
+ * it starts is not a state worth holding on screen to complain about.
+ */
+function openDatePicker(draft, which, after) {
+  openPicker({
+    title: which === "start" ? "Starts on" : "Ends on",
+    value: draft[which],
+    // The end can never be before the start. The start has no floor: a trip
+    // in the past is a trip somebody is writing up.
+    min: which === "end" ? draft.start : null,
+    onPick: (iso) => {
+      draft[which] = iso;
+      if (which === "start" && draft.end && draft.end < iso) draft.end = iso;
+      if (after) after();
+      render();
+    },
+  });
 }
 
 const DOW = ["S", "M", "T", "W", "T", "F", "S"];
@@ -340,52 +410,103 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July",
   "August", "September", "October", "November", "December"];
 
-function monthGrid(month, first) {
-  const draft = state.newTrip;
+/** Wed Sep 30, on a date field. The weekday is half of what a date means. */
+function longDate(iso) {
+  const date = new Date(iso + "T00:00:00Z");
+  if (Number.isNaN(date.getTime())) return iso;
+  const weekday = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][date.getUTCDay()];
+  return weekday + " " + MONTHS[date.getUTCMonth()] + " " + date.getUTCDate();
+}
+
+/* --------------------------------------------------------- the calendar */
+
+/**
+ * One calendar, opened by every date field in the app: both ends of a new
+ * trip, both ends of a trip being changed, and both ends of a stay.
+ */
+function openPicker(options) {
+  openLayer(() => { state.picker = null; render(); });
+  const anchor = options.value || options.min || todayIso();
+  const at = new Date(anchor + "T00:00:00Z");
+  state.picker = {
+    title: options.title,
+    value: options.value || null,
+    min: options.min || null,
+    max: options.max || null,
+    month: new Date(at.getUTCFullYear(), at.getUTCMonth(), 1),
+    onPick: options.onPick,
+  };
+  render();
+}
+
+function stepMonth(by) {
+  const picker = state.picker;
+  picker.month = new Date(picker.month.getFullYear(), picker.month.getMonth() + by, 1);
+  render();
+}
+
+function sheetCalendar() {
+  const picker = state.picker;
+  const month = picker.month;
+
+  return [
+    h("div", { class: "scrim", onclick: closeLayer }, []),
+    h("div", { class: "sheet modal picker", style: "height:auto" }, [
+      h("div", { class: "grabber", onclick: closeLayer }, [h("i", {}, [])]),
+      h("div", { class: "modal-head" }, [
+        h("div", { class: "modal-title", text: picker.title }, []),
+      ]),
+      h("div", { class: "month-bar" }, [
+        h("button", {
+          class: "sq-btn",
+          onclick: () => stepMonth(-1),
+          title: "The month before",
+        }, [h("span", { style: "display:flex;transform:rotate(90deg)", html: ICONS.chevron }, [])]),
+        h("span", {
+          class: "month-name",
+          text: MONTH_NAMES[month.getMonth()] + " " + month.getFullYear(),
+        }, []),
+        h("button", {
+          class: "sq-btn",
+          onclick: () => stepMonth(1),
+          title: "The month after",
+        }, [h("span", { style: "display:flex;transform:rotate(-90deg)", html: ICONS.chevron }, [])]),
+      ]),
+      h("div", { class: "cal" }, DOW.map((d) => h("span", { class: "dw", text: d }, []))),
+      pickerGrid(month),
+    ]),
+  ];
+}
+
+function pickerGrid(month) {
+  const picker = state.picker;
   const year = month.getFullYear();
   const index = month.getMonth();
   const lead = new Date(year, index, 1).getDay();
   const length = new Date(year, index + 1, 0).getDate();
+  const today = todayIso();
 
-  const head = h("div", { class: "cal" }, DOW.map((d) => h("span", { class: "dw", text: d }, [])));
   const grid = h("div", { class: "cal" }, []);
   for (let i = 0; i < lead; i++) grid.append(h("button", { class: "off", disabled: true }, []));
 
   for (let day = 1; day <= length; day++) {
     const iso = year + "-" + String(index + 1).padStart(2, "0") + "-" + String(day).padStart(2, "0");
-    const isStart = iso === draft.start;
-    const isEnd = iso === draft.end;
-    const inRange = draft.start && draft.end && iso > draft.start && iso < draft.end;
-
-    let cls = "";
-    if (isStart) cls = "s";
-    else if (isEnd) cls = "e";
-    else if (inRange) cls = "in";
-    if (isStart && isEnd) cls = "s e";
+    const blocked = (picker.min && iso < picker.min) || (picker.max && iso > picker.max);
+    const chosen = iso === picker.value;
 
     grid.append(
-      h("button", { class: cls, onclick: () => pickDay(iso) },
-        isStart || isEnd
-          ? [h("span", { class: "cap", text: String(day) }, [])]
-          : [String(day)]),
+      h("button", {
+        class: (chosen ? "s e" : "") + (blocked ? " off" : "") + (iso === today ? " now" : ""),
+        disabled: Boolean(blocked),
+        onclick: () => {
+          const pick = picker.onPick;
+          closeLayer();
+          pick(iso);
+        },
+      }, chosen ? [h("span", { class: "cap", text: String(day) }, [])] : [String(day)]),
     );
   }
-
-  return h("div", {}, [
-    h("div", { class: "month-name", style: first ? "padding-top:2px" : "", text: MONTH_NAMES[index] + " " + year }, []),
-    head,
-    grid,
-  ]);
-}
-
-function pickDay(iso) {
-  const draft = state.newTrip;
-  // First tap sets the start. Second extends to an end, unless it is earlier,
-  // in which case it becomes the new start.
-  if (!draft.start || (draft.start && draft.end)) { draft.start = iso; draft.end = null; }
-  else if (iso < draft.start) { draft.start = iso; }
-  else { draft.end = iso; }
-  render();
+  return grid;
 }
 
 async function createTrip() {
@@ -435,7 +556,23 @@ async function openTrip(tripId) {
 async function refreshTrip() {
   if (!state.trip) return;
   state.trip = await api("/api/trips/" + state.trip.trip.id);
+  settleOpenDay();
   render();
+}
+
+/**
+ * Moving a trip's dates can take a day away with them, and the screen must
+ * not be left open on one that no longer exists.
+ */
+function settleOpenDay() {
+  const days = state.trip.days;
+  const gone = (id) => id && id !== "unplanned" && !days.some((d) => d.id === id);
+  if (gone(state.openDayId)) {
+    const today = days.find((d) => d.date === todayIso());
+    state.openDayId = (today || days[0] || {}).id || null;
+  }
+  if (gone(state.planDayId)) state.planDayId = null;
+  if (state.dayEdit && gone(state.dayEdit)) state.dayEdit = null;
 }
 
 const STATUS_FILL = { done: "#BDB4A7", now: "#6F9A6B", ahead: "#E0B355" };
@@ -482,19 +619,21 @@ function screenTrip() {
         : h("div", { style: "position:absolute;inset:0", html: window.__MAP__ }, []),
       ...(mapsKey() || state.search ? [] : mapPins(openDay)),
       ...searchMapLayer(),
-      state.search ? null : hasStops ? mapLegend() : emptyMapChip(),
-      h("div", { class: "map-controls" }, [
-        h("button", {}, [icon("layers")]),
-        h("button", {}, [icon("locate")]),
-      ]),
+      // Main.dc.html puts a three-key legend here. It is gone: the ring around
+      // a pin already says done or not, the day list beside it says which day
+      // is open, and three words of glossary on top of a small map cost more
+      // room than they explain.
+      state.search || hasStops ? null : emptyMapChip(),
+      ...mapControls(),
     ]),
     h("div", { class: "sheet stops" + (full ? " full" : ""), id: "sheet" }, [
       grabber(),
+      sheetTabs(),
       // SheetFull.dc.html titles this row "All stops". The title is
       // deliberately not here: the collapsed sheet has no header at all, so a
       // heading that appears only on expanding reads as the sheet becoming a
       // different screen. The control it sat beside is the useful half.
-      full
+      full && state.sheetTab === "stops"
         ? h("div", { class: "all-stops" }, [
             h("button", {
               class: "filter-pill",
@@ -503,7 +642,8 @@ function screenTrip() {
             }, [state.hideVisited ? "Not visited" : "Filter"]),
           ])
         : null,
-      h("div", { class: "sheet-scroll" }, sheetContents(hasStops)),
+      h("div", { class: "sheet-scroll" },
+        state.sheetTab === "stays" ? staysPanel() : sheetContents(hasStops)),
     ]),
     state.error
       ? h("div", { class: "toast" }, [
@@ -590,17 +730,114 @@ function emptyMapChip() {
   ]);
 }
 
-function mapLegend() {
-  const key = (color, ink, label) =>
-    h("span", { class: "k", style: "color:" + ink }, [
-      h("i", { style: "background:" + color }, []),
-      label,
-    ]);
-  return h("div", { class: "map-chip" }, [
-    key("#6F9A6B", "#4E7A4B", "today"),
-    key("#E0B355", "#96752F", "ahead"),
-    key("#BDB4A7", "#9A9184", "done"),
-  ]);
+/**
+ * The two controls in the map's top right.
+ *
+ * Main.dc.html draws a layers button and a locate button and neither did
+ * anything (PLAN.md, known bug 3). Layers had nothing to switch to: section 2
+ * turns Google's own basemaps off and there is no second one. So the pair is
+ * now the two things there are to do to a map you have panned away from —
+ * put the whole trip back in the frame, and go to where you are standing.
+ *
+ * They are only drawn over the real map. The drawn fallback has no camera to
+ * move, and a control that responds to nothing is worse than one that is not
+ * there.
+ */
+function mapControls() {
+  if (!mapsKey() || state.search) return [];
+  return [
+    h("div", { class: "map-controls" }, [
+      h("button", { title: "Fit the whole trip", onclick: fitWholeTrip }, [icon("frameAll")]),
+      h("button", {
+        class: locating ? "busy" : "",
+        title: "Where I am",
+        onclick: goToMe,
+      }, [icon("locate")]),
+    ]),
+  ];
+}
+
+/** Every located stop on the trip, not only the day that is open. */
+async function fitWholeTrip() {
+  const maps = await loadMaps();
+  if (!maps || !gmap) return;
+
+  const located = [];
+  for (const day of state.trip.days) {
+    for (const stop of day.stops) if (stop.location) located.push(stop.location);
+  }
+  for (const stop of state.trip.unplanned) if (stop.location) located.push(stop.location);
+
+  if (!located.length) {
+    state.error = "Nothing on this trip has a place on it yet";
+    render();
+    return;
+  }
+
+  const bounds = new maps.LatLngBounds();
+  for (const at of located) bounds.extend(at);
+  gmap.fitBounds(bounds, fitPadding());
+  if (located.length === 1) gmap.setZoom(14);
+  // The camera is now somebody's, not the open day's.
+  mapFitted = dayFitKey();
+}
+
+/** The sheet covers the lower half, so the fit goes into the band above it. */
+function fitPadding() {
+  const sheet = $("sheet");
+  const covered = sheet ? sheet.getBoundingClientRect().height : 0;
+  return { top: 60, right: 40, bottom: covered + 20, left: 40 };
+}
+
+let meMarker = null;
+let locating = false;
+
+/**
+ * Where the phone is.
+ *
+ * Nothing is stored and nothing is sent anywhere: the coordinate is used to
+ * move the camera and draw one dot, and it is gone on the next reload. A
+ * refusal is said out loud rather than left as a button that did nothing.
+ */
+function goToMe() {
+  if (!navigator.geolocation) {
+    state.error = "This browser will not say where it is";
+    render();
+    return;
+  }
+  if (locating) return;
+  locating = true;
+  render();
+
+  navigator.geolocation.getCurrentPosition(
+    async (position) => {
+      locating = false;
+      const at = { lat: position.coords.latitude, lng: position.coords.longitude };
+      const maps = await loadMaps();
+      if (!maps || !gmap) { render(); return; }
+
+      if (meMarker) meMarker.setMap(null);
+      meMarker = new maps.Marker({
+        position: at,
+        map: gmap,
+        title: "Where you are",
+        icon: { url: window.__ME_PIN__ },
+        zIndex: 4,
+      });
+      gmap.panTo(at);
+      gmap.setZoom(16);
+      mapFitted = dayFitKey();
+      render();
+    },
+    (error) => {
+      locating = false;
+      state.error = error.code === 1
+        ? "This phone is not sharing where it is"
+        : "Could not work out where you are";
+      render();
+    },
+    { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 },
+  );
 }
 
 /* ------------------------------------------------------- the search map */
@@ -752,6 +989,16 @@ const mapsKey = () => window.__MAPS_KEY__ || "";
 let gmap = null;
 let gmarkers = [];
 let mapsLoading = null;
+/**
+ * What the camera was last put where it is for.
+ *
+ * The map used to be re-fitted to the open day on every render, which meant
+ * selecting a stop, ticking one off or saving a note all snapped the map back
+ * and threw away a pan. It is fitted when the thing being shown changes — a
+ * different day, a stop added or removed — and otherwise left where whoever
+ * is holding the phone put it.
+ */
+let mapFitted = null;
 
 /**
  * Loads the Maps JavaScript API once.
@@ -845,10 +1092,24 @@ async function paintMap() {
 
   // The sheet covers the lower half, so the pins are fitted into the band
   // above it rather than into the whole viewport.
-  const sheet = $("sheet");
-  const covered = sheet ? sheet.getBoundingClientRect().height : 0;
-  gmap.fitBounds(bounds, { top: 60, right: 40, bottom: covered + 20, left: 40 });
+  if (mapFitted === dayFitKey()) return;
+  mapFitted = dayFitKey();
+  gmap.fitBounds(bounds, fitPadding());
   if (stops.length === 1) gmap.setZoom(15);
+}
+
+/**
+ * What the camera would be fitted to if it followed the open day.
+ *
+ * Holding it as the token means a camera somebody moved by hand is left
+ * alone: fitting the whole trip or going to where you are stamps this key, so
+ * the next render finds the day's fit already spent and does not snap back.
+ * Opening another day changes the key, and the map follows again.
+ */
+function dayFitKey() {
+  const day = state.trip.days.find((d) => d.id === state.openDayId);
+  const stops = day ? day.stops.filter((s) => s.location) : [];
+  return state.openDayId + ":" + stops.map((s) => s.id).join(",");
 }
 
 /**
@@ -920,6 +1181,30 @@ function mapPins(day) {
   });
 }
 
+/**
+ * The sheet's two tabs.
+ *
+ * Everything in this app until now has been a place you go on a day. Where
+ * you sleep is not that: it is one thing that covers a run of days, and there
+ * was no honest way to put it in a day's list — a hotel repeated on six days
+ * reads as six hotels, and on one day it reads as a single night. So the
+ * sheet has two lists and the stays get their own, with the dates on them.
+ */
+function sheetTabs() {
+  const tab = (key, label) =>
+    h("button", {
+      class: "sheet-tab" + (state.sheetTab === key ? " on" : ""),
+      "aria-pressed": state.sheetTab === key ? "true" : "false",
+      onclick: () => { state.sheetTab = key; state.dayEdit = null; render(); },
+      text: label,
+    }, []);
+
+  return h("div", { class: "sheet-tabs" }, [
+    tab("stops", "📍 Destinations"),
+    tab("stays", "🏨 Accommodations"),
+  ]);
+}
+
 function sheetContents(hasStops) {
   const trip = state.trip;
   const out = [];
@@ -936,25 +1221,53 @@ function sheetContents(hasStops) {
       ? day.stops.filter((s) => statusOf(day, s) !== "done")
       : day.stops;
 
+    const toggle = () => {
+      state.openDayId = open ? null : day.id;
+      state.selectedStopId = null;
+      state.dayEdit = null;
+      render();
+    };
+    const editing = state.dayEdit === day.id;
+    // What a person called the day, then where it is. Both are optional and
+    // neither is invented, so the line is absent rather than empty.
+    const second = [day.name, day.place_label].filter(Boolean).join(" · ");
+
     wrap.append(
-      h("button", {
+      h("div", {
         class: open ? "day-head open" : "day-head",
         "data-day-id": day.id,
-        onclick: () => { state.openDayId = open ? null : day.id; state.selectedStopId = null; render(); },
       }, [
-        h("span", { class: "day-hue", style: "background:" + day.hue }, []),
-        h("div", { class: "day-head-text" }, [
-          h("div", { class: "day-head-top" }, [
-            h("span", { class: "day-label", text: day.label }, []),
-            day.date === todayIso() ? h("span", { class: "today-tag", text: "TODAY" }, []) : null,
+        h("button", { class: "day-head-tap", onclick: toggle }, [
+          h("span", {
+            class: "day-hue",
+            style: "background:" + day.hue,
+            title: "Day colour",
+          }, []),
+          h("div", { class: "day-head-text" }, [
+            h("div", { class: "day-head-top" }, [
+              h("span", { class: "day-label", text: day.label }, []),
+              day.date === todayIso() ? h("span", { class: "today-tag", text: "TODAY" }, []) : null,
+            ]),
+            second ? h("span", { class: "day-place", text: second }, []) : null,
           ]),
-          day.place_label ? h("span", { class: "day-place", text: day.place_label }, []) : null,
+          h("span", { class: "drop-here", text: "DROP HERE TO MOVE", hidden: true }, []),
+          h("span", { class: "day-progress", text: done + "/" + day.stops.length }, []),
         ]),
-        h("span", { class: "drop-here", text: "DROP HERE TO MOVE", hidden: true }, []),
-        h("span", { class: "day-progress", text: done + "/" + day.stops.length }, []),
-        h("span", { style: "display:flex;transform:rotate(" + (open ? 0 : -90) + "deg)", html: ICONS.chevron }, []),
+        // To the right of the count, as the one thing on the row that changes
+        // the day itself rather than opening it.
+        h("button", {
+          class: editing ? "day-pencil on" : "day-pencil",
+          title: "Name this day, or change its colour",
+          "aria-pressed": editing ? "true" : "false",
+          onclick: () => toggleDayEdit(day.id),
+        }, [icon("pencilDay")]),
+        h("button", { class: "day-chevron", onclick: toggle, title: open ? "Close" : "Open" }, [
+          h("span", { style: "display:flex;transform:rotate(" + (open ? 0 : -90) + "deg)", html: ICONS.chevron }, []),
+        ]),
       ]),
     );
+
+    if (editing) wrap.append(dayEditPanel(day));
 
     if (open) {
       if (!hasStops) wrap.append(emptyDayBody());
@@ -976,24 +1289,273 @@ function sheetContents(hasStops) {
   const unplanned = trip.unplanned;
   out.push(
     h("div", { class: "day-wrap drop-zone", "data-day-id": "unplanned" }, [
-      h("button", {
-        class: "day-head",
-        "data-day-id": "unplanned",
-        onclick: () => { state.openDayId = "unplanned"; render(); },
-      }, [
-        h("span", { class: "day-hue", style: "background:#94897A" }, []),
-        h("div", { class: "day-head-text" }, [
-          h("div", { class: "day-head-top" }, [
-            h("span", { class: "day-label", text: "To be planned" }, []),
+      h("div", { class: "day-head", "data-day-id": "unplanned" }, [
+        h("button", {
+          class: "day-head-tap",
+          onclick: () => { state.openDayId = "unplanned"; render(); },
+        }, [
+          h("span", { class: "day-hue", style: "background:#94897A" }, []),
+          h("div", { class: "day-head-text" }, [
+            h("div", { class: "day-head-top" }, [
+              h("span", { class: "day-label", text: "To be planned" }, []),
+            ]),
           ]),
+          h("span", { class: "drop-here", text: "DROP HERE TO MOVE", hidden: true }, []),
+          h("span", { class: "day-progress", text: String(unplanned.length) }, []),
         ]),
-        h("span", { class: "drop-here", text: "DROP HERE TO MOVE", hidden: true }, []),
-        h("span", { class: "day-progress", text: String(unplanned.length) }, []),
       ]),
     ]),
   );
 
   return out;
+}
+
+/* ------------------------------------------------------- accommodations */
+
+/**
+ * The stays on this trip, with the dates each one covers.
+ *
+ * A stay is the one thing in the app that is a range. The rows read as one
+ * line of dates rather than two fields, because what is being checked at a
+ * glance is whether the nights join up.
+ */
+function staysPanel() {
+  const stays = state.trip.lodging || [];
+  const out = [];
+
+  if (!stays.length) {
+    out.push(
+      h("div", { class: "empty-state" }, [
+        h("h3", { text: "Nowhere to sleep yet" }, []),
+        h("p", { text: "Add where you are staying and the nights it covers, and it will run under the days on the Plan view." }, []),
+      ]),
+    );
+  }
+
+  for (const stay of stays) {
+    out.push(
+      h("div", { class: "stay-row" }, [
+        h("span", { class: "stay-icon", html: ICONS.house, style: "display:flex" }, []),
+        h("button", { class: "stay-tap", onclick: () => openStay(stay) }, [
+          h("span", { class: "stay-name", text: stay.name }, []),
+          h("span", { class: "stay-when", text: stayRange(stay) }, []),
+        ]),
+        h("button", {
+          class: "stay-remove",
+          title: "Remove this stay",
+          onclick: () => removeStay(stay),
+        }, [h("span", { style: "display:flex", html: ICONS.trashSmall }, [])]),
+      ]),
+    );
+  }
+
+  out.push(
+    h("div", { style: "padding:10px 14px 4px" }, [
+      h("button", { class: "add-place", onclick: () => openStay(null) }, [
+        icon("plusGrey"), "Add a stay",
+      ]),
+    ]),
+  );
+
+  // Every night of the trip wants a bed, and the gaps are the useful thing to
+  // see. Said as a line rather than drawn, because the Plan view draws it.
+  const missing = nightsWithoutABed();
+  if (missing) out.push(h("div", { class: "stay-gap", text: missing }, []));
+
+  return out;
+}
+
+/** Sep 30 – Oct 2 · 3 nights, or one date for a single night. */
+function stayRange(stay) {
+  const nights = daysBetween(stay.check_in, stay.check_out) + 1;
+  const range = stay.check_in === stay.check_out
+    ? longDate(stay.check_in)
+    : rangeLabel(stay.check_in, stay.check_out);
+  return range + " · " + nights + (nights === 1 ? " night" : " nights");
+}
+
+function nightsWithoutABed() {
+  const stays = (state.trip.lodging || []).map(asStay);
+  const bare = state.trip.days.filter((day) => !PLAN.staysOn(day.date, stays).length);
+  if (!bare.length || !stays.length) return null;
+  return bare.length === 1
+    ? "No stay covers " + bare[0].label + "."
+    : bare.length + " days have no stay on them.";
+}
+
+/** The shape src/lib/plan.ts measures a stay in. */
+const asStay = (row) => ({
+  id: row.id,
+  name: row.name,
+  checkIn: row.check_in,
+  checkOut: row.check_out,
+});
+
+const tripStays = () => (state.trip.lodging || []).map(asStay);
+
+/**
+ * Adding or changing a stay.
+ *
+ * The place half is the trip's own search, because a hotel is a place like
+ * any other — but it is not required. Half the places people sleep are a
+ * friend's spare room, and PLAN.md section 11 is against making somebody
+ * invent a Google listing for one, so a typed name is a first-class answer
+ * and only a picked result carries a coordinate.
+ */
+function openStay(stay) {
+  openLayer(() => { state.stayEdit = null; render(); });
+  const trip = state.trip.trip;
+  state.stayEdit = stay
+    ? { id: stay.id, name: stay.name, placeId: null, start: stay.check_in, end: stay.check_out, rows: [], query: "", note: null }
+    : { id: null, name: "", placeId: null, start: trip.start_date, end: trip.end_date, rows: [], query: "", note: null };
+  render();
+  const field = $("stay-name");
+  if (field) field.focus();
+}
+
+function sheetStay() {
+  const draft = state.stayEdit;
+  const close = closeLayer;
+
+  const results = h("div", { class: "stay-results" }, []);
+  for (const row of draft.rows.slice(0, 4)) {
+    results.append(
+      h("button", {
+        class: "stay-result",
+        onclick: () => {
+          draft.name = row.name;
+          draft.placeId = row.placeId;
+          draft.rows = [];
+          draft.note = row.meta || null;
+          render();
+        },
+      }, [
+        h("span", { class: "stay-result-name", text: row.name }, []),
+        h("span", { class: "stay-result-meta", text: row.meta || "" }, []),
+      ]),
+    );
+  }
+
+  return [
+    h("div", { class: "scrim", onclick: close }, []),
+    h("div", { class: "sheet modal", style: "height:auto" }, [
+      h("div", { class: "grabber", onclick: close }, [h("i", {}, [])]),
+      h("div", { class: "modal-head" }, [
+        h("div", { class: "modal-title", text: draft.id ? "Change this stay" : "Where are you staying?" }, []),
+        h("div", { class: "modal-sub", text: "A hotel, or an address, and the nights it covers" }, []),
+      ]),
+      h("div", { class: "trip-edit" }, [
+        h("div", { class: "underlined" }, [
+          h("input", {
+            id: "stay-name",
+            placeholder: "Hotel, ryokan or address",
+            value: draft.name,
+            autocomplete: "off",
+            oninput: onStayInput,
+          }, []),
+        ]),
+        draft.rows.length ? results : null,
+        dateFields(draft, null),
+        h("div", { class: "note-actions" }, [
+          h("button", { class: "save", onclick: saveStay }, ["Save"]),
+          h("button", { class: "cancel", onclick: close }, ["Cancel"]),
+        ]),
+      ]),
+    ]),
+  ];
+}
+
+let stayTimer = null;
+let stayTicket = 0;
+
+function onStayInput(event) {
+  const draft = state.stayEdit;
+  draft.name = event.target.value;
+  // Typing over a picked result unpicks it: the coordinate belonged to the
+  // name that was there.
+  draft.placeId = null;
+  const query = draft.name.trim();
+  clearTimeout(stayTimer);
+  if (query.length < MIN_CHARS) {
+    draft.rows = [];
+    return;
+  }
+  stayTimer = setTimeout(async () => {
+    const ticket = ++stayTicket;
+    try {
+      const data = await api(
+        "/api/trips/" + state.trip.trip.id + "/place-search?q=" + encodeURIComponent(query),
+      );
+      if (ticket !== stayTicket || !state.stayEdit) return;
+      state.stayEdit.rows = data.results || [];
+      render();
+      const field = $("stay-name");
+      if (field) { field.focus(); field.setSelectionRange(field.value.length, field.value.length); }
+    } catch (error) {
+      if (ticket !== stayTicket || !state.stayEdit) return;
+      state.stayEdit.rows = [];
+    }
+  }, DEBOUNCE_MS);
+}
+
+function saveStay() {
+  const draft = state.stayEdit;
+  const field = $("stay-name");
+  const name = (field ? field.value : draft.name).trim();
+  if (!name || !draft.start || !draft.end) {
+    state.error = "A stay needs a name and both of its dates";
+    render();
+    return;
+  }
+
+  const body = { name, checkIn: draft.start, checkOut: draft.end };
+  if (draft.placeId) body.placeId = draft.placeId;
+  const editing = draft.id;
+  closeLayer();
+
+  optimistic(
+    () => {
+      const list = state.trip.lodging || (state.trip.lodging = []);
+      if (editing) {
+        const row = list.find((l) => l.id === editing);
+        if (!row) return () => {};
+        const was = { name: row.name, check_in: row.check_in, check_out: row.check_out };
+        row.name = name;
+        row.check_in = draft.start;
+        row.check_out = draft.end;
+        return () => { Object.assign(row, was); };
+      }
+      const provisional = {
+        id: "pending_stay_" + Date.now(),
+        name,
+        check_in: draft.start,
+        check_out: draft.end,
+        note: "",
+      };
+      list.push(provisional);
+      return () => {
+        const at = list.indexOf(provisional);
+        if (at !== -1) list.splice(at, 1);
+      };
+    },
+    () => post(editing ? "/api/lodging/" + editing : "/api/trips/" + state.trip.trip.id + "/lodging", body),
+    "That stay did not save",
+  );
+}
+
+function removeStay(stay) {
+  optimistic(
+    () => {
+      const list = state.trip.lodging;
+      const at = list.findIndex((l) => l.id === stay.id);
+      if (at === -1) return () => {};
+      const row = list[at];
+      list.splice(at, 1);
+      return () => { list.splice(at, 0, row); };
+    },
+    () => post("/api/lodging/" + stay.id + "/delete", {}),
+    "That stay did not come off",
+  );
 }
 
 function emptyDayBody() {
@@ -1669,6 +2231,11 @@ function tripMenu() {
         },
       }),
       h("div", { class: "rule" }, []),
+      // PLAN.md section 4d's "changing the dates later", which was written
+      // and unbuilt: there was no way to rename a trip or move its dates.
+      item("pencilInk", "Change trip", {
+        onclick: () => { closeLayer(); setTimeout(openTripEdit, 0); },
+      }),
       item("arrowLeft", "Back to trips", {
         onclick: () => {
           // Close the menu, then the trip: two entries, so back and this
@@ -1679,6 +2246,220 @@ function tripMenu() {
       }),
     ]),
   ];
+}
+
+/* --------------------------------------------------------- changing a trip */
+
+/**
+ * Renaming a trip and moving its dates, PLAN.md section 4d.
+ *
+ * No artboard draws it — NewTrip.dc.html is the only screen that asks for a
+ * name and a range — so this is that screen's two questions in the modal
+ * sheet the note and time editors already use, with the same date fields the
+ * new trip screen now has.
+ */
+function openTripEdit() {
+  const trip = state.trip.trip;
+  openLayer(() => { state.tripEdit = null; render(); });
+  state.tripEdit = { name: trip.name, start: trip.start_date, end: trip.end_date };
+  render();
+  const field = $("trip-edit-name");
+  if (field) { field.focus(); field.setSelectionRange(field.value.length, field.value.length); }
+}
+
+function sheetTripEdit() {
+  const draft = state.tripEdit;
+  const close = closeLayer;
+  const days = draft.start && draft.end ? daysBetween(draft.start, draft.end) + 1 : 0;
+
+  return [
+    h("div", { class: "scrim", onclick: close }, []),
+    h("div", { class: "sheet modal", style: "height:auto" }, [
+      h("div", { class: "grabber", onclick: close }, [h("i", {}, [])]),
+      h("div", { class: "modal-head" }, [
+        h("div", { class: "modal-title", text: "Change trip" }, []),
+        h("div", { class: "modal-sub", text: "The name, and the days it covers" }, []),
+      ]),
+      h("div", { class: "trip-edit" }, [
+        h("div", { class: "underlined" }, [
+          h("input", {
+            id: "trip-edit-name",
+            placeholder: "Give the trip a name",
+            value: draft.name,
+            autocomplete: "off",
+            oninput: (e) => { draft.name = e.target.value; },
+          }, []),
+        ]),
+        dateFields(draft, null),
+        h("div", { class: "trip-edit-note" }, [
+          h("span", {
+            text: days
+              ? days + (days === 1 ? " day" : " days") + ". Anything on a day you drop goes back to To be planned."
+              : "Pick both ends of the trip.",
+          }, []),
+        ]),
+        h("div", { class: "note-actions" }, [
+          h("button", { class: "save", onclick: saveTripEdit }, ["Save"]),
+          h("button", { class: "cancel", onclick: close }, ["Cancel"]),
+        ]),
+      ]),
+    ]),
+  ];
+}
+
+/**
+ * The name is applied to the screen at once, the way every other edit is. The
+ * dates are not: changing them adds and removes whole days, and the days are
+ * the server's to work out, so the sheet closes and the re-read brings them
+ * back. On failure the name goes back to what it was.
+ */
+function saveTripEdit() {
+  const draft = state.tripEdit;
+  const field = $("trip-edit-name");
+  const name = (field ? field.value : draft.name).trim();
+  if (!name || !draft.start || !draft.end) {
+    state.error = "A trip needs a name and both of its dates";
+    render();
+    return;
+  }
+
+  const trip = state.trip.trip;
+  const was = trip.name;
+  closeLayer();
+  trip.name = name;
+  render();
+
+  post("/api/trips/" + trip.id, { name, startDate: draft.start, endDate: draft.end })
+    .then(() => refreshTrip())
+    .catch((error) => {
+      trip.name = was;
+      state.error = "That did not save: " + error.message;
+      render();
+    });
+}
+
+/* ------------------------------------------------------- naming a day */
+
+/**
+ * The pencil on a day header.
+ *
+ * A day has always had a colour off the ramp and a label column in the
+ * schema that nothing wrote to. Both are now a person's: the panel names the day and offers the
+ * eight palette colours, white, and whatever else somebody wants. It hangs
+ * under the header it belongs to rather than floating as a menu, so it is
+ * obvious which day is being changed.
+ */
+function toggleDayEdit(dayId) {
+  if (state.dayEdit === dayId) { state.dayEdit = null; render(); return; }
+  state.dayEdit = dayId;
+  // What the day was called when the panel opened, so a write that fails has
+  // somewhere to put the field back to. Taken here rather than in the input
+  // handler, where by the time it runs the new text is already in.
+  const day = dayById(dayId);
+  dayNameBefore = day ? (day.name || "") : "";
+  render();
+  const field = $("day-name");
+  if (field) field.focus();
+}
+
+function dayEditPanel(day) {
+  const swatches = h("div", { class: "swatches" }, (window.__DAY_SWATCHES__ || []).map((hex) =>
+    h("button", {
+      class: "swatch" + (sameHex(hex, day.hue) ? " on" : "") + (isPale(hex) ? " pale" : ""),
+      style: "background:" + hex,
+      title: hex,
+      // A swatch never takes the focus. Without this the button steals it from
+      // the name field mid-word, and the caret comes back at the start.
+      onmousedown: (e) => e.preventDefault(),
+      onclick: () => setDayHue(day, hex),
+    }, [sameHex(hex, day.hue) ? h("span", { style: "display:flex", html: isPale(hex) ? ICONS.checkSwatchInk : ICONS.checkSwatch }, []) : null])));
+
+  // Anything at all, for a day that wants a colour the eight do not hold.
+  swatches.append(
+    h("label", { class: "swatch custom", title: "Any other colour" }, [
+      h("input", {
+        type: "color",
+        value: day.hue,
+        oninput: (e) => setDayHue(day, e.target.value),
+      }, []),
+    ]),
+  );
+
+  return h("div", { class: "day-edit-panel" }, [
+    h("div", { class: "day-edit-row" }, [
+      h("input", {
+        id: "day-name",
+        class: "day-name-field",
+        placeholder: "Name the day",
+        value: day.name || "",
+        autocomplete: "off",
+        maxlength: "60",
+        oninput: (e) => queueDayName(day, e.target.value),
+      }, []),
+      h("button", {
+        class: "day-edit-done",
+        onclick: () => { state.dayEdit = null; render(); },
+        text: "Done",
+      }, []),
+    ]),
+    swatches,
+  ]);
+}
+
+const sameHex = (a, b) => String(a || "").toUpperCase() === String(b || "").toUpperCase();
+/** A swatch too light to carry a cream tick, which is white and near it. */
+function isPale(hex) {
+  const n = String(hex).replace("#", "");
+  if (n.length !== 6) return false;
+  const r = parseInt(n.slice(0, 2), 16);
+  const g = parseInt(n.slice(2, 4), 16);
+  const b = parseInt(n.slice(4, 6), 16);
+  return r * 0.299 + g * 0.587 + b * 0.114 > 186;
+}
+
+function setDayHue(day, hex) {
+  const was = day.hue;
+  day.hue = hex;
+  // The render replaces the name field beside the swatches, so a colour
+  // picked half way through typing a name must not take the caret with it.
+  const typing = document.activeElement && document.activeElement.id === "day-name";
+  const at = typing ? document.activeElement.selectionStart : 0;
+  render();
+  if (typing) {
+    const field = $("day-name");
+    if (field) { field.focus(); field.setSelectionRange(at, at); }
+  }
+
+  post("/api/days/" + day.id, { hue: hex }).catch((error) => {
+    day.hue = was;
+    state.error = "That colour did not save: " + error.message;
+    render();
+  });
+}
+
+/**
+ * The name is written as it is typed, so nothing has to be confirmed — but not
+ * on every keystroke: the field keeps what it says, and the write follows a
+ * breath later. A failed one says so and puts the field back.
+ */
+let dayNameTimer = null;
+let dayNameBefore = "";
+
+function queueDayName(day, value) {
+  // The field keeps what was typed; only the model behind it is updated, so
+  // no render is needed and the caret never moves.
+  day.name = value;
+  clearTimeout(dayNameTimer);
+  const was = dayNameBefore;
+  dayNameTimer = setTimeout(() => {
+    // No re-read on success: the server derives nothing from a day's name, and
+    // a render landing mid-word would take the caret with it.
+    post("/api/days/" + day.id, { name: value }).catch((error) => {
+      day.name = was;
+      state.error = "That name did not save: " + error.message;
+      render();
+    });
+  }, 500);
 }
 
 /* ----------------------------------------------------------- move to day */
@@ -2130,8 +2911,12 @@ function screenPlan() {
   const at = planIndex() + 1;
 
   return h("div", { class: "screen plan" }, [
-    planBar("Plan view · day " + at + " of " + trip.days.length),
+    // The dates first, exactly as the map view writes them. The Plan view used
+    // to drop them for its own name, which meant crossing between the two
+    // views lost the one line saying when the trip is.
+    planBar(trip.dateRange + " · day " + at + " of " + trip.days.length),
     dayRail(),
+    day ? stayLine(day) : null,
     day ? dayClock(day) : h("div", { class: "err", text: "This trip has no days." }, []),
     planTray(),
     state.error
@@ -2162,6 +2947,31 @@ function dayRail() {
     ]);
   }));
 }
+
+/**
+ * Where you are sleeping on the day showing, under the rail.
+ *
+ * On the day you change hotels both are named, in the order you are in them,
+ * which is the one day of a stay worth reading carefully.
+ */
+function stayLine(day) {
+  const stays = PLAN.staysOn(day.date, tripStays());
+  if (!stays.length) return null;
+
+  return h("div", { class: "stay-line" }, [
+    h("span", { class: "stay-line-icon", style: "display:flex", html: ICONS.house }, []),
+    ...stays.map((stay) =>
+      h("button", {
+        class: "stay-chip",
+        title: stayRange(stay),
+        onclick: () => openStay(byStayId(stay.id)),
+        text: stay.name,
+      }, []),
+    ),
+  ]);
+}
+
+const byStayId = (id) => (state.trip.lodging || []).find((l) => l.id === id) || null;
 
 /** "Fri Oct 2" without its weekday. The rail has no room for eleven of those. */
 function shortLabel(label) {
@@ -2485,6 +3295,7 @@ function screenGrid() {
       h("div", { class: "grid-days" }, [
         gridHeaders(days),
         gridScroll(days, span, band),
+        lodgingStrip(days),
       ]),
       traySide(),
     ]),
@@ -2703,6 +3514,52 @@ function gridColumn(day, span, band, flip) {
   }
 
   return col;
+}
+
+/**
+ * The lodging strip, under the grid.
+ *
+ * design/Planner.dc.html rules this row and writes the hotel's name into
+ * every column it covers, so "The Blossom Hakata" appears three times in a
+ * row and reads at a glance as three hotels. It was left unbuilt because
+ * nothing could fill it (PLAN.md section 5b); now that a stay can be added,
+ * it is built as one bar spanning the days it covers, which is what a stay
+ * actually is.
+ *
+ * The day you change hotels belongs to both of them, and the artboard has no
+ * answer for that. src/lib/plan.ts splits it down the middle: the stay you
+ * are leaving keeps the left half, the one you are arriving at takes the
+ * right, and the seam falls on the day of the change.
+ */
+function lodgingStrip(days) {
+  const bars = PLAN.lodgingBars(days.map((d) => d.date), tripStays());
+
+  const lane = h("div", {
+    class: "stay-lane",
+    onclick: (event) => { if (event.target === event.currentTarget) openStay(null); },
+    title: bars.length ? "" : "Add where you are staying",
+  }, bars.map((bar) =>
+    h("button", {
+      class: "stay-bar" + (bar.startsBefore ? " open-left" : "") + (bar.endsAfter ? " open-right" : ""),
+      // Two pixels of air either side, taken out of the width rather than
+              // added as a margin, so the bar still ends exactly on the seam.
+              style: "left:calc(" + (bar.left * 100) + "% + 2px);width:calc(" + (bar.width * 100) + "% - 4px)",
+      title: stayRange(byStayId(bar.id) || { check_in: "", check_out: "" }),
+      onclick: () => openStay(byStayId(bar.id)),
+    }, [
+      h("span", { class: "stay-bar-name", text: bar.name }, []),
+    ])));
+
+  if (!bars.length) {
+    lane.append(h("span", { class: "stay-lane-empty", text: "No stay on these days" }, []));
+  }
+
+  return h("div", { class: "lodging-strip" }, [
+    h("div", { class: "lodging-gutter" }, [
+      h("span", { style: "display:flex", html: ICONS.house, title: "Where you are sleeping" }, []),
+    ]),
+    lane,
+  ]);
 }
 
 /** A card's second line: the note if there is one, the derived line if not. */
