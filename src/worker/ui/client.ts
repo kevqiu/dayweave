@@ -2509,7 +2509,7 @@ function stayDetails(stay) {
       h("button", { onclick: () => { state.stayMenu = null; state.selectedStayId = null; removeStay(stay); } }, [icon("trash"), "Delete"]),
     ]) : null,
     state.stayNote && state.stayNote.id === stay.id ? h("div", { class: "stay-note-editor" }, [
-      h("textarea", { "aria-label": "Stay note", value: state.stayNote.text, oninput: (event) => { state.stayNote.text = event.target.value; } }, []),
+      h("textarea", { "aria-label": "Stay note", text: state.stayNote.text, oninput: (event) => { state.stayNote.text = event.target.value; } }, []),
       h("div", { class: "note-actions" }, [
         h("button", { class: "save", onclick: () => {
           const note = state.stayNote.text;
