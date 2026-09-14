@@ -1643,7 +1643,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .trail-ground { position: absolute; left: -300%; top: -300%; width: 700%; height: 700%; max-width: none; }
 .trail-block { position: absolute; width: 1.5%; height: 1.667%; transform: translate(-50%, -50%) rotateZ(var(--block-angle)); transform-style: preserve-3d; pointer-events: none; }
 .trail-block-solid { position: absolute; inset: 0; transform-style: preserve-3d; animation: trail-block-wave 14s ease-in-out var(--wave-delay) infinite; }
-.trail-block-solid i { position: absolute; display: block; background: ${C.brandSolid}; }
+.trail-block-solid i { position: absolute; display: block; background: ${C.brandSolid}; animation: splash-fade 1.2s ease-in-out var(--reveal-delay) both; }
 .block-top { inset: 0; transform: translateZ(8px); background: ${C.brandLight} !important; }
 .block-front, .block-back { left: 0; width: 100%; height: 8px; transform-origin: top; transform: rotateX(90deg); }
 .block-front { top: 100%; }
@@ -1652,12 +1652,18 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .block-left { left: 0; }
 .block-right { left: 100%; }
 @keyframes trail-block-wave { 0%,100% { transform: scaleZ(.9); } 50% { transform: scaleZ(1.1); } }
-.trail-shadow { opacity: .12; filter: blur(3px); }
+.trail-shadow { opacity: .12; filter: blur(3px); animation: trail-shadow-in 1.8s ease-in-out 3.2s both; }
+@keyframes trail-shadow-in { from { opacity: 0; } to { opacity: .12; } }
 .trail-layer { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; transform: translateZ(0); animation: trail-lift 2.5s cubic-bezier(.42,0,.22,1) 2.5s both; }
+.trail-top { width: 300%; height: 300%; transform-origin: 0 0; animation-name: trail-top-lift; }
+@keyframes trail-top-lift { from { transform: translateZ(0) scale(.3333333333); } to { transform: translateZ(var(--lift)) scale(.3333333333); } }
 .trail-depth { stroke: ${C.brand}; opacity: 0; animation: trail-lift 2.5s cubic-bezier(.42,0,.22,1) 2.5s both, trail-depth-in .6s 1.8s forwards; }
 .trail-surface { stroke: #ADA394; animation: trail-gold 1.3s 1.8s both; }
-.trail-number circle { fill: var(--node-color); stroke: ${C.paper}; stroke-width: 2.5; animation: node-gold 2s 2.5s both; }
-.trail-location { animation: trail-pin-out 1.2s ease-in-out var(--marker-delay) both; }
+.trail-number circle { fill: var(--node-color); stroke: ${C.paper}; stroke-width: 2.5; animation: node-gold 1.2s var(--marker-delay) both; }
+.trail-pin { position: absolute; width: 6.5%; height: 9.444%; transform-origin: 50% 91.176%; transform-style: preserve-3d; pointer-events: none; animation: trail-pin-rise 2.4s cubic-bezier(.42,0,.22,1) .6s both; }
+@keyframes trail-pin-rise { from { transform: translate(-50%, -91.176%) rotateX(0); } to { transform: translate(-50%, -91.176%) rotateX(-90deg); } }
+.trail-location { width: 100%; height: 100%; overflow: visible; animation: trail-pin-out 1.2s ease-in-out var(--marker-delay) both; }
+.trail-location svg { display: block; width: 300%; height: 300%; overflow: visible; transform: scale(.3333333333); transform-origin: 0 0; }
 .trail-location path { fill: var(--node-color); stroke: ${C.paper}; stroke-width: 2.5; stroke-linejoin: round; }
 .trail-location circle { fill: ${C.paper}; }
 .trail-number { animation: trail-number-in 1.2s ease-in-out var(--marker-delay) both; }
@@ -1693,10 +1699,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .splash *, .trail-layer { animation: none !important; }
   .daytrail-plane { transform: rotateX(42deg) rotateZ(-20deg) scale(1.18); }
   .trail-layer { transform: translateZ(var(--lift)); }
+  .trail-top { transform: translateZ(var(--lift)) scale(.3333333333); }
   .trail-depth, .trail-glint { opacity: 1; }
   .trail-surface { stroke: ${C.brandLight}; }
   .trail-number circle { fill: ${C.brand}; }
-  .trail-location { opacity: 0; }
+  .trail-pin { display: none; }
   .trail-number { opacity: 1; transform: none; }
 }
 `;

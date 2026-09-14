@@ -55,7 +55,8 @@ export function signInMap(): string {
   const nodes = [{ x: 52, y: 252 }, { x: 122, y: 216 }, { x: 188, y: 226 }, { x: 252, y: 212 }, { x: 310, y: 158 }, { x: 282, y: 76 }];
   const route = "M52 252 C72 250 98 218 122 216 C148 214 162 230 188 226 C214 222 226 222 252 212 C278 202 312 186 310 158 C308 130 274 106 282 76";
   const path = `<path d="${route}" fill="none" stroke-width="6" stroke-dasharray="6 11" stroke-linejoin="round"/>`;
-  const pins = nodes.map((point, i) => `<g transform="translate(${point.x} ${point.y})" style="--node-color:${DAY_PALETTE[i]};--marker-delay:${2.1 + i * .12}s"><g class="trail-location"><path d="M0 14 C-3 10 -10 3 -10 -4 A10 10 0 1 1 10 -4 C10 3 3 10 0 14Z"/><circle cy="-4" r="3"/></g><g class="trail-number"><circle r="10"/><text y="4" text-anchor="middle">${i + 1}</text></g></g>`).join("");
+  const pins = nodes.map((point, i) => `<div class="trail-pin" style="left:${point.x / 4}%;top:${point.y / 3.6}%;--node-color:${DAY_PALETTE[i]};--marker-delay:${3.2 + i * .12}s"><div class="trail-location"><svg viewBox="-13 -17 26 34" aria-hidden="true"><path d="M0 14 C-3 10 -10 3 -10 -4 A10 10 0 1 1 10 -4 C10 3 3 10 0 14Z"/><circle cy="-4" r="3"/></svg></div></div>`).join("");
+  const numbers = nodes.map((point, i) => `<g transform="translate(${point.x} ${point.y})" style="--node-color:${DAY_PALETTE[i]};--marker-delay:${3.2 + i * .12}s"><g class="trail-number"><circle r="10"/><text y="4" text-anchor="middle">${i + 1}</text></g></g>`).join("");
   const layer = (content: string, cls: string, lift: number) => `<svg viewBox="0 0 400 360" class="trail-layer ${cls}" style="--lift:${lift}px" aria-hidden="true">${content}</svg>`;
   const controls: [number, number, number, number][] = [[72, 250, 98, 218], [148, 214, 162, 230], [214, 222, 226, 222], [278, 202, 312, 186], [308, 130, 274, 106]];
   const blocks = controls.flatMap(([x1, y1, x2, y2], leg) => Array.from({ length: 6 }, (_, step) => {
@@ -64,7 +65,7 @@ export function signInMap(): string {
     const y = u ** 3 * a.y + 3 * u ** 2 * t * y1 + 3 * u * t ** 2 * y2 + t ** 3 * b.y;
     const angle = Math.atan2(3 * u ** 2 * (y1 - a.y) + 6 * u * t * (y2 - y1) + 3 * t ** 2 * (b.y - y2), 3 * u ** 2 * (x1 - a.x) + 6 * u * t * (x2 - x1) + 3 * t ** 2 * (b.x - x2)) * 180 / Math.PI;
     if (nodes.some((node) => Math.hypot(node.x - x, node.y - y) < 16)) return "";
-    return `<div class="trail-block" style="left:${x / 4}%;top:${y / 3.6}%;--block-angle:${angle}deg;--wave-delay:${-(14 - (leg * 6 + step) * .448)}s"><div class="trail-block-solid"><i class="block-top"></i><i class="block-front"></i><i class="block-back"></i><i class="block-left"></i><i class="block-right"></i></div></div>`;
+    return `<div class="trail-block" style="left:${x / 4}%;top:${y / 3.6}%;--block-angle:${angle}deg;--reveal-delay:${3.2 + leg * .12}s;--wave-delay:${-(14 - (leg * 6 + step) * .448)}s"><div class="trail-block-solid"><i class="block-top"></i><i class="block-front"></i><i class="block-back"></i><i class="block-left"></i><i class="block-right"></i></div></div>`;
   })).join("");
   return `<div class="daytrail-scene" aria-label="A dotted daytrail rises from a map into a gently waving gold path" role="img">
     <div class="daytrail-plane">
@@ -87,7 +88,8 @@ export function signInMap(): string {
         <g class="trail-shadow" stroke="${C.brand}">${path}</g>
       </svg>
       ${blocks}
-      ${layer(`<g class="trail-nodes">${pins}</g>`, "trail-top", 12)}
+      ${pins}
+      ${layer(`<g class="trail-nodes">${numbers}</g>`, "trail-top", 12)}
     </div>
   </div>`;
 }
