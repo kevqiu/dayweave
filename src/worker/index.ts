@@ -25,6 +25,7 @@ import {
   TOKEN_ENDPOINT,
   type GoogleTokens,
 } from "../lib/oauth.ts";
+import { previewNodes } from "../lib/preview.ts";
 import { suggestDays, type CandidateDay } from "../lib/suggest.ts";
 import { formatClock, minutesOf } from "../lib/plan.ts";
 import {
@@ -428,6 +429,9 @@ async function tripsFor(db: D1Database, userId: string) {
     trips.push({
       ...trip,
       cities,
+      // One node a day for the card's map strip, already fitted into it:
+      // src/lib/preview.ts does the arithmetic so the browser does none.
+      dayNodes: previewNodes(toDayGeo(days, stops), todayIso()),
       // Dates, then the cities. With no stops the cities half is absent
       // rather than empty — section 4d is explicit about that.
       subtitle: cities.length ? `${range} · ${cities.join(", ")}` : range,

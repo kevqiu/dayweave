@@ -57,10 +57,19 @@ button { font-family: ${SANS}; cursor: pointer; }
   padding: 0; text-align: left; display: block; color: inherit; font: inherit;
 }
 .trip-card-map { height: 62px; background: #E9F1E6; position: relative; overflow: hidden; }
+/* A day of the trip, placed on the strip by src/lib/preview.ts. 15px on a
+   2.5px ring of the card's own cream, which is what the artboard draws. */
+.trip-card-node {
+  position: absolute; width: 15px; height: 15px; border-radius: 50%;
+  border: 2.5px solid ${C.card}; transform: translate(-50%, -50%);
+}
+.trip-card-node.now { z-index: 2; }
+/* Over the nodes: the chip is a label on a map, and it carries the near-opaque
+   ground the artboard gives it for exactly that reason. */
 .trip-card-day {
   position: absolute; right: 12px; top: 11px; font-size: 9.5px; font-weight: 700;
   letter-spacing: 0.07em; color: ${C.todayInk}; background: rgba(255,252,246,0.92);
-  border-radius: 5px; padding: 3px 7px;
+  border-radius: 5px; padding: 3px 7px; z-index: 3;
 }
 .trip-card-body { padding: 11px 13px 13px; }
 .trip-card-name { font-family: ${SERIF}; font-size: 17px; font-weight: 500; }
