@@ -785,7 +785,7 @@ function screenSignIn() {
         h("div", { class: "signin-title", html: "Your trip,<br>on one map" }, []),
         h("div", {
           class: "signin-sub",
-          text: "Everywhere you meant to go, grouped by day, greying out as you get there. Shared with whoever is coming.",
+          text: "Everywhere you mean to go, grouped by day, greying out as you get there. Shared with whoever is coming.",
         }, []),
       ]),
       h("span", { style: "flex-grow:1" }, []),
