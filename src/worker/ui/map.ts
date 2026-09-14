@@ -89,5 +89,5 @@ export function signInMap(): string {
       ${blocks}
       ${layer(`<g class="trail-nodes">${pins}</g>`, "trail-top", 12)}
     </div>
-  </div><button class="map-tilt-control" data-map-tilt aria-pressed="false" hidden>Enable map tilt</button>`;
+  </div>`;
 }

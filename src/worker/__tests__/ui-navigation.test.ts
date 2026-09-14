@@ -118,28 +118,31 @@ describe("stay search", () => {
 });
 
 describe("search and drag transitions", () => {
-  it.each(["granted", "denied"])("requests map tilt on tap and handles %s permission", async (permission) => {
-    const button: any = { hidden: true, setAttribute: vi.fn() };
+  it.each([false, true])("automatically starts map tilt with reduced motion %s without requesting permission", (reduced) => {
     const scene = { style: { setProperty: vi.fn() } };
-    const stage = { isConnected: true, querySelector: (selector: string) => selector === "[data-map-tilt]" ? button : scene };
-    const motion = { matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() };
+    const stage = { isConnected: true, querySelector: () => scene, addEventListener: vi.fn(), removeEventListener: vi.fn(), getBoundingClientRect: () => ({ left: 0, top: 0, width: 400, height: 300 }) };
+    const motion = { matches: reduced, addEventListener: vi.fn(), removeEventListener: vi.fn() };
     const listeners: Record<string, Function> = {};
-    const requestPermission = vi.fn(async () => permission);
+    const requestPermission = vi.fn();
     let tick: Function = () => {};
     const context = { document: { hidden: false, querySelector: () => stage }, window: {
       isSecureContext: true, DeviceOrientationEvent: { requestPermission }, screen: { orientation: { angle: 0 } },
       matchMedia: (query: string) => query.includes("coarse") ? { matches: true } : motion,
       addEventListener: vi.fn((name: string, callback: Function) => { listeners[name] = callback; }), removeEventListener: vi.fn(),
-    }, requestAnimationFrame: vi.fn((callback: Function) => { tick = callback; return 1; }), cancelAnimationFrame: vi.fn(), setTimeout: vi.fn(() => 2), clearTimeout: vi.fn() };
-    const api = new Function(...Object.keys(context), "let splashCleanup=null;" + definition("initSplashTilt") + ";return {start:initSplashTilt,stop:()=>splashCleanup()};")(...Object.values(context));
+    }, requestAnimationFrame: vi.fn((callback: Function) => { tick = callback; return 1; }), cancelAnimationFrame: vi.fn() };
+    const api = new Function(...Object.keys(context), "let splashCleanup=null;" + definition("initSplashTilt") + ";return {start:initSplashTilt,stop:()=>splashCleanup?.()};")(...Object.values(context));
     api.start();
-    expect(button.hidden).toBe(false);
     expect(requestPermission).not.toHaveBeenCalled();
-    expect(context.window.addEventListener).not.toHaveBeenCalled();
-    await button.onclick();
-    expect(requestPermission).toHaveBeenCalledOnce();
-    if (permission === "granted") {
+    expect(context.requestAnimationFrame).not.toHaveBeenCalled();
+    if (reduced) {
+      expect(context.window.addEventListener).not.toHaveBeenCalled();
+    } else {
+      expect(context.window.addEventListener).toHaveBeenCalledWith("deviceorientation", expect.any(Function));
+      listeners.deviceorientation!({ beta: null, gamma: null });
+      expect(context.requestAnimationFrame).not.toHaveBeenCalled();
       listeners.deviceorientation!({ beta: 40, gamma: 0 });
+      tick();
+      expect(scene.style.setProperty).toHaveBeenCalledWith("--tilt-x", "0.000deg");
       listeners.deviceorientation!({ beta: 130, gamma: 80 });
       for (let i = 0; i < 120; i++) tick();
       const values = scene.style.setProperty.mock.calls.slice(-2).map(call => parseFloat(call[1]));
@@ -147,14 +150,28 @@ describe("search and drag transitions", () => {
       expect(values[0]).toBeLessThanOrEqual(6);
       expect(values[1]).toBeGreaterThan(7);
       expect(values[1]).toBeLessThanOrEqual(8);
-      await button.onclick();
-      expect(button.textContent).toBe("Enable map tilt");
-    } else {
-      expect(context.window.addEventListener).not.toHaveBeenCalled();
-      expect(button.textContent).toBe("Map tilt unavailable");
+      const pointer = stage.addEventListener.mock.calls.find(call => call[0] === "pointermove")![1];
+      pointer({ pointerType: "mouse", clientX: 400, clientY: 0 });
+      for (let i = 0; i < 120; i++) tick();
+      expect(parseFloat(scene.style.setProperty.mock.calls.slice(-2)[0]![1])).toBeCloseTo(4, 1);
+      expect(parseFloat(scene.style.setProperty.mock.calls.slice(-1)[0]![1])).toBeCloseTo(6, 1);
+      stage.addEventListener.mock.calls.find(call => call[0] === "pointerleave")![1]();
+      for (let i = 0; i < 120; i++) tick();
+      expect(parseFloat(scene.style.setProperty.mock.calls.slice(-2)[0]![1])).toBeCloseTo(0, 1);
+      expect(parseFloat(scene.style.setProperty.mock.calls.slice(-1)[0]![1])).toBeCloseTo(0, 1);
+      motion.matches = true;
+      motion.addEventListener.mock.calls[0]![1]();
+      expect(scene.style.setProperty).toHaveBeenCalledWith("--tilt-x", "0deg");
+      expect(context.cancelAnimationFrame).toHaveBeenCalledWith(1);
+      motion.matches = false;
+      motion.addEventListener.mock.calls[0]![1]();
+      expect(context.window.addEventListener).toHaveBeenCalledTimes(2);
     }
     api.stop();
-    expect(motion.removeEventListener).toHaveBeenCalled();
+    if (!reduced) {
+      expect(context.window.removeEventListener).toHaveBeenCalledWith("deviceorientation", listeners.deviceorientation);
+      expect(motion.removeEventListener).toHaveBeenCalled();
+    }
   });
 
   it("opens a trip from its map preview with a tap or keyboard without hijacking attribution links", () => {

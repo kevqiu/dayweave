@@ -1639,7 +1639,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .map-trail-layer { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
 .daytrail-scene { width: min(88%, 640px); aspect-ratio: 400 / 360; perspective: 900px; position: relative; }
 .daytrail-scene { transform-style: preserve-3d; transform: rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)); }
-.map-tilt-control { position: absolute; bottom: 18px; right: 18px; border: 1px solid ${C.brandLight}; border-radius: 20px; padding: 9px 13px; background: ${C.card}; color: ${C.brandInk}; font-size: 12px; z-index: 2; }
 .daytrail-plane { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; animation: trail-isometric 3.8s cubic-bezier(.42,0,.22,1) .6s both, trail-zoom 2.6s cubic-bezier(.42,0,.22,1) 4.4s forwards; }
 .trail-ground { position: absolute; left: -300%; top: -300%; width: 700%; height: 700%; max-width: none; }
 .trail-block { position: absolute; width: 1.5%; height: 1.667%; transform: translate(-50%, -50%) rotateZ(var(--block-angle)); transform-style: preserve-3d; pointer-events: none; }

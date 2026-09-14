@@ -1027,20 +1027,21 @@ let splashCleanup = null;
 function initSplashTilt() {
   const stage = document.querySelector(".signin-map");
   const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
-  if (!stage || motion.matches || !window.isSecureContext || !window.DeviceOrientationEvent || !window.matchMedia("(pointer: coarse)").matches) return;
-  const button = stage.querySelector("[data-map-tilt]");
+  if (!stage || motion.matches) return;
+  const sensor = window.isSecureContext && window.DeviceOrientationEvent && window.matchMedia("(pointer: coarse)").matches;
   const scene = stage.querySelector(".daytrail-scene");
-  let active = false, disposed = false, baseline = null, frameId = null, timeout = null;
+  if (!scene) return;
+  let active = false, disposed = false, baseline = null, frameId = null;
   let aimX = 0, aimY = 0, x = 0, y = 0;
   const reset = () => {
     active = false; baseline = null;
     window.removeEventListener("deviceorientation", orient);
+    stage.removeEventListener("pointermove", pointer);
+    stage.removeEventListener("pointerleave", leave);
     if (frameId !== null) cancelAnimationFrame(frameId);
-    clearTimeout(timeout); frameId = null;
+    frameId = null;
     aimX = aimY = x = y = 0;
     scene.style.setProperty("--tilt-x", "0deg"); scene.style.setProperty("--tilt-y", "0deg");
-    button.textContent = "Enable map tilt";
-    button.setAttribute("aria-pressed", "false");
   };
   const animate = () => {
     if (!active || disposed || !stage.isConnected) return;
@@ -1053,7 +1054,6 @@ function initSplashTilt() {
   };
   const orient = (event) => {
     if (!active || !Number.isFinite(event.beta) || !Number.isFinite(event.gamma)) return;
-    clearTimeout(timeout);
     const angle = window.screen?.orientation?.angle || 0;
     if (!baseline || baseline.angle !== angle) baseline = { beta: event.beta, gamma: event.gamma, angle };
     const beta = ((event.beta - baseline.beta + 540) % 360) - 180;
@@ -1063,26 +1063,26 @@ function initSplashTilt() {
     aimY = Math.max(-8, Math.min(8, (gamma * Math.cos(radians) - beta * Math.sin(radians)) * .25));
     if (frameId === null) frameId = requestAnimationFrame(animate);
   };
-  button.hidden = false;
-  button.onclick = async () => {
-    if (active) { reset(); return; }
-    button.disabled = true;
-    try {
-      const sensor = window.DeviceOrientationEvent;
-      const permission = typeof sensor.requestPermission === "function" ? await sensor.requestPermission() : "granted";
-      if (disposed || !stage.isConnected || motion.matches) return;
-      if (permission !== "granted") throw new Error("denied");
-      active = true;
-      button.textContent = "Turn off map tilt";
-      button.setAttribute("aria-pressed", "true");
-      window.addEventListener("deviceorientation", orient);
-      timeout = setTimeout(() => { if (active && !baseline) { reset(); button.textContent = "Map tilt unavailable"; } }, 4000);
-    } catch (_) { if (!disposed) button.textContent = "Map tilt unavailable"; }
-    finally { if (!disposed) button.disabled = false; }
+  const pointer = (event) => {
+    if (!active || event.pointerType === "touch") return;
+    const rect = stage.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    aimX = Math.max(-4, Math.min(4, (.5 - (event.clientY - rect.top) / rect.height) * 8));
+    aimY = Math.max(-6, Math.min(6, ((event.clientX - rect.left) / rect.width - .5) * 12));
+    if (frameId === null) frameId = requestAnimationFrame(animate);
   };
-  const preference = () => { if (motion.matches) reset(); button.hidden = motion.matches; };
+  const leave = () => { aimX = aimY = 0; };
+  const start = () => {
+    if (active || disposed || motion.matches) return;
+    active = true;
+    if (sensor) window.addEventListener("deviceorientation", orient);
+    stage.addEventListener("pointermove", pointer);
+    stage.addEventListener("pointerleave", leave);
+  };
+  const preference = () => { if (motion.matches) reset(); else start(); };
+  start();
   motion.addEventListener("change", preference);
-  splashCleanup = () => { disposed = true; reset(); motion.removeEventListener("change", preference); button.onclick = null; };
+  splashCleanup = () => { disposed = true; reset(); motion.removeEventListener("change", preference); };
 }
 
 function screenSignIn() {
