@@ -56,10 +56,11 @@ export const bowl = (o: IconOptions = {}) =>
   );
 
 /** A link, for "Paste a Google Maps link". */
+/** Members: the chain beside "Anyone with this link". 1.9, as drawn. */
 export const link = (o: IconOptions = {}) =>
   svg(
     `<path d="M9.5 14.5l5-5M8 16H6.5a4.5 4.5 0 0 1 0-9H8M16 8h1.5a4.5 4.5 0 0 1 0 9H16"></path>`,
-    { ...o },
+    { width: 1.9, ...o },
     'stroke-linecap="round"',
   );
 
@@ -70,6 +71,14 @@ export const chevron = (o: IconOptions = {}) =>
   svg(
     `<polyline points="6 9 12 15 18 9"></polyline>`,
     { width: 2.4, color: "#A59C90", ...o },
+    'stroke-linecap="round" stroke-linejoin="round"',
+  );
+
+/** Back, on a screen that has a bar of its own. `design/Members.dc.html`. */
+export const chevronLeft = (o: IconOptions = {}) =>
+  svg(
+    `<polyline points="15 6 9 12 15 18"></polyline>`,
+    { width: 2.2, ...o },
     'stroke-linecap="round" stroke-linejoin="round"',
   );
 

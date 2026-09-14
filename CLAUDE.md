@@ -19,7 +19,7 @@ That is the map of what exists:
 
 | Artboard | The screen it specifies | Built |
 | --- | --- | --- |
-| `Trips.dc.html` | The trip list: happening now, coming up, past | yes, less the invite banner |
+| `Trips.dc.html` | The trip list: happening now, coming up, past, and the invite waiting at the top | yes |
 | `NewTrip.dc.html` | Starting a trip — name, then the date range (§4d) | yes |
 | `EmptyTrip.dc.html` | A trip with no stops yet | yes |
 | `Main.dc.html` | The phone home screen: map, bottom sheet, days, stops (§4c, §7) | yes |
@@ -29,10 +29,11 @@ That is the map of what exists:
 | `TripMenu.dc.html` | The one dropdown on the trip name (§4h) | yes |
 | `SheetFull.dc.html` | The sheet expanded, and drag-to-reorder | yes, less the title |
 | `AddNote.dc.html` | Only the button reading Add note. See below | n/a |
-| `SignIn.dc.html` | Sign in (§5) | yes, less the share-link line |
-| `Planner.dc.html`, `PlannerStop.dc.html` | The day grid (§4f) | yes, less the travel row |
+| `SignIn.dc.html` | Sign in with Google (§5) | yes, less the view-only door |
+| `Planner.dc.html`, `PlannerStop.dc.html` | The day grid (§4f) | yes, less the travel and lodging rows |
 | `PlannerMobile.dc.html` | The phone Planner as a list of rows | **superseded** — the phone draws one column of the grid instead. See below |
-| `Offline.dc.html`, `Import.dc.html`, `Members.dc.html` | The other states (§4g) | no |
+| `Members.dc.html` | Who is on this trip, and the link that adds one (§5) | yes, less the invite-by-email half |
+| `Offline.dc.html`, `Import.dc.html` | The other states (§4g) | no |
 | `Desktop.dc.html` | The wide layout: bar, itinerary rail, map, detail panel | yes, less the sources block |
 | `DirectionA/B/C.dc.html` | Rejected directions. Reference only — do not build these | n/a |
 
@@ -83,6 +84,15 @@ grey lines, `#A0978A` the smallest meta.
 
 **Accent**: `#C4826A` is the terracotta used for the caret, the user avatar and
 the bias circle. `#A8663C` is link text.
+
+**Avatars** are dealt terracotta, blue, violet, mauve **in the order people
+joined the trip**, which is the order every artboard draws them in and the only
+way two people are certain to be different circles. A hash of the id was fine
+while a trip had one person on it; it stopped being fine the moment an invite
+could be accepted. `peopleOfTrip` deals them, and it is what every avatar on a
+trip screen reads — the members in the bar, the author on a stop, your own
+circle, and the inviter's on the pending card. The hash survives only for
+someone with no name and no place in a trip's join order.
 
 **Status** (pin fill, PLAN.md §7): `#6F9A6B` today, `#E0B355` ahead,
 `#BDB4A7` done. The rings around them are `#E4EEE1`, `#F8EECF`, `#EFE9DF`.
@@ -439,6 +449,99 @@ To be planned bucket is `#94897A`, which is not on the ramp.
   its second line, and **no Navigate button** — a stop with nowhere to go
   cannot offer to take you there.
 
+- **An invite is a link, not an email.** `Members.dc.html` draws an address
+  field over a Send invite button, and there is no email service behind it —
+  adding one so four friends can be told about a trip is a whole dependency
+  for one sentence. So the screen makes **one reusable link per trip** instead,
+  and whoever is inviting sends it however they already talk to that person.
+  The artboard's own *Anyone with the link* card is what carries it, switch and
+  copy row and all.
+
+  **That card is drawn for the view-only share link, and it governs the invite
+  link instead.** The read-only door (§5, `trip_share_links`) is a separate
+  thing and is not built, so its switch would be furniture with nothing behind
+  it; the switch that is there turns the invite link on and off, which is the
+  explicit revoke §5 puts in place of an expiry. The second line under it says
+  which door it is: *can join the trip and edit it*.
+
+  The email field, the *Send invite* button and the *INVITED, NOT YET JOINED*
+  list all go with it. Nobody is invited-but-not-listed in a link model: you
+  either hold the link or you are on the trip.
+- **Following a link joins nobody.** `/i/<token>` puts the invite in the
+  visitor's session and hands them the app. Being enrolled on a trip by
+  clicking a URL, before you have seen what it is, is not an invitation. The
+  yes is the **Join** button on the card `Trips.dc.html` draws, and a browser
+  with no account keeps the invite through signing in — which is what the
+  `yvr_invite` cookie is for, and why it is a cookie rather than a query string
+  that the round trip to Google would drop.
+- **The sign-in screen is one button and it goes to Google.** §5: no email
+  form, no password, no second provider. The button reads **Continue with
+  Google** because Google's sign-in branding permits a fixed set of strings and
+  that is one of them, and the `G` beside it is Google's own four-colour asset
+  rather than the artboard's dashed placeholder, which §5 already calls a
+  placeholder. The scopes are `openid email profile` and nothing else, which is
+  what the line under the button promises and why Drive is a later, separate
+  consent.
+
+  The divider and *Open it without an account* under it are left out for the
+  same reason the share-link switch is: that is the view-only door, and it is
+  not built.
+
+  **The button posts rather than links.** Better Auth answers
+  `/api/auth/sign-in/social` with the URL to send the browser to instead of
+  redirecting the fetch, because a redirect followed by an XHR lands Google's
+  consent screen inside a `JSON.parse`. So the button is a `<button>` that posts
+  and then sets `location.href`, and it says *Taking you to Google…* while it
+  waits.
+
+  **Signing in keeps the trips a browser was already carrying.** A browser that
+  made trips before there was a door brings them through it rather than meeting
+  its own trips as a stranger — `adoptDevIdentity` moves everything the old
+  `yvr_dev_uid` id touches, in one batch.
+
+  **That adoption happens on the way out of the callback, not on the next
+  `/api` call**, and the difference is a window. If it waited for the first API
+  request, a browser could sign in, stop, and leave the cookie's trips still
+  owned by `dev_…` — and a second Google account waving the same cookie would
+  take them. It is spent by the sign-in that proves the browser, and the cookie
+  is cleared on the way past. A cookie anybody can write must never open an
+  account, and this one cannot: it only ever adds trips to a session that
+  already exists.
+- **Sign-in is Better Auth, and `src/worker/auth.ts` is the whole of it.**
+  §5 asked for it, a branch hand-rolled the flow instead, and it went back —
+  the reasoning is in §5. Two things worth knowing about the configuration:
+  the session lookup is **KV in front of D1, not KV instead of it**, because KV
+  is eventually consistent and a read that misses its own write is a person
+  bounced back to the sign-in screen; and the D1 binding goes in raw, with no
+  Drizzle and no adapter package, because Better Auth's Kysely adapter
+  recognises a D1 binding on its own.
+
+  **Better Auth owns `user`, `session`, `account` and `verification`**, and
+  migration 0003 is its own generated SQL, copied verbatim. Do not edit those
+  tables by hand: regenerate. `usersById` is the **only** place this app reads
+  `user` at all — everywhere else a person is an id on a row.
+
+  **`basePath` is `/api/auth`, and that is a deployment fact, not a
+  preference.** The two redirect URIs registered with Google are built from it
+  (INFRA.md item 4). Changing it breaks sign-in in production with nothing
+  failing in a test.
+
+  **One `/api` route answers signed out**, and only one: `/api/invite/pending`.
+  A sign-in screen reached by following Mika's link has to be able to say who
+  invited you and to what, and `/api/trips` cannot tell it — that call is the
+  401 that put the screen up. It reveals a trip name and a first name to
+  whoever holds the token, which is exactly what the person who sent the link
+  meant to tell them.
+- **Membership is enforced, not just documented.** §5 has always said
+  membership IS the permission, and until there was somebody to invite nothing
+  checked it. Every trip and stop route does now.
+
+  **A trip you are not on answers exactly as a trip that does not exist does.**
+  404, never 403: there are no roles, so there is no "you may not" to report,
+  and a 403 would confirm to a stranger holding an id that it names a real
+  trip. The writes that never load a row say the same thing as a `WHERE`
+  clause instead — see `ON_A_TRIP_OF_MINE` — so saving a note does not grow a
+  round trip to check.
 - **Nothing is a placeholder.** Where the app does not know something, the
   artboards leave it out rather than filling it with a dash. Two consequences
   worth knowing: the map carries no place labels, because the artboards' own
@@ -515,6 +618,11 @@ note closes the sheet and shows the text immediately; the write follows. PLAN.md
 §2 makes this the shape of every edit, because this gets used on hotel wifi and
 in basements, and a round trip is the slowest part of typing six words.
 
+**Two writes are not optimistic, and both are the same reason.** Turning the
+invite link on has nothing to put on the screen until the Worker mints the
+token, and Join has nothing to show until the trip it hands back has been read.
+A write whose whole result comes from the server cannot be applied first.
+
 When a write fails the screen goes **back to what it said before** and a notice
 in the palette says why. No artboard draws that notice — §4g settles on
 last-writer-wins and never shows a conflict — but a write that failed outright
@@ -524,3 +632,14 @@ still has to be admitted rather than silently dropped.
 
 `npm test`, then `npm run typecheck`, then `npm run deploy`. Verify a UI change
 against the deployed Worker and look at it, rather than trusting the tests.
+
+**When there is no Cloudflare token on the environment there is no deploy**, and
+a session can still run the thing: `src/worker/__tests__/invites.test.ts` stands
+the real Worker up over `node:sqlite` with the actual migrations applied and
+drives it through HTTP, Google sign-in included — the only call the flow makes
+to Google is the code-for-tokens exchange, so stubbing that one `fetch` is the
+whole of the stand-in. The D1 and KV bindings it shims are forty lines between
+them, and the same shims behind an `http.createServer` will serve the app on
+localhost for a real browser to open. That is not a substitute for looking at
+the deployed Worker — it has no Places key and no Maps key — but it is the
+difference between checking a route and guessing at one.

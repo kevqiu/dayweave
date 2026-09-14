@@ -67,6 +67,11 @@ const state = {
   view: "map",
   trips: [],
   trip: null,
+  /* Who you are, and the invitation you are holding (PLAN.md 5). */
+  me: null,
+  google: true,
+  invite: null,
+  people: null,
   openDayId: null,
   planDayId: null,
   planPage: 0,
@@ -134,6 +139,7 @@ function render() {
     // widths design/Desktop.dc.html and design/Main.dc.html each draw.
     frame.append(planning() ? screenGrid() : wideNow() ? screenTripDesk() : screenTrip());
   }
+  if (state.people) frame.append(screenPeople());
   if (state.search) frame.append(sheetSearch());
   if (state.tripMenu) frame.append(...tripMenu());
   if (state.move) frame.append(...sheetMove());
@@ -260,14 +266,257 @@ window.addEventListener("popstate", (event) => {
   for (const then of queued) then();
 });
 
+/* -------------------------------------------------------------- sign in */
+
+/**
+ * design/SignIn.dc.html: one button, and it goes to Google.
+ *
+ * PLAN.md section 5 — no email form, no password, no second provider. The
+ * button reads "Continue with Google" rather than anything friendlier because
+ * Google's sign-in branding permits a fixed set of strings and that is one of
+ * them, and the G beside it is Google's own asset rather than the artboard's
+ * dashed placeholder.
+ *
+ * The one thing the artboard draws that is not here is the "Open it without an
+ * account" line at the foot, which is the view-only share link: that door is
+ * not built, and a door with nothing behind it is worse than no door.
+ *
+ * It is a link rather than a fetch, because signing in is a trip through
+ * somebody else's site and back.
+ */
+/* ------------------------------------------------------- pending invite */
+
+/**
+ * The card at the top of design/Trips.dc.html, and the same card on the way in.
+ *
+ * Every word on it is built by the Worker (see pendingInvite in index.ts), so
+ * nothing here composes a sentence. Join is only offered to someone who can
+ * actually take it: signed out, the card states the invitation and the button
+ * under it is the sign-in.
+ */
+function inviteCard(invite, joinable) {
+  return h("div", { class: "invite-card" }, [
+    h("div", {
+      class: "who",
+      style: "background:" + invite.from.color,
+      text: invite.from.initials,
+    }, []),
+    h("div", { class: "invite-text" }, [
+      h("span", { class: "line", text: invite.sentence }, []),
+      h("span", { class: "when", text: invite.when }, []),
+    ]),
+    joinable
+      ? h("button", { class: "invite-join", id: "join", onclick: joinInvite }, ["Join"])
+      : null,
+  ]);
+}
+
+/**
+ * Joining, which is the one write that is not optimistic.
+ *
+ * Everything else in the app applies to the screen first and goes to the
+ * network behind it. This cannot: what comes back is a trip the browser has
+ * never seen, and pretending to be on it before the server agrees would mean
+ * drawing a trip we have not read.
+ */
+async function joinInvite() {
+  const button = $("join");
+  if (button) button.disabled = true;
+
+  try {
+    const accepted = await post("/api/invite/accept", {});
+    state.invite = null;
+    state.trips = (await api("/api/trips")).trips;
+    await openTrip(accepted.tripId);
+  } catch (error) {
+    // A link turned off between opening it and tapping Join. Say so, and take
+    // the card away rather than leaving a button that cannot work.
+    state.invite = null;
+    state.error = error.message;
+    render();
+  }
+}
+
+/* ------------------------------------------------ who is on this trip */
+
+/** design/Members.dc.html, reached from the person-plus at the end of the stack. */
+async function openPeople() {
+  const tripId = state.trip.trip.id;
+  openLayer(() => { state.people = null; render(); });
+  try {
+    state.people = await api("/api/trips/" + tripId + "/people");
+  } catch (error) {
+    state.error = error.message;
+    closeLayer();
+    return;
+  }
+  render();
+}
+
+function screenPeople() {
+  const data = state.people;
+
+  return h("div", { class: "screen people-screen", style: "z-index:42" }, [
+    h("div", { class: "top-bar people-bar" }, [
+      h("button", { class: "icon-btn", onclick: closeLayer }, [icon("chevronLeft")]),
+      h("div", { class: "people-bar-text" }, [
+        h("span", { class: "t", text: data.title }, []),
+        h("span", { class: "s", text: data.subtitle }, []),
+      ]),
+    ]),
+    h("div", { class: "people-scroll" }, [
+      h("div", { class: "section-label", style: "padding-top:13px", text: "INVITE WITH A LINK" }, []),
+      linkCard(data.invite),
+      h("div", { class: "section-label spaced", style: "padding-top:14px", text: "PEOPLE" }, []),
+      ...data.people.map(personRow),
+    ]),
+    noticeToast(),
+  ]);
+}
+
+/**
+ * The link, and the switch that makes one.
+ *
+ * design/Members.dc.html draws this card for the view-only share link, which
+ * is a separate door PLAN.md section 5 keeps separate and which is not built.
+ * The switch here governs the door that is: one reusable invite link per trip,
+ * off until someone turns it on, and revoked by turning it off again — which
+ * is the explicit revoke section 5 puts in place of an expiry.
+ */
+function linkCard(invite) {
+  const on = Boolean(invite);
+
+  return h("div", { class: "link-card" }, [
+    h("div", { class: "link-head" }, [
+      icon("chain"),
+      h("div", { class: "link-head-text" }, [
+        h("span", { class: "t", text: "Anyone with this link" }, []),
+        h("span", {
+          class: "s",
+          text: on ? "can join the trip and edit it" : "nobody can join until this is on",
+        }, []),
+      ]),
+      h("button", {
+        class: "toggle",
+        "aria-pressed": on ? "true" : "false",
+        title: on ? "Turn the link off" : "Turn the link on",
+        onclick: () => toggleInvite(!on),
+      }, [h("i", {}, [])]),
+    ]),
+    on
+      ? h("div", { class: "link-row" }, [
+          h("span", { class: "url", text: invite.url }, []),
+          h("button", { id: "copy", onclick: () => copyInvite(invite.url) }, ["Copy"]),
+        ])
+      : null,
+    on ? h("div", { class: "link-when", text: "Made " + invite.ago }, []) : null,
+  ]);
+}
+
+/**
+ * The one write in the app that waits.
+ *
+ * Writes are optimistic everywhere else (CLAUDE.md), and this one cannot be:
+ * the link's whole value is a token only the Worker can mint, so there is
+ * nothing to put on the screen until it answers. Turning it off could be
+ * optimistic and is not, because the two halves of one switch flickering at
+ * different speeds reads as a bug.
+ */
+async function toggleInvite(on) {
+  const tripId = state.people.tripId;
+  try {
+    const path = "/api/trips/" + tripId + "/invite" + (on ? "" : "/revoke");
+    state.people.invite = (await post(path, {})).invite;
+  } catch (error) {
+    state.error = error.message;
+  }
+  render();
+}
+
+/**
+ * Copy, and what to do when the browser will not.
+ *
+ * The clipboard is refused outright in an insecure context and by some
+ * in-app browsers, and a Copy button that silently does nothing is worse than
+ * no button. So the failure selects the link instead and says to take it by
+ * hand — written straight to the DOM, because a render would throw the
+ * selection away.
+ */
+function copyInvite(url) {
+  const say = (label, cls) => {
+    const button = $("copy");
+    if (!button) return;
+    button.textContent = label;
+    button.className = cls || "";
+  };
+
+  const copied = () => {
+    say("Copied", "done");
+    setTimeout(() => say("Copy"), 1600);
+  };
+
+  const byHand = () => {
+    const shown = document.querySelector(".link-row .url");
+    if (shown && window.getSelection) {
+      const range = document.createRange();
+      range.selectNodeContents(shown);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+    say("copy it by hand");
+  };
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(copied, byHand);
+  } else {
+    byHand();
+  }
+}
+
+function personRow(person) {
+  return h("div", { class: "person-row" }, [
+    h("div", { class: "who", style: "background:" + person.color, text: person.initials }, []),
+    h("div", { class: "person-text" }, [
+      h("span", { class: "n" }, [
+        person.name,
+        person.tag ? h("em", { text: " " + person.tag }, []) : null,
+      ]),
+      h("span", { class: "s", text: person.line }, []),
+    ]),
+  ]);
+}
+
 /* ---------------------------------------------------------------- trips */
 
-function avatars(people, small) {
-  return h(
-    "div",
-    { class: small ? "avatars small" : "avatars" },
-    people.map((p) => h("span", { style: "background:" + p.color, text: p.initials }, [])),
+/**
+ * The stack. design/Main.dc.html shows two faces and then a "+2" chip, because
+ * a fourth avatar in a 375px bar pushes the trip name into an ellipsis — so
+ * the stack is capped and the remainder is counted.
+ */
+function avatars(people, small, max) {
+  const shown = max ? people.slice(0, max) : people;
+  const rest = people.length - shown.length;
+  const stack = shown.map((p) =>
+    h("span", { style: "background:" + p.color, text: p.initials, title: p.name || "" }, []),
   );
+  if (rest > 0) stack.push(h("span", { class: "more", text: "+" + rest }, []));
+  return h("div", { class: small ? "avatars small" : "avatars" }, stack);
+}
+
+/**
+ * A write that failed, or a link that has been turned off, in the palette.
+ *
+ * No artboard draws it — section 4g settles on last-writer-wins and never
+ * shows a conflict — but something that did not happen still has to be
+ * admitted rather than silently dropped.
+ */
+function noticeToast() {
+  if (!state.error) return null;
+  return h("div", { class: "toast" }, [
+    h("span", { text: state.error }, []),
+    h("button", { onclick: () => { state.error = null; render(); } }, ["Dismiss"]),
+  ]);
 }
 
 function screenTrips() {
@@ -277,6 +526,10 @@ function screenTrips() {
   const past = state.trips.filter((t) => t.end_date < now);
 
   const scroll = h("div", { class: "trips-scroll" }, []);
+
+  // First thing on the screen, because it is the only thing on it waiting on
+  // an answer. design/Trips.dc.html puts it above HAPPENING NOW.
+  if (state.invite) scroll.append(inviteCard(state.invite, true));
 
   if (current.length) {
     scroll.append(h("div", { class: "section-label", text: "HAPPENING NOW" }, []));
@@ -290,7 +543,7 @@ function screenTrips() {
     scroll.append(h("div", { class: "section-label spaced", text: "PAST" }, []));
     for (const trip of past) scroll.append(tripRow(trip, true));
   }
-  if (!state.trips.length) {
+  if (!state.trips.length && !state.invite) {
     scroll.append(
       h("div", { class: "empty-state" }, [
         h("h3", { text: "No trips yet" }, []),
@@ -330,7 +583,7 @@ function tripCard(trip) {
       h("div", { class: "trip-card-name", text: trip.name }, []),
       h("div", { class: "trip-card-sub", text: trip.subtitle }, []),
       h("div", { class: "trip-card-foot" }, [
-        avatars(trip.members),
+        avatars(trip.members, false, 3),
         h("span", { style: "flex-grow:1" }, []),
         h("span", {
           class: "trip-card-count",
@@ -380,7 +633,7 @@ function tripRow(trip, past) {
       h("span", { class: "trip-row-name", text: trip.name }, []),
       h("span", { class: "trip-row-sub", text: trip.subtitle }, []),
     ]),
-    past ? null : avatars(trip.members, true),
+    past ? null : avatars(trip.members, true, 3),
   ]);
 }
 
@@ -536,6 +789,17 @@ function screenSignIn() {
         }, []),
       ]),
       h("span", { style: "flex-grow:1" }, []),
+      // Following an invite link lands here, so the card states the invitation
+      // and the button under it is how you accept: signed out there is nobody
+      // to join a trip, so the card carries no Join of its own.
+      state.invite ? inviteCard(state.invite, false) : null,
+      state.invite
+        ? h("div", {
+            class: "signin-sub",
+            style: "margin:0 0 12px;max-width:none",
+            text: "Sign in below to accept it.",
+          }, [])
+        : null,
       state.error ? h("div", { class: "err", style: "padding:0 0 10px", text: state.error }, []) : null,
       h("button", {
         class: "signin-google",
@@ -610,6 +874,15 @@ function showSignIn() {
   state.timeFor = null;
   state.meMenu = false;
   render();
+
+  // The one /api route that answers signed out. Without it a visitor who
+  // followed Mika's link is asked for their Google account by a screen that
+  // cannot say who invited them or to what.
+  api("/api/invite/pending").then((data) => {
+    if (state.screen !== "signIn") return;
+    state.invite = data.invite;
+    render();
+  }).catch(() => {});
 }
 
 async function signOut() {
@@ -639,13 +912,25 @@ function showTrips() {
     if (state.screen !== "trips") return;
     state.trips = data.trips;
     state.me = data.me;
+    state.invite = data.invite;
     render();
   }).catch(() => {});
 }
 
 async function openTrip(tripId) {
+  // Read first, then push the history entry: a trip that is not ours any more
+  // must not leave a layer behind for back to unwind.
+  let trip;
+  try {
+    trip = await api("/api/trips/" + tripId);
+  } catch (error) {
+    state.error = error.message;
+    render();
+    return;
+  }
+
   openLayer(showTrips);
-  state.trip = await api("/api/trips/" + tripId);
+  state.trip = trip;
   const today = todayIso();
   const todayDay = state.trip.days.find((d) => d.date === today);
   state.openDayId = todayDay ? todayDay.id : (state.trip.days[0] || {}).id || null;
@@ -1091,8 +1376,8 @@ function screenTrip() {
         ]),
         h("div", { class: "trip-bar-sub", text: trip.headerSubtitle }, []),
       ]),
-      avatars(trip.members),
-      h("button", { class: "round-btn", title: "Invite someone" }, [icon("invite")]),
+      avatars(trip.members, false, 2),
+      h("button", { class: "round-btn", title: "Invite someone", onclick: openPeople }, [icon("invite")]),
     ]),
     h("div", { class: "map" }, [
       // The real map when a browser key is configured; the drawn one from the
@@ -1125,12 +1410,7 @@ function screenTrip() {
         : null,
       h("div", { class: "sheet-scroll" }, sheetContents(hasStops)),
     ]),
-    state.error
-      ? h("div", { class: "toast" }, [
-          h("span", { text: state.error }, []),
-          h("button", { onclick: () => { state.error = null; render(); } }, ["Dismiss"]),
-        ])
-      : null,
+    noticeToast(),
     ...dragLayer(),
   ]);
 }
@@ -3047,8 +3327,8 @@ function planBar(subtitle) {
       ]),
       h("div", { class: "trip-bar-sub", text: subtitle }, []),
     ]),
-    avatars(trip.members),
-    h("button", { class: "round-btn", title: "Invite someone" }, [icon("invite")]),
+    avatars(trip.members, false, 2),
+    h("button", { class: "round-btn", title: "Invite someone", onclick: openPeople }, [icon("invite")]),
   ]);
 }
 
@@ -3318,12 +3598,7 @@ function screenGrid() {
       ]),
       trayDrawer(wide),
     ]),
-    state.error
-      ? h("div", { class: "toast" }, [
-          h("span", { text: state.error }, []),
-          h("button", { onclick: () => { state.error = null; render(); } }, ["Dismiss"]),
-        ])
-      : null,
+    noticeToast(),
     ...dragLayer(),
   ]);
 }
@@ -3825,10 +4100,32 @@ function rangeLabel(a, b) {
 /* ------------------------------------------------------------------ boot */
 
 (async function start() {
+  // A link that has been turned off redirects here saying so, rather than
+  // dropping someone on the trips list with no idea what happened.
+  const asked = new URLSearchParams(location.search);
+  if (asked.get("invite") === "gone") {
+    state.error = "That invite link has been turned off. Ask whoever sent it for a new one.";
+  }
+  // Better Auth puts its own failures here on the way back from Google. The
+  // wording is ours, because "state_mismatch" is not a sentence.
+  const AUTH_TROUBLE = {
+    access_denied: "Signing in was cancelled. Nothing happened.",
+    state_not_found: "That took long enough that the sign-in expired. Try it again.",
+    please_restart_the_process: "That sign-in went stale. Try it again.",
+  };
+  const trouble = asked.get("error");
+  if (trouble) state.error = AUTH_TROUBLE[trouble] || "Signing in did not work. Try it again.";
+  if (asked.get("invite") || trouble) {
+    history.replaceState(null, "", location.pathname);
+  }
+
   try {
+    // One call: who you are, what you have, and the invitation waiting on the
+    // card at the top of the list.
     const data = await api("/api/trips");
-    state.trips = data.trips;
     state.me = data.me;
+    state.trips = data.trips;
+    state.invite = data.invite;
     render();
   } catch (error) {
     // A 401 has already put the sign-in screen up, in api(). Anything else is

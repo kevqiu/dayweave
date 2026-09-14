@@ -52,8 +52,9 @@ spend real money.
 | Worker | `yvr-kocho-sh-api-dev` | deployed |
 | URL | `https://yvr-kocho-sh-api-dev.yvr-kocho.workers.dev` | live |
 | Custom domain | `yvr.kocho.sh` | bound to the Worker, proxied AAAA, no route |
-| D1 | `yvr-kocho-sh-dev-db` (`8c0a0c37-…`) | migrations 0001–0003 applied |
+| D1 | `yvr-kocho-sh-dev-db` (`8c0a0c37-…`) | migrations 0001–0004 applied |
 | D1 tables | `user`, `session`, `account`, `verification` | Better Auth's |
+| D1 tables | `trip_invites` | reshaped by 0004: one copyable token per trip |
 | KV | `yvr-kocho-sh-dev-sessions` | the session lookup, D1 behind it |
 | KV | `yvr-kocho-sh-dev-places-cache` | in use, 1 hour TTL |
 | R2 | `yvr-kocho-sh-dev-tiles` | created, empty, and staying that way — item 6 |
@@ -124,6 +125,35 @@ schema in migration 0003, the screen from `design/SignIn.dc.html`. Both
 redirect URIs are registered and Google serves its real sign-in page for the
 URL the Worker builds. `app_user` is dropped and the `yvr_dev_uid` cookie is no
 longer issued.
+
+**The two registered redirect URIs are these, and the path is Better Auth's:**
+
+```
+https://yvr.kocho.sh/api/auth/callback/google
+https://yvr-kocho-sh-api-dev.yvr-kocho.workers.dev/api/auth/callback/google
+```
+
+Measured from a session, by fetching the authorize URL the Worker builds and
+reading what Google answers with: both serve the real *Sign in with Google*
+page. `/auth/google/callback` — the path a hand-rolled flow used on a branch
+that has since been merged away — answers `redirect_uri_mismatch` on both
+hosts, which is the right answer and is worth leaving that way. **If you ever
+change `basePath` in `src/worker/auth.ts`, the URIs above stop matching and
+sign-in breaks in production with nothing failing in a test.**
+
+The client is a **Web application** client, which is the only kind that can do
+the code exchange, and the consent screen is configured and serving. Neither of
+those needs anything done to it.
+
+**What a session still cannot do is hold a Google password**, so the consent
+screen itself and the callback behind it remain unwitnessed from here. The rest
+of the flow was walked on the deployed Worker instead, by minting a Better Auth
+session directly: a row in `session` and a cookie signed with the same
+`BETTER_AUTH_SECRET` the Worker verifies with is indistinguishable from a
+sign-in, to the Worker and to the app. That covered the trips list, the trip,
+the People screen, the invite link, the pending card and Join. Only the Google
+half is taken on trust, and INFRA.md's own check above — fetching the authorize
+URL and reading Google's answer — is what stands in for it.
 
 *The one piece of housekeeping left in the data:* the deployed database holds
 65 trips with 65 distinct owners and one member each — one per `dev_…` cookie

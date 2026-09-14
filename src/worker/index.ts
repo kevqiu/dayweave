@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { fetchMyMap } from "../lib/kml.ts";
 import {
   autocomplete,
@@ -8,6 +8,13 @@ import {
   type PlaceDetails,
 } from "../lib/places.ts";
 import { haversineMetres, resolveBias, roundedCentre, type Bias } from "../lib/geo.ts";
+import {
+  agoLabel,
+  contributionLine,
+  inviteSentence,
+  inviteUrl,
+  monthLabel,
+} from "../lib/invite.ts";
 import { previewNodes } from "../lib/preview.ts";
 import { suggestDays, type CandidateDay } from "../lib/suggest.ts";
 import { formatClock, minutesOf } from "../lib/plan.ts";
@@ -15,30 +22,40 @@ import {
   addNoteAsStop,
   addPlaceAsStop,
   adoptDevIdentity,
-  isMember,
-  usersById,
-  initialsForName,
-  type UserRow,
   cityOfDay,
   citiesForTrip,
   createTrip,
   dateRangeLabel,
   dayLabel,
+  ensureInvite,
   getTrip,
-  initialsFor,
   getStop,
+  initialsFor,
+  initialsForName,
+  inviteByToken,
+  isMember,
+  joinTrip,
   listDays,
   listStops,
+  liveInvite,
   moveStopToDay,
+  peopleOfTrip,
+  personOf,
+  placeCounts,
   placesOnTrip,
+  revokeInvites,
   stopsForDay,
   toDayGeo,
+  usersById,
   type DayRow,
+  type InviteRow,
+  type Person,
   type StopRow,
+  type UserRow,
 } from "./store.ts";
+import { avatarColor, guestAvatarColor } from "./ui/tokens.ts";
 import { authFor } from "./auth.ts";
 import { page } from "./ui/page.ts";
-import { avatarColor } from "./ui/tokens.ts";
 import type { worker } from "../../alchemy.run.ts";
 
 type Env = typeof worker.Env;
@@ -64,7 +81,40 @@ app.get("/health", (c) => c.json({ ok: true }));
  * Mounted before the guard below, because a person who cannot sign in yet is
  * exactly who these are for.
  */
-app.all("/api/auth/*", (c) => authFor(c.env, new URL(c.req.url)).handler(c.req.raw));
+app.all("/api/auth/*", async (c) => {
+  const auth = authFor(c.env, new URL(c.req.url));
+  const response = await auth.handler(c.req.raw);
+
+  const dev = devCookie(c);
+  if (!dev) return response;
+
+  /*
+   * The adoption happens here, on the way out of the callback, and not on the
+   * next `/api` call.
+   *
+   * The difference is a window. If it waited for the first API request, a
+   * browser could sign in, stop, and leave the cookie's trips still owned by
+   * `dev_…` — and a second Google account waving the same cookie would take
+   * them. Doing it as the session is created closes that: the cookie is spent
+   * by the sign-in that proves the browser, and never by a later one.
+   *
+   * The session Better Auth has just made is in this response's own cookies,
+   * so the only way to ask who it belongs to is to hand them back to it.
+   */
+  const sent = (response.headers as unknown as { getSetCookie?: () => string[] }).getSetCookie?.();
+  if (!sent?.length) return response;
+
+  const headers = new Headers();
+  headers.set("cookie", sent.map((cookie) => cookie.split(";")[0]).join("; "));
+  const session = await auth.api.getSession({ headers });
+  if (!session) return response;
+
+  await adoptDevIdentity(c.env.DB, dev, session.user.id);
+
+  const out = new Response(response.body, response);
+  out.headers.append("set-cookie", CLEAR_DEV_COOKIE);
+  return out;
+});
 
 /**
  * The last of the per-browser cookie, and where its trips go.
@@ -96,6 +146,9 @@ const devCookie = (c: { req: { header: (k: string) => string | undefined } }): s
  */
 app.use("/api/*", async (c, next) => {
   if (c.req.path.startsWith("/api/auth/")) return next();
+  // The sign-in screen names the inviter and the trip, so the invite it is
+  // showing has to be readable before there is anybody to read it for.
+  if (c.req.path === "/api/invite/pending") return next();
 
   const auth = authFor(c.env, new URL(c.req.url));
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
@@ -115,6 +168,52 @@ app.use("/api/*", async (c, next) => {
   });
   return next();
 });
+
+/**
+ * An invite a signed-out visitor is holding, until they are through the door.
+ *
+ * Following `/i/<token>` does not join anybody (PLAN.md section 5): it puts the
+ * token here and hands over the app. A visitor with no account then signs in,
+ * comes back through Better Auth's callback, and the invite is still on the
+ * browser — which is the whole reason it is a cookie rather than a query
+ * string that the OAuth round trip would drop.
+ */
+const INVITE_COOKIE = "yvr_invite";
+
+type Req = { req: { header: (k: string) => string | undefined } };
+
+function readCookie(c: Req, name: string): string | null {
+  const cookies = c.req.header("cookie") ?? "";
+  for (const part of cookies.split(";")) {
+    const at = part.indexOf("=");
+    if (at === -1) continue;
+    if (part.slice(0, at).trim() === name) return decodeURIComponent(part.slice(at + 1).trim());
+  }
+  return null;
+}
+
+/**
+ * Cookies are Secure everywhere but localhost, where a browser refuses to keep
+ * a Secure cookie sent over http and the whole thing silently fails to work.
+ */
+const cookieOptions = (c: Ctx, maxAge: number | null) => {
+  const secure = new URL(c.req.url).protocol === "https:" ? "; Secure" : "";
+  const age = maxAge === null ? "" : `; Max-Age=${maxAge}`;
+  return `; Path=/${age}; SameSite=Lax; HttpOnly${secure}`;
+};
+
+/**
+ * The invite rides in a session cookie rather than a row, because a visitor
+ * holding one is not yet a person we can write anything against. It lasts as
+ * long as the browser is open, which is as long as "I clicked Mika's link and
+ * then signed in with Google" takes.
+ */
+const inviteCookie = (c: Ctx, token: string) =>
+  `${INVITE_COOKIE}=${encodeURIComponent(token)}${cookieOptions(c, null)}`;
+
+const clearCookie = (c: Ctx, name: string) => `${name}=${cookieOptions(c, 0)}`;
+
+type Ctx = Context<{ Bindings: Env; Variables: { viewer: Viewer } }>;
 
 const placesConfig = (env: Env) => ({
   apiKey: env.GOOGLE_PLACES_KEY,
@@ -186,11 +285,110 @@ async function stopForViewer(db: D1Database, stopId: string, userId: string) {
  */
 const ON_A_TRIP_OF_MINE = `trip_id IN (SELECT trip_id FROM trip_members WHERE user_id = ?)`;
 
+/**
+ * A trip you are not on answers exactly as a trip that does not exist does.
+ *
+ * PLAN.md section 5 makes membership the whole of the permission, so there is
+ * no "you may not" to report: a 403 would confirm that the id names a real
+ * trip, which is the one thing a stranger holding it should not learn.
+ */
+const NO_SUCH_TRIP = { error: "no such trip" } as const;
+
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
 app.get("/", (c) => {
   // The browser key is public by design; the Places key stays server-side.
   return c.html(page(c.env.GOOGLE_MAPS_BROWSER_KEY));
+});
+
+/**
+ * A followed invite link.
+ *
+ * It does not join anybody. All it does is put the invite in the visitor's
+ * session and hand them the app, because the person who opens Mika's link may
+ * well have no account at all — and being added to a trip by clicking a URL,
+ * before you have even seen what it is, is not an invitation, it is an
+ * enrolment. Joining is the Join button on the card, which is a person saying
+ * yes (`design/Trips.dc.html`).
+ *
+ * A link that has been revoked says so rather than failing silently.
+ */
+app.get("/i/:token", async (c) => {
+  const invite = await inviteByToken(c.env.DB, c.req.param("token"));
+  if (!invite) return c.redirect("/?invite=gone", 302);
+
+  c.header("set-cookie", inviteCookie(c, invite.token), { append: true });
+  return c.redirect("/", 302);
+});
+
+// --- the invite a signed-out visitor is carrying ---------------------------
+
+/**
+ * The pending invite, for a browser that may not have an account yet.
+ *
+ * This is the one route under `/api` that the guard lets through signed out,
+ * and it is why: `design/SignIn.dc.html` is reached by following Mika's link,
+ * and a sign-in screen that cannot say who invited you or to what is asking
+ * somebody to hand over their Google account on no information at all. It
+ * reveals a trip name and an inviter's first name to whoever holds the token,
+ * which is exactly what the person who sent the link meant to tell them.
+ *
+ * Signed in, the same sentence rides along on `/api/trips` instead, so the
+ * Trips list draws its card without a second round trip.
+ */
+app.get("/api/invite/pending", async (c) => {
+  const auth = authFor(c.env, new URL(c.req.url));
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+  return c.json({ invite: await pendingInvite(c, session?.user.id ?? null) });
+});
+
+/**
+ * The card at the top of `design/Trips.dc.html`, or nothing.
+ *
+ * Every word on it is built here — the sentence, the month, the inviter's
+ * initials — so the client renders an invitation rather than composing one.
+ * An invite to a trip you are already on is not pending, so it resolves to
+ * nothing and the cookie is left to expire with the session.
+ */
+async function pendingInvite(c: Ctx, userId: string | null) {
+  const token = readCookie(c, INVITE_COOKIE);
+  if (!token) return null;
+
+  const invite = await inviteByToken(c.env.DB, token);
+  if (!invite) return null;
+
+  const trip = await getTrip(c.env.DB, invite.trip_id);
+  if (!trip) return null;
+  // An invite to a trip you are already on is not pending.
+  if (userId && (await isMember(c.env.DB, trip.id, userId))) return null;
+
+  const people = await peopleOfTrip(c.env.DB, trip.id);
+  const from = personOf(invite.invited_by, people);
+  return {
+    tripId: trip.id,
+    tripName: trip.name,
+    sentence: inviteSentence(from.name, trip.name),
+    when: monthLabel(trip.start_date, trip.end_date),
+    // Not the colour they wear on their own trip: terracotta is you on this
+    // screen, whoever you are. See `guestAvatarColor`.
+    from: {
+      initials: from.initials,
+      color: guestAvatarColor([...people.keys()].indexOf(invite.invited_by)),
+    },
+  };
+}
+
+/** Join, which is a person saying yes to the card. */
+app.post("/api/invite/accept", async (c) => {
+  const { id: userId } = c.get("viewer");
+
+  const token = readCookie(c, INVITE_COOKIE);
+  const invite = token ? await inviteByToken(c.env.DB, token) : null;
+  if (!invite) return c.json({ error: "that invite link has been revoked" }, 404);
+
+  await joinTrip(c.env.DB, invite.trip_id, userId);
+  c.header("set-cookie", clearCookie(c, INVITE_COOKIE), { append: true });
+  return c.json({ tripId: invite.trip_id });
 });
 
 // --- trips ------------------------------------------------------------------
@@ -216,23 +414,33 @@ app.post("/api/trips", async (c) => {
 
 app.get("/api/trips", async (c) => {
   const viewer = c.get("viewer");
-  const userId = viewer.id;
 
-  const { results } = await c.env.DB.prepare(
-    `SELECT t.* FROM trips t
-       JOIN trip_members m ON m.trip_id = t.id
-      WHERE m.user_id = ?
-      ORDER BY t.start_date DESC`,
-  )
+  return c.json({
+    me: me(viewer),
+    trips: await tripsFor(c.env.DB, viewer.id),
+    // The card at the top of design/Trips.dc.html rides along rather than
+    // costing a second call, because this is the screen every load opens on.
+    invite: await pendingInvite(c, viewer.id),
+  });
+});
+
+async function tripsFor(db: D1Database, userId: string) {
+  const { results } = await db
+    .prepare(
+      `SELECT t.* FROM trips t
+         JOIN trip_members m ON m.trip_id = t.id
+        WHERE m.user_id = ?
+        ORDER BY t.start_date DESC`,
+    )
     .bind(userId)
     .all<{ id: string; name: string; start_date: string; end_date: string; owner_id: string }>();
 
   const trips = [];
   for (const trip of results ?? []) {
-    const [days, stops, members] = await Promise.all([
-      listDays(c.env.DB, trip.id),
-      listStops(c.env.DB, trip.id),
-      listMembers(c.env.DB, trip.id),
+    const [days, stops, people] = await Promise.all([
+      listDays(db, trip.id),
+      listStops(db, trip.id),
+      peopleOfTrip(db, trip.id),
     ]);
     const cities = citiesForTrip(days, stops);
     const range = dateRangeLabel(trip.start_date, trip.end_date);
@@ -248,12 +456,12 @@ app.get("/api/trips", async (c) => {
       subtitle: cities.length ? `${range} · ${cities.join(", ")}` : range,
       stopCount: stops.length,
       visitedCount: stops.filter((s) => s.status === "visited").length,
-      members,
+      members: listMembers(people),
     });
   }
 
-  return c.json({ me: me(viewer), trips });
-});
+  return trips;
+}
 
 app.get("/api/trips/:tripId", async (c) => {
   const viewer = c.get("viewer");
@@ -262,30 +470,105 @@ app.get("/api/trips/:tripId", async (c) => {
   const trip = await tripForViewer(c.env.DB, tripId, viewer.id);
   if (!trip) return c.json({ error: "no such trip" }, 404);
 
-  const [days, stops, members] = await Promise.all([
+  const [days, stops, people] = await Promise.all([
     listDays(c.env.DB, tripId),
     listStops(c.env.DB, tripId),
-    listMembers(c.env.DB, tripId),
+    peopleOfTrip(c.env.DB, tripId),
   ]);
-
-  // The avatar on a card is whoever added it, and it needs their name — the
-  // hash of a user id was standing in for one and reading as somebody else.
-  const authors = await usersById(c.env.DB, stops.map((s) => s.created_by));
 
   return c.json({
     trip,
-    me: me(viewer),
-    members,
+    // Your own circle is the one this trip deals you, not a hash of your id,
+    // so it cannot collide with a person you invited (see `peopleOfTrip`). The
+    // name and email are yours and are not a leak to you.
+    me: { ...personOf(viewer.id, people), name: viewer.name, email: viewer.email },
+    members: listMembers(people),
     cities: citiesForTrip(days, stops),
     headerSubtitle: headerSubtitle(trip.start_date, trip.end_date, stops.length),
     days: days.map((day) => ({
       ...day,
       label: dayLabel(day.date),
-      stops: stopsForDay(stops, day.id, authors),
+      stops: stopsForDay(stops, day.id, people),
     })),
-    unplanned: stopsForDay(stops, null, authors),
+    unplanned: stopsForDay(stops, null, people),
   });
 });
+
+// --- people, and the link that adds one -------------------------------------
+
+/**
+ * `design/Members.dc.html`, less its two email halves.
+ *
+ * Reached from the small person-plus button at the end of the avatar stack,
+ * which is where PLAN.md section 4h puts it: that is already where "who is on
+ * this trip" is being answered, and it keeps the app to one menu.
+ */
+app.get("/api/trips/:tripId/people", async (c) => {
+  const viewer = c.get("viewer");
+  const userId = viewer.id;
+  const tripId = c.req.param("tripId");
+  const trip = await tripForViewer(c.env.DB, tripId, userId);
+  if (!trip) return c.json(NO_SUCH_TRIP, 404);
+
+  const [people, counts, invite] = await Promise.all([
+    peopleOfTrip(c.env.DB, tripId),
+    placeCounts(c.env.DB, tripId),
+    liveInvite(c.env.DB, tripId),
+  ]);
+  const ids = [...people.keys()];
+
+  return c.json({
+    tripId,
+    title: "Who is on this trip",
+    subtitle: `${trip.name} · ${ids.length} ${ids.length === 1 ? "person" : "people"}`,
+    people: ids.map((id) => {
+      const p = personOf(id, people);
+      const you = id === userId;
+      const owner = id === trip.owner_id;
+      return {
+        // A member from before sign-in existed has no name, and their two
+        // derived letters are the only thing we know them by. Printing those
+        // is honest; inventing a name for them would not be.
+        name: p.name || p.initials,
+        initials: p.initials,
+        color: p.color,
+        tag: you ? (owner ? "you, started this trip" : "you") : owner ? "started this trip" : "",
+        // design/Members.dc.html writes your own email under your own name and
+        // a count under everybody else's. Your address is not a leak to you,
+        // and nobody else's is in this payload at all.
+        line: you && viewer.email ? viewer.email : contributionLine(counts.get(id) ?? 0),
+      };
+    }),
+    invite: inviteView(c, invite),
+  });
+});
+
+app.post("/api/trips/:tripId/invite", async (c) => {
+  const { id: userId } = c.get("viewer");
+  const tripId = c.req.param("tripId");
+  if (!(await isMember(c.env.DB, tripId, userId))) return c.json(NO_SUCH_TRIP, 404);
+
+  const invite = await ensureInvite(c.env.DB, tripId, userId);
+  return c.json({ invite: inviteView(c, invite) });
+});
+
+app.post("/api/trips/:tripId/invite/revoke", async (c) => {
+  const { id: userId } = c.get("viewer");
+  const tripId = c.req.param("tripId");
+  if (!(await isMember(c.env.DB, tripId, userId))) return c.json(NO_SUCH_TRIP, 404);
+
+  await revokeInvites(c.env.DB, tripId);
+  return c.json({ invite: null });
+});
+
+/** The link, built against whatever host served the request. */
+function inviteView(c: Ctx, invite: InviteRow | null) {
+  if (!invite) return null;
+  return {
+    url: inviteUrl(new URL(c.req.url).origin, invite.token),
+    ago: agoLabel(invite.created_at, Date.now()),
+  };
+}
 
 /**
  * The line under the trip name. `Sep 30 – Oct 10 · day 3 of 11` while the trip
@@ -311,24 +594,14 @@ const daysBetween = (a: string, b: string) =>
 /**
  * The avatars on a trip card, in the order people joined.
  *
- * Two reads rather than a join: the ids come off `trip_members`, and the names
- * come out of Better Auth's `user` table in one go. A member whose account no
- * longer exists still has a row here, and still gets a circle — see
- * `strangerPerson`.
+ * `peopleOfTrip` has already done the two reads this needs — the ids off
+ * `trip_members` in join order, the names out of Better Auth's `user` table in
+ * one go — and dealt each person the colour they wear on this trip. A member
+ * whose account no longer exists still has a row there, and still gets a
+ * circle: `personOf` falls back to two letters derived from the id.
  */
-async function listMembers(db: D1Database, tripId: string) {
-  const { results } = await db
-    .prepare(`SELECT user_id FROM trip_members WHERE trip_id = ? ORDER BY joined_at`)
-    .bind(tripId)
-    .all<{ user_id: string }>();
-
-  const ids = (results ?? []).map((r) => r.user_id);
-  const users = await usersById(db, ids);
-  return ids.map((id) => {
-    const user = users.get(id);
-    return user ? person(user) : strangerPerson(id);
-  });
-}
+const listMembers = (people: ReadonlyMap<string, Person>) =>
+  [...people.values()].map((p) => ({ initials: p.initials, color: p.color, name: p.name }));
 
 // --- place search -----------------------------------------------------------
 
@@ -353,7 +626,9 @@ app.get("/api/trips/:tripId/place-search", async (c) => {
   }
 
   const trip = await tripForViewer(c.env.DB, tripId, userId);
-  if (!trip) return c.json({ error: "no such trip" }, 404);
+  // A search is a billed call to Google, so it is behind the membership check
+  // as much as any write is — and `tripForViewer` has already spent it.
+  if (!trip) return c.json(NO_SUCH_TRIP, 404);
 
   const [days, stops] = await Promise.all([listDays(c.env.DB, tripId), listStops(c.env.DB, tripId)]);
 
@@ -509,8 +784,9 @@ async function placeFromCache(env: Env, placeId: string): Promise<PlaceDetails |
 
 app.post("/api/trips/:tripId/stops", async (c) => {
   const { id: userId } = c.get("viewer");
-
   const tripId = c.req.param("tripId");
+  if (!(await isMember(c.env.DB, tripId, userId))) return c.json(NO_SUCH_TRIP, 404);
+
   const body = await c.req.json<{
     placeId?: string;
     dayId?: string | null;
@@ -598,11 +874,11 @@ app.post("/api/trips/:tripId/stops/link", async (c) => {
   const { id: userId } = c.get("viewer");
 
   const tripId = c.req.param("tripId");
+  const trip = await tripForViewer(c.env.DB, tripId, userId);
+  if (!trip) return c.json(NO_SUCH_TRIP, 404);
+
   const body = await c.req.json<{ url?: string; dayId?: string | null }>();
   if (!body.url) return c.json({ error: "paste a link first" }, 400);
-
-  const trip = await tripForViewer(c.env.DB, tripId, userId);
-  if (!trip) return c.json({ error: "no such trip" }, 404);
 
   const name = await placeNameFromUrl(body.url);
   if (!name) return c.json({ error: "that link does not name a place" }, 400);

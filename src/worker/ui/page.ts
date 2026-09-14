@@ -27,6 +27,7 @@ function iconSet(): Record<string, string> {
     // in design/PlannerMobile.dc.html.
     plusTiny: icons.plus({ size: 11, color: C.faint, width: 2.6 }),
     chevron: icons.chevron({ size: 13 }),
+    chevronLeft: icons.chevronLeft({ size: 17, color: C.inkSoft }),
     chevronSmall: icons.chevron({ size: 11 }),
     calendar: icons.calendar({ size: 15, color: C.inkSoft }),
     invite: icons.invite({ size: 15, color: C.inkSoft }),
@@ -53,6 +54,8 @@ function iconSet(): Record<string, string> {
     arrowLeftSoft: icons.arrowLeft({ size: 16, color: C.inkSoft, width: 2.2 }),
     pinInk: icons.pinDot({ size: 16, color: C.ink }),
     checkGreen: icons.check({ size: 14, color: C.todayInk }),
+    // design/Members.dc.html: the chain beside "Anyone with this link".
+    chain: icons.link({ size: 17, color: C.inkSoft }),
     // SignIn draws it at 14px in #A59C90.
     shield: icons.shield({ size: 14, color: "#A59C90" }),
     // Google's, at the size of the circle the artboard drew around a letter.

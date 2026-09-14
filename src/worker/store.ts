@@ -8,10 +8,11 @@
  */
 
 import { orderKeyAppend, orderKeyBetween } from "../lib/order.ts";
+import { inviteToken } from "../lib/invite.ts";
 import { describeStop, isAccommodation, tripCities } from "../lib/derive.ts";
 import type { PlaceDetails } from "../lib/places.ts";
 import type { DayGeo, LatLng } from "../lib/geo.ts";
-import { avatarColor, dayHue } from "./ui/tokens.ts";
+import { AVATAR_COLORS, avatarColor, dayHue } from "./ui/tokens.ts";
 
 export { dayHue };
 
@@ -495,15 +496,6 @@ export function initialsForName(name: string): string {
   return `${first[0]}${last[0]}`.toUpperCase();
 }
 
-/** The name if we have it, and the old hash if the account is gone. */
-function authorInitials(
-  userId: string,
-  people?: ReadonlyMap<string, { id: string; name: string }>,
-): string {
-  const user = people?.get(userId);
-  return user?.name ? initialsForName(user.name) : initialsFor(userId);
-}
-
 /**
  * Two letters for someone with no name to read.
  *
@@ -530,14 +522,16 @@ export function stopsForDay(
   stops: readonly StopRow[],
   dayId: string | null,
   /**
-   * Who wrote each stop, by id.
+   * Who wrote each stop, and what circle they wear on this trip.
    *
    * Without it the avatar falls back to two letters hashed out of the user id,
    * which is what it did when nobody had a name. That is why a stop added by
    * a signed-in Kevin Qiu was labelled MZ: the hash never knew about the
-   * account, and nothing told it once there was one.
+   * account, and nothing told it once there was one. The colour comes from the
+   * map too rather than from the id, because on this trip it is dealt by join
+   * order — see `peopleOfTrip`.
    */
-  people?: ReadonlyMap<string, { id: string; name: string }>,
+  people?: ReadonlyMap<string, Person>,
 ): StopView[] {
   const ordered = stops.filter((s) => s.day_id === dayId);
   // To be planned is a bucket, not a route. Two things sitting in it next to
@@ -547,6 +541,7 @@ export function stopsForDay(
   const isRoute = dayId !== null;
 
   return ordered.map((stop, i) => {
+    const author = personOf(stop.created_by, people);
     const location = stop.lat !== null && stop.lng !== null ? { lat: stop.lat, lng: stop.lng } : null;
     const before = isRoute ? ordered[i - 1] : undefined;
     const previous = before
@@ -568,8 +563,8 @@ export function stopsForDay(
       note: stop.note,
       time: stop.start_time ?? "",
       status: stop.status,
-      author: authorInitials(stop.created_by, people),
-      authorColor: avatarColor(stop.created_by),
+      author: author.initials,
+      authorColor: author.color,
       city: stop.city,
       accommodation: isAccommodation(stop.category),
       navigateUrl: navigateUrl(location, stop.google_place_id),
@@ -620,6 +615,59 @@ export async function usersById(
 }
 
 /**
+ * A person, in the shape an avatar needs.
+ *
+ * `name` is Better Auth's, which is Google's, and the initials come from it;
+ * the colour comes from where they sit on the trip, which is what keeps two
+ * people on one trip from wearing the same circle (see `peopleOfTrip`).
+ * Someone with no `user` row — a browser that owned trips before sign-in
+ * existed and never signed in on it — keeps the two derived letters
+ * `initialsFor` has always given it, so nothing it made loses its author.
+ */
+export interface Person {
+  id: string;
+  name: string;
+  initials: string;
+  color: string;
+}
+
+export function personOf(userId: string, people?: ReadonlyMap<string, Person>): Person {
+  const known = people?.get(userId);
+  if (known) return known;
+  return { id: userId, name: "", initials: initialsFor(userId), color: avatarColor(userId) };
+}
+
+/**
+ * Everyone on one trip, with the colour their avatar is that trip.
+ *
+ * The colour comes from the order people joined rather than from a hash of
+ * their id, which is what `tokens.ts` transcribes from the artboards: the
+ * person who started it is terracotta, then blue, violet, mauve. A hash was
+ * fine while a trip had one person on it and stops being fine the moment an
+ * invite is accepted, because two people can hash to the same circle and the
+ * avatar is the only thing telling them apart.
+ */
+export async function peopleOfTrip(
+  db: D1Database,
+  tripId: string,
+): Promise<Map<string, Person>> {
+  const ids = await memberIds(db, tripId);
+  const named = await usersById(db, ids);
+
+  const out = new Map<string, Person>();
+  ids.forEach((id, index) => {
+    const name = named.get(id)?.name ?? "";
+    out.set(id, {
+      id,
+      name,
+      initials: name ? initialsForName(name) : initialsFor(id),
+      color: AVATAR_COLORS[index % AVATAR_COLORS.length] as string,
+    });
+  });
+  return out;
+}
+
+/**
  * What happens to the trips a `yvr_dev_uid` cookie owns: they follow the
  * browser that made them, once, into the account that signs in on it.
  *
@@ -654,13 +702,128 @@ export async function adoptDevIdentity(
   ]);
 }
 
-/** Membership is the permission (PLAN.md section 5). There is no role to read. */
+/* -------------------------------------------------------------- membership */
+
+/**
+ * Membership IS the permission (PLAN.md section 5), which only means anything
+ * once there is a second person, so this is the check the invite feature turns
+ * from a comment into a rule. There is no role to read.
+ */
 export async function isMember(db: D1Database, tripId: string, userId: string): Promise<boolean> {
   const row = await db
     .prepare(`SELECT 1 AS ok FROM trip_members WHERE trip_id = ? AND user_id = ?`)
     .bind(tripId, userId)
     .first<{ ok: number }>();
   return row !== null;
+}
+
+export async function memberIds(db: D1Database, tripId: string): Promise<string[]> {
+  const { results } = await db
+    .prepare(`SELECT user_id FROM trip_members WHERE trip_id = ? ORDER BY joined_at`)
+    .bind(tripId)
+    .all<{ user_id: string }>();
+  return (results ?? []).map((r) => r.user_id);
+}
+
+/** Idempotent: following the same link twice joins you once. */
+export async function joinTrip(db: D1Database, tripId: string, userId: string): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO trip_members (trip_id, user_id, joined_at) VALUES (?, ?, ?)
+         ON CONFLICT (trip_id, user_id) DO NOTHING`,
+    )
+    .bind(tripId, userId, now())
+    .run();
+}
+
+/** How many places each person on the trip put there, for the People screen. */
+export async function placeCounts(db: D1Database, tripId: string): Promise<Map<string, number>> {
+  const { results } = await db
+    .prepare(
+      `SELECT created_by, COUNT(*) AS n FROM stops
+        WHERE trip_id = ? AND deleted_at IS NULL
+        GROUP BY created_by`,
+    )
+    .bind(tripId)
+    .all<{ created_by: string; n: number }>();
+
+  const out = new Map<string, number>();
+  for (const row of results ?? []) out.set(row.created_by, row.n);
+  return out;
+}
+
+// --- invites ----------------------------------------------------------------
+
+export interface InviteRow {
+  id: string;
+  trip_id: string;
+  token: string;
+  invited_by: string;
+  created_at: number;
+}
+
+/**
+ * The trip's live invite link, or nothing.
+ *
+ * There is one at a time, and it is reusable: an invite you cannot copy twice
+ * is not a link you can hand to two people, and the whole point of a link
+ * rather than an email is that the inviter sends it however they already talk
+ * to whoever is coming. Revoking it is the explicit act PLAN.md section 5 puts
+ * in place of an expiry.
+ */
+export async function liveInvite(db: D1Database, tripId: string): Promise<InviteRow | null> {
+  return await db
+    .prepare(
+      `SELECT id, trip_id, token, invited_by, created_at FROM trip_invites
+        WHERE trip_id = ? AND revoked_at IS NULL
+        ORDER BY created_at DESC LIMIT 1`,
+    )
+    .bind(tripId)
+    .first<InviteRow>();
+}
+
+/** The live one if there is one, a new one if there is not. */
+export async function ensureInvite(
+  db: D1Database,
+  tripId: string,
+  userId: string,
+): Promise<InviteRow> {
+  const existing = await liveInvite(db, tripId);
+  if (existing) return existing;
+
+  const invite: InviteRow = {
+    id: crypto.randomUUID(),
+    trip_id: tripId,
+    token: inviteToken(),
+    invited_by: userId,
+    created_at: now(),
+  };
+  await db
+    .prepare(
+      `INSERT INTO trip_invites (id, trip_id, token, invited_by, created_at) VALUES (?, ?, ?, ?, ?)`,
+    )
+    .bind(invite.id, invite.trip_id, invite.token, invite.invited_by, invite.created_at)
+    .run();
+  return invite;
+}
+
+/** Turning the switch off. Every link the trip has ever had stops working. */
+export async function revokeInvites(db: D1Database, tripId: string): Promise<void> {
+  await db
+    .prepare(`UPDATE trip_invites SET revoked_at = ? WHERE trip_id = ? AND revoked_at IS NULL`)
+    .bind(now(), tripId)
+    .run();
+}
+
+/** A followed link, resolved. Revoked and unknown are the same answer. */
+export async function inviteByToken(db: D1Database, token: string): Promise<InviteRow | null> {
+  return await db
+    .prepare(
+      `SELECT id, trip_id, token, invited_by, created_at FROM trip_invites
+        WHERE token = ? AND revoked_at IS NULL`,
+    )
+    .bind(token)
+    .first<InviteRow>();
 }
 
 /**
