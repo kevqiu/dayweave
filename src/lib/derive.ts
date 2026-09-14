@@ -81,3 +81,58 @@ export function tripCities(citiesInDayOrder: readonly (string | null)[]): string
   }
   return out;
 }
+
+/**
+ * Words that mean "this is where you sleep".
+ *
+ * Google's Places types for lodging come through `shortCategory` as ordinary
+ * lowercase words — `hotel`, `hostel`, `japanese inn` — so this reads the
+ * category the app already stores rather than a column of its own. That has
+ * two consequences worth knowing: a stop added before this existed is
+ * recognised too, and a place Google types as something else (a hotel filed
+ * under `restaurant` for its dining room) is not.
+ *
+ * Deliberately narrow. `apartment` and `campground` are left out: the first is
+ * as often a place you are visiting as a place you are staying, and the
+ * second is a stop on a hike as often as a night.
+ */
+const LODGING = [
+  "hotel",
+  "motel",
+  "hostel",
+  "inn",
+  "ryokan",
+  "minshuku",
+  "resort",
+  "lodging",
+  "lodge",
+  "guest house",
+  "guesthouse",
+  "guest room",
+  "bed and breakfast",
+  "bed & breakfast",
+  "homestay",
+  "farmstay",
+  "cottage",
+  "capsule",
+];
+
+/**
+ * Whether a stop is somewhere you sleep.
+ *
+ * A whole word or phrase, never a substring: "inn" must not match "dinner" or
+ * "Innsbruck", and "hotel" as part of "hotel supply store" is a shop.
+ */
+export function isAccommodation(category: string | null | undefined): boolean {
+  if (!category) return false;
+  const words = category.toLowerCase().trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return false;
+
+  for (const term of LODGING) {
+    const parts = term.split(" ");
+    for (let i = 0; i + parts.length <= words.length; i++) {
+      if (parts.every((part, k) => words[i + k] === part)) return true;
+    }
+  }
+  return false;
+}

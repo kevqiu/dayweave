@@ -50,3 +50,67 @@ export function cardMap(): string {
   </g>
 </svg>`;
 }
+
+/**
+ * The 272px band across the top of `design/SignIn.dc.html`.
+ *
+ * A quiet map with a dashed thread through six pins, which the artboard's own
+ * comment calls "the day ramp read left to right". The six are transcribed
+ * rather than taken from `dayHue`: they are close to it but not equal, and on
+ * this screen they are a drawing of a trip rather than any trip's days, so the
+ * artboard is what they answer to.
+ *
+ * The pins sit on the 375 x 272 box rather than inside the SVG's own
+ * coordinate space, which is why this returns a block of markup and not one
+ * `<svg>`: the artboard positions them the same way.
+ */
+export function signInMap(): string {
+  /*
+   * The pins are drawn *inside* the SVG, in its own coordinates.
+   *
+   * The artboard positions them as absolutely-placed divs at `left: 58px;
+   * top: 236px` while the dashed thread is a path at `M58 236` in a viewBox of
+   * `30 60 330 240`. Those are two different coordinate spaces — the viewBox
+   * maps 58 to about 32 screen pixels and 236 to about 200 — so the thread
+   * misses every pin it is supposed to run through, by tens of pixels, and
+   * misses by a different amount at every window size.
+   *
+   * Putting the circles in the path's own space fixes it at every size and for
+   * free. The radii are the artboard's diameters scaled by the same 0.88 the
+   * viewBox applies, so they come out the size it drew them.
+   */
+  const K = 330 / 375;
+  const pins = [
+    { x: 58, y: 236, d: 17, hex: "#3F6B4A" },
+    { x: 118, y: 212, d: 15, hex: "#70864D" },
+    { x: 178, y: 214, d: 15, hex: "#AD8A49" },
+    { x: 232, y: 232, d: 15, hex: "#CE8845" },
+    { x: 282, y: 210, d: 15, hex: "#E0B054" },
+    { x: 306, y: 96, d: 14, hex: "#F0DCA6" },
+  ];
+
+  const circles = pins
+    .map(
+      (p) =>
+        `<circle cx="${p.x}" cy="${p.y}" r="${((p.d / 2) * K).toFixed(1)}" fill="${p.hex}" ` +
+        `stroke="${C.paper}" stroke-width="2.65"></circle>`,
+    )
+    .join("\n  ");
+
+  return `<svg width="375" height="272" viewBox="30 60 330 240" style="display:block">
+  <rect width="390" height="396" fill="${C.mapFill}"></rect>
+  <path d="M0 306 C 78 288, 138 322, 208 310 C 282 297, 326 328, 390 314 L390 396 L0 396 Z" fill="#D9E4E3"></path>
+  <path d="M232 44 C 292 38, 336 76, 338 128 C 340 182, 292 208, 248 194 C 204 180, 196 110, 232 44 Z" fill="#E2E9D7"></path>
+  <g stroke="#E7DFD0" stroke-width="1" fill="none">
+    <path d="M0 84 H390 M0 156 H390 M0 232 H390 M64 0 V306 M148 0 V306 M240 0 V306 M320 0 V306"></path>
+  </g>
+  <g stroke="#FCF9F2" stroke-linecap="round" fill="none">
+    <path d="M-10 118 C 90 110, 152 178, 244 172 C 318 167, 352 212, 400 206" stroke-width="9"></path>
+    <path d="M100 -10 C 108 84, 84 190, 112 268 C 138 340, 120 360, 132 410" stroke-width="9"></path>
+    <path d="M276 -10 C 272 88, 296 168, 274 248 C 256 306, 272 330, 264 380" stroke-width="6"></path>
+  </g>
+  <path d="M58 236 C 104 200, 134 250, 178 214 C 218 182, 236 246, 282 210 C 316 184, 330 132, 306 96" fill="none" stroke="#B0A794" stroke-width="1.6" stroke-dasharray="1 6" stroke-linecap="round" opacity="0.8"></path>
+  ${circles}
+</svg>
+<div class="signin-fade"></div>`;
+}

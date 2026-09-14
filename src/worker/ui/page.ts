@@ -1,7 +1,7 @@
 import { CLIENT } from "./client.ts";
 import * as icons from "./icons.ts";
-import { cardMap, mapBackground } from "./map.ts";
-import { lookPinIcon, mapStyle, pinIcon } from "./gmap.ts";
+import { cardMap, mapBackground, signInMap } from "./map.ts";
+import { lookPinIcon, mapStyle } from "./gmap.ts";
 import { PLAN_CLIENT } from "./plan-client.ts";
 import { styles } from "./styles.ts";
 import { COLOR as C, FONTS_HREF } from "./tokens.ts";
@@ -53,6 +53,17 @@ function iconSet(): Record<string, string> {
     arrowLeftSoft: icons.arrowLeft({ size: 16, color: C.inkSoft, width: 2.2 }),
     pinInk: icons.pinDot({ size: 16, color: C.ink }),
     checkGreen: icons.check({ size: 14, color: C.todayInk }),
+    // SignIn draws it at 14px in #A59C90.
+    shield: icons.shield({ size: 14, color: "#A59C90" }),
+    // Google's, at the size of the circle the artboard drew around a letter.
+    googleG: icons.googleG({ size: 18 }),
+    // The roof on a bed: cream inside a pin, the day's own green in a row.
+    houseWhite: icons.house({ size: 13, color: C.card }),
+    // In a row's chip the roof takes the chip's own colour, so it is drawn in
+    // the bed green rather than inheriting a stroke it cannot inherit.
+    houseHue: icons.house({ size: 11, color: "#3F6B4A" }),
+    // The search row that makes a stop with no place behind it.
+    pencilGrey: icons.pencil({ size: 16, color: "#8C8479" }),
   };
 }
 
@@ -68,6 +79,7 @@ export function page(mapsKey = ""): string {
     icons: iconSet(),
     map: mapBackground(),
     cardMap: cardMap(),
+    signInMap: signInMap(),
   };
 
   return `<!doctype html>
@@ -89,14 +101,12 @@ export function page(mapsKey = ""): string {
 window.__ICONS__ = ${JSON.stringify(boot.icons)};
 window.__MAP__ = ${JSON.stringify(boot.map)};
 window.__CARD_MAP__ = ${JSON.stringify(boot.cardMap)};
-// Empty until a browser key is provisioned, and the drawn map stands in.
+window.__SIGNIN_MAP__ = ${JSON.stringify(boot.signInMap)};
+// Provisioned and deployed (INFRA.md item 5). Empty only if the binding is,
+// and then the drawn map stands in — as it also does if the script does not
+// load within 8 seconds.
 window.__MAPS_KEY__ = ${JSON.stringify(mapsKey)};
 window.__MAP_STYLE__ = ${JSON.stringify(mapStyle())};
-window.__PIN__ = ${JSON.stringify({
-  today: { plain: pinIcon(C.today, false), selected: pinIcon(C.today, true) },
-  ahead: { plain: pinIcon(C.ahead, false), selected: pinIcon(C.ahead, true) },
-  done: { plain: pinIcon(C.done, false), selected: pinIcon(C.done, true) },
-})};
 window.__LOOK_PIN__ = ${JSON.stringify(lookPinIcon())};
 </script>
 <!-- The Plan view's arithmetic, checked against src/lib/plan.ts by a test. -->

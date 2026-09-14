@@ -1,7 +1,8 @@
 # Working on this repo
 
 Read `PLAN.md` for what the product is and why each decision went the way it
-did. Read `ENVIRONMENT.md` before trying to deploy. This file is about one
+did. Read `ENVIRONMENT.md` before trying to deploy, and `INFRA.md` for the
+state of the live account — every item in it is closed bar two Google quotas. This file is about one
 thing only: **the design in `design/` is the specification for the UI, and the
 UI is expected to match it 1:1.**
 
@@ -28,10 +29,11 @@ That is the map of what exists:
 | `TripMenu.dc.html` | The one dropdown on the trip name (§4h) | yes |
 | `SheetFull.dc.html` | The sheet expanded, and drag-to-reorder | yes, less the title |
 | `AddNote.dc.html` | Only the button reading Add note. See below | n/a |
-| `SignIn.dc.html` | Sign in (§5) | no — needs Better Auth |
-| `Planner.dc.html`, `PlannerStop.dc.html`, `PlannerMobile.dc.html` | The day grid (§4f) | yes, less the travel and lodging rows |
+| `SignIn.dc.html` | Sign in (§5) | yes, less the share-link line |
+| `Planner.dc.html`, `PlannerStop.dc.html` | The day grid (§4f) | yes, less the travel row |
+| `PlannerMobile.dc.html` | The phone Planner as a list of rows | **superseded** — the phone draws one column of the grid instead. See below |
 | `Offline.dc.html`, `Import.dc.html`, `Members.dc.html` | The other states (§4g) | no |
-| `Desktop.dc.html` | The wide layout | no |
+| `Desktop.dc.html` | The wide layout: bar, itinerary rail, map, detail panel | yes, less the sources block |
 | `DirectionA/B/C.dc.html` | Rejected directions. Reference only — do not build these | n/a |
 
 **Several artboards are Main.dc.html with one state changed**, and diffing them
@@ -208,21 +210,80 @@ To be planned bucket is `#94897A`, which is not on the ramp.
   throws away any pointer capture held on it — nothing moves and nothing
   drops. This has now been the cause of two bugs, the sheet handle and this
   one.
-- **The Plan view is one view at two densities, not two screens.** PLAN.md §4f:
-  a seven-column grid cannot work at 375px, so the phone draws the day as a
-  clock and the desk draws the week as a grid. Both read the same trip payload
-  and write the same ops, and crossing 780px re-renders from one into the
-  other. `#frame` fills the viewport up to `1440 x 900` while the grid is
-  showing and shrinks back on the way out; every other screen stays the 375px
-  phone, because `Desktop.dc.html` is not built.
+- **The window is not a phone.** `#frame` used to be 375 x 667 at every size
+  above a phone, so a monitor got a business card of an app floating in an
+  ocean of cream — and the Planner, the one screen that grew, stopped at
+  1440 x 900 and floated too. There is no reading of "the artboards are 375
+  wide" that makes that right: an artboard is drawn at the size of the device
+  it is for, and a desk is a different device.
 
-  **780 is where the grid starts working, and it is not the artboard's 1440.**
-  1440 is the width the Planner was drawn at, not the width it needs: what it
-  needs is a column per day wide enough to read a place name in, and room for
-  the tray beside them. So the grid deals **as many days as fit** — seven at
-  1280 and up, fewer below, never a column under 120px and never fewer than
-  three days — rather than squeezing seven columns into a tablet. The height
-  half of the query keeps a phone on its side out of it.
+  Below 780px the frame is the phone. At or above, it fills the window and
+  each screen lays itself out for the room:
+
+  - **The trip** gets `design/Desktop.dc.html`, which was in this table as not
+    built and is the reason the gap existed. Three columns under one bar: the
+    316px itinerary rail on the left, the map taking whatever is left, and the
+    334px panel for the stop being looked at. The rail's rows keep the phone's
+    drag contract — a `drop-zone` with a day id, an `order-row` with a stop id
+    — so dragging between days works without a second implementation. **The
+    panel is absent when nothing is selected**, rather than held open empty.
+  - **The Planner** is the same grid, dealing as many days as fit.
+  - **Trips, New trip and Sign in are one column of content each.** There is
+    no second pane for them to grow into and inventing one would be furniture,
+    so the window holds the column, centred, as a card — which is what it
+    always was, minus the pretence. The card hugs its content, so a trip list
+    with one trip on it does not hold 700px of cream open underneath; sign-in
+    and New trip keep a full height, because their layouts are anchored to the
+    bottom of one.
+
+  The artboard's **"WHERE THIS CAME FROM"** block is not built: `sources` is a
+  table with no importer behind it. Nor is the "Sheet in sync" chip, for the
+  same reason.
+
+- **The Plan view is one grid at every width — one column on a phone.** It was
+  two screens: PLAN.md §4f reasoned that a seven-column grid cannot work at
+  375px, so the phone drew the day as a clock, a list of rows with the times
+  down the side, and the desk drew the week as a grid.
+
+  The premise was right and the conclusion was wrong. The answer to "seven
+  columns will not fit" is **one column**, not a different screen. A day at
+  375px with real hours in it is a calendar, and you can see the shape of the
+  day and the holes in it; a list of rows is an agenda, which is a different
+  thing and loses exactly that. So `screenGrid` is the whole Plan view now, and
+  `gridDays()` returns 1 below 780px. The clock — `screenPlan`, `dayClock`,
+  `planRow`, the phone's own tray strip — is gone, along with its CSS.
+
+  What the phone keeps of its own: the pill rail picks the day (so the column
+  header does not repeat the date, and carries the city and the count
+  instead), a sideways swipe steps a day, and To be planned is a drawer rather
+  than a panel. `#frame` fills the viewport up to `1440 x 900` only for the
+  wide grid; the phone stays 375, because `Desktop.dc.html` is not built.
+
+  **780 is where more than one column starts working, and it is not the
+  artboard's 1440.** 1440 is the width the Planner was drawn at, not the width
+  it needs: what it needs is a column per day wide enough to read a place name
+  in, and room for the tray beside them. So above 780 the grid deals **as many
+  days as fit** — seven at 1280 and up, fewer below, never a column under
+  120px and never fewer than three. The height half of the query keeps a phone
+  on its side out of it.
+
+  **To be planned is a drawer on the right, on a phone.** At a desk it is a
+  column beside the grid and always open, because there is room for both and
+  nothing is covered. At 375px there is no such room, so it slides in over the
+  calendar and is shut by default — the calendar is what the screen is for and
+  the drawer is where you go to fetch something. Two consequences follow from
+  that and are built:
+
+  - **Dragging a card out of it closes it.** The point of picking something up
+    in there is to put it down on the day, and the day is underneath.
+  - **Dragging a card back against the right edge opens it.** A shut drawer is
+    a drop target you cannot see into; holding a card there slides it out so
+    the card can go among the others rather than through a slot. It waits
+    350ms first, the same reason a collapsed day in the sheet waits before
+    springing open: a finger crossing the edge on its way to the last column
+    must not drag the drawer out from under it. It is done with a class rather
+    than a `render()`, because a render mid-drag would replace the handle and
+    the card in the air.
 
   **It opens where the day is.** A calendar that opens on 08:00 with the day
   below the fold has hidden what it was opened for, and on a trip where
@@ -239,16 +300,18 @@ To be planned bucket is `#94897A`, which is not on the ramp.
   `plan-client.test.ts` runs that script and checks it agrees with
   `src/lib/plan.ts` on a table of inputs, so the copy cannot drift quietly.
 
-  Four things the artboards do not settle, decided here:
+  Things the artboards do not settle, decided here:
 
-  - **A row's height answers to the gap after it.** `PlannerMobile.dc.html`
-    draws five rows at 46/62/46/74/46 against times that no single rule
-    reproduces — the 62 in particular answers to nothing else on the page.
-    What it does say is that the row with the largest following gap is the one
-    carrying the dashed slot. So every row is 46, and a row grows by the slot
-    when the gap after it is 75 minutes or more. A visited stop never grows
-    one: that gap is in the past, and the plus on the slot is an invitation to
-    plan.
+  - **Where you sleep is pinned above the hours.** `Planner.dc.html` rules a
+    lodging strip and this file used to say it was not built, because
+    `lodging` is a table with no API and the row would have been furniture
+    with nothing behind it. There is something behind it now: a stop whose
+    category reads as lodging is an accommodation node, so the strip is fed by
+    the trip's own stops. It sits **above** the hours and outside the
+    scroller, because a hotel is not an event at a time — it is the fact the
+    whole day hangs off — so it should not scroll away with the morning. A bed
+    is drawn there and only there: it is skipped in the column, so it does not
+    also turn up in the `NO TIME` band.
   - **Untimed stops wait in a band under the hours.** Every card on
     `Planner.dc.html` has a time and most stops on a real trip have none
     (PLAN.md §11). Giving them one nobody chose is exactly the placeholder this
@@ -262,16 +325,119 @@ To be planned bucket is `#94897A`, which is not on the ramp.
     artboard's *Edit* can actually do: the name comes from the place and the
     note has its own item. No artboard draws the editor itself; it is the note
     editor's sheet with a time field.
-  - **The travel and lodging rows are not built.** `Planner.dc.html` rules two
-    strips under the grid for flights, trains and hotels. `travel_legs` and
-    `lodging` are tables with no API and no way to put anything in them, so
-    drawing the rows would be furniture with nothing behind it. The same goes
-    for the add-a-day rails either side of the grid.
+  - **The travel row is not built.** `Planner.dc.html` rules a strip under the
+    grid for flights and trains. `travel_legs` is a table with no API and no
+    way to put anything in it, so drawing the row would be furniture with
+    nothing behind it. The same goes for the add-a-day rails either side of
+    the grid. Lodging *is* built, from stops rather than from the `lodging`
+    table — see above.
 
-  **What is being dragged decides how the drop is read.** A sheet stacks its
-  days, so the finger's y says which one it is over. The Planner's columns sit
-  side by side and share every y, so there the x is the whole answer — and a
-  hit test that only checked y quietly dropped everything on Monday.
+  **A drop is hit-tested on both axes, always.** It used to check y alone
+  unless the zone was a grid column, on the reasoning that a sheet stacks its
+  days so the horizontal says nothing about which one you are over. True of a
+  sheet, and false of everything else — and it caused two bugs. The shut
+  drawer is parked off the right edge at full height, so on y alone it matched
+  every drop and swallowed the lot: nothing could be put back into To be
+  planned. On the desk, a card dragged over the map landed on whichever rail
+  day happened to share its y. Where a zone really is full width the extra
+  check costs nothing.
+
+  **Overlay zones are asked first.** The drawer sits over a column that spans
+  nearly the whole width, so both match; the one on top has to win, or a drop
+  into the drawer resolves as a drop on the calendar underneath it.
+
+- **The sign-in screen leaves out its last line, and the avatar gained a
+  menu.** `SignIn.dc.html` ends with *Someone sent you a link to look at?
+  **Open it without an account***. That is the door for a view-only share link
+  (§5), and `trip_share_links` is a table with no API and no way to make one —
+  so the words describe a door that is not there. A person who was sent a link
+  would also have opened the link rather than arriving at this screen, so the
+  line has nothing to do from here even once the door exists. It comes back
+  when share links do.
+
+  Going the other way: `Trips.dc.html` draws the header avatar as a `<button>`
+  in the terracotta reserved for you, and no artboard draws what it opens. An
+  app you can sign in to and not out of is not finished, so it opens a menu
+  with the account's email and one item, *Sign out* — built like the stop's
+  kebab rather than like the trip menu, because it is a dropdown on a control
+  and not a layer over the screen.
+
+  The `G` is Google's own mark now, in `icons.ts`. §5 called the artboard's
+  dashed circle a placeholder and said Google ships the real one, so the
+  dashed ring went with the placeholder — a border drawn around their logo is
+  a restyling of it, which their branding terms do not allow. It is the one
+  icon in `icons.ts` that takes no colour, for the same reason. The words are
+  theirs too: *Continue with Google*, never *Connect with*, which is not on
+  their permitted list.
+
+- **A pin's colour is its day, not its status — and the map shows the whole
+  trip.** This is a deliberate departure from PLAN.md §7, which says pin fill
+  carries status and nothing else, and from `Main.dc.html`, which draws the
+  open day alone and legends it *today / ahead / done*.
+
+  The reason is that the sheet beside the map already colours each day with
+  the §7 ramp, and the map was colouring the same stops by clock instead — so
+  the row said one thing and its pin said another. Colour now answers "which
+  day is this" in the same vocabulary on both sides of the screen. Status did
+  not go away: a day gone by, or a stop ticked off, is still grey, and it is
+  now grey *and* small *and* half-there rather than grey and full size.
+
+  The whole set of rules lives in `pinLook` in `client.ts` and is tested in
+  `src/worker/__tests__/pins.test.ts`, which lifts the function out of the
+  client script the way `plan-client.test.ts` lifts the Plan view's
+  arithmetic. In short:
+
+  - the open day is full size and **numbered**, every other day is a mini dot
+    of its own colour, and a day in the past is mini, grey and at 50%. A bed is
+    exempt from every part of that, size included — it is never mini;
+  - selecting a stop pushes the rest of that day to 75% and every other day to
+    30%, and leaves the selected pin itself at full strength — dimming the
+    thing you just tapped would be an odd way to point at it;
+  - the number on a pin is repeated in the row as a small outlined circle, so
+    a dot and a line can be matched without counting.
+
+  The legend was rewritten to match, because *today / ahead / done* now
+  describes a scheme the map does not use. It reads *this day · other days ·
+  done*, and its first swatch takes the open day's own hue rather than naming
+  a colour.
+
+  **The drawn fallback map still shows the open day only.** Its projection is
+  that day's bounding box stretched over a band of the drawing; it is truthful
+  about one day's relative positions and says nothing about where the next
+  city is, so putting another day through it would place those stops somewhere
+  specific and wrong. The pins that are there get the same colours, sizes and
+  numbers.
+
+- **Somewhere you sleep is not a stop on the route.** A place whose category
+  reads as lodging (`isAccommodation` in `src/lib/derive.ts`) is drawn as a
+  solid deep-green pin with a roof in it, takes no number, and is never dimmed
+  or recoloured by the day being over or by something else being selected. A
+  hotel is where the day begins and ends, so it stays legible whatever else is
+  going on.
+
+  It is **derived from the category, not stored in a column**: Places gives
+  `hotel`, `hostel`, `japanese inn` and the app already keeps that word. So a
+  stop added before the rule existed is recognised too — and a hotel Google
+  files under something else is not. The word list is deliberately narrow;
+  `apartment` and `campground` are left out, being as often somewhere you are
+  visiting as somewhere you are staying.
+
+- **A stop does not have to be a place.** `0001_init.sql` has always allowed
+  one — `stops.place_id` is nullable and its comment reads "NULL = a note, no
+  pin" — and nothing could make one, so a trip could hold only what Google
+  knows about. Half of what is on a day is not that: picking up the rental
+  car, getting ready, the two hours before a concert.
+
+  The search sheet's last row makes one, under the Paste-a-link row, and it
+  reads back whatever is in the field so it is obvious what it will make. It
+  takes the day and the time the sheet was opened with, exactly as a place
+  does, so tapping 14:00 in the Planner and then this puts the thing at 14:00.
+  Afterwards it is an ordinary stop: it drags between days and hours, takes a
+  time, can be ticked off and noted.
+
+  What it does not have is a place, so it has no pin on the map, no walk on
+  its second line, and **no Navigate button** — a stop with nowhere to go
+  cannot offer to take you there.
 
 - **Nothing is a placeholder.** Where the app does not know something, the
   artboards leave it out rather than filling it with a dash. Two consequences
@@ -289,6 +455,16 @@ To be planned bucket is `#94897A`, which is not on the ramp.
   **`client.ts` is one big `String.raw` template, so it must contain no
   backticks at all** — comments included. Use `"a" + b` rather than a template
   literal, and write `design/Main.dc.html` in a comment without quoting it.
+
+  **`styles.ts` is the same trap wearing a different coat.** It returns one
+  template literal, so a backtick in a comment *inside* the function ends the
+  stylesheet there. `tsc --noEmit` does not mind — the wreckage parses — so
+  typecheck passes and the deploy is what fails, with esbuild pointing at a
+  line. `npm test` does catch it, which is the argument for running the
+  checks in the order the last section of this file gives them.
+
+- `src/worker/auth.ts` — Better Auth, and the only place that decides who
+  someone is. PLAN.md §5.
 - `src/worker/index.ts` — Hono routes.
 - `src/worker/store.ts` — D1 reads and writes.
 - `src/lib/` — pure, tested logic: Places client, bias circle, derived text,
