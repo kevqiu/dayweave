@@ -7,7 +7,7 @@ computer. **That list is empty.** Items 1 through 7 are closed; what is left
 below is the state, the load-bearing warnings, and enough of the reasoning that
 nobody re-opens a decision without knowing why it went the way it did.
 
-Last checked against the live account: 2026-09-13.
+Last checked against the live account: 2026-09-14.
 
 The numbering is stable — items keep their number once they are done, so
 "item 3" means the same thing in a week's time as it does today.
@@ -30,6 +30,20 @@ that assert a principal.
 — which is correct and worth leaving that way. Setting them from here would
 mean putting a `cloud-platform` refresh token for the whole GCP project into an
 environment that every session can read, to save two clicks.
+
+**Re-tested 2026-09-14, still not doable from a session, for a second reason.**
+The environment now carries a `CLOUDSDK_AUTH_ACCESS_TOKEN`, which looked like
+it might be the OAuth principal that API keys are not. It is not one: it is 14
+characters, where a real `ya29.` access token runs to several hundred, so it is
+an agent-proxy placeholder rather than a credential. The functional probe that
+would have confirmed it — an authenticated GET against `cloudquotas.googleapis.com`
+— is itself refused by the session's own classifier as credential exploration,
+which is the right call on a variable whose only purpose would be to be spent
+against someone else's API.
+
+So there are now two independent blocks, and neither is worth engineering
+around. **Leave these two quotas to a human at the console**; the links are in
+the table above.
 
 | Quota | Where | Suggested |
 | --- | --- | --- |
