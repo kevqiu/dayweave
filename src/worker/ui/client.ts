@@ -2137,6 +2137,8 @@ async function paintMap() {
         // Tapping a pin on another day opens that day, which is the only way
         // the pin can grow a number and the row it belongs to can be read.
         if (!open) state.openDayId = day.id;
+        state.selectedStayId = null;
+        state.sheetTab = "stops";
         state.selectedStopId = stop.id === state.selectedStopId ? null : stop.id;
         state.menuOpen = false;
         render();
@@ -2188,7 +2190,10 @@ async function paintMap() {
  */
 let focusedMapStop = null;
 function focusSelectedMapStop() {
-  const stop = state.trip.days.flatMap((day) => day.stops).find((stop) => stop.id === state.selectedStopId);
+  const stay = state.sheetTab === "stays" && (state.trip.lodging || []).find((stay) => stay.id === state.selectedStayId);
+  const stop = stay
+    ? { id: "stay:" + stay.id, location: Number.isFinite(stay.lat) && Number.isFinite(stay.lng) ? { lat: stay.lat, lng: stay.lng } : null }
+    : state.trip.days.flatMap((day) => day.stops).find((stop) => stop.id === state.selectedStopId);
   if (!stop || !stop.location) {
     if (focusedMapStop) mapFitted = null;
     focusedMapStop = null;
@@ -2519,6 +2524,7 @@ function staysPanel() {
 
 /** Sep 30 – Oct 2 · 3 nights, or one date for a single night. */
 function selectStay(stay) {
+  state.selectedStopId = null;
   state.selectedStayId = state.selectedStayId === stay.id ? null : stay.id;
   state.stayMenu = null;
   state.stayNote = null;

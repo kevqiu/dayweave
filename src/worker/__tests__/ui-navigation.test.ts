@@ -118,6 +118,22 @@ describe("stay search", () => {
 });
 
 describe("search and drag transitions", () => {
+  it("focuses a selected accommodation and skips stays without coordinates", () => {
+    const state: any = { sheetTab: "stays", selectedStayId: "stay", trip: { days: [], lodging: [
+      { id: "stay", lat: 35, lng: 130 }, { id: "unlocated", lat: null, lng: null },
+    ] } };
+    const gmap = { getZoom: () => 12, setZoom: vi.fn(), panTo: vi.fn() };
+    const api = load(["focusSelectedMapStop"], { state, gmap, fitPadding: () => ({ top: 40, bottom: 40, left: 40, right: 40 }) }, "let focusedMapStop=null; let mapFitted=null;");
+    expect(api.focusSelectedMapStop()).toBe(true);
+    expect(gmap.setZoom).toHaveBeenCalledWith(15);
+    expect(gmap.panTo.mock.calls[0]![0].lat).toBeCloseTo(35);
+    expect(gmap.panTo.mock.calls[0]![0].lng).toBe(130);
+    api.focusSelectedMapStop();
+    expect(gmap.panTo).toHaveBeenCalledOnce();
+    state.selectedStayId = "unlocated";
+    expect(api.focusSelectedMapStop()).toBe(false);
+    expect(gmap.panTo).toHaveBeenCalledOnce();
+  });
   it("zooms to each selected stop once and leaves it visible above the mobile drawer", () => {
     const state = { selectedStopId: "a", trip: { days: [{ stops: [
       { id: "a", location: { lat: 35, lng: 130 } }, { id: "b", location: { lat: 36, lng: 131 } },
