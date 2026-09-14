@@ -1042,13 +1042,15 @@ button { font-family: ${SANS}; cursor: pointer; }
 }
 
 /* ---- Where you are sleeping ----
-   design/Planner.dc.html rules a 48px strip under the grid and writes the
-   hotel's name into every column it covers. A stay is one thing spanning
-   days, so it is drawn as one bar; the arithmetic, including the half-cell a
-   changeover day gets, is in src/lib/plan.ts. */
+   design/Planner.dc.html rules a 48px strip at the foot of the grid and
+   writes the hotel's name into every column it covers. It sits under the day
+   headers here instead, above the hours, where it is not below the fold of a
+   column that has been scrolled. A stay is one thing spanning days, so it is
+   drawn as one bar; the arithmetic, including the half-cell a changeover day
+   gets, is in src/lib/plan.ts. */
 .lodging-strip {
-  height: 46px; flex-shrink: 0; display: flex;
-  border-top: 1px solid ${C.border}; background: ${C.highlight};
+  height: 42px; flex-shrink: 0; display: flex;
+  border-bottom: 1px solid ${C.border}; background: ${C.highlight};
 }
 .lodging-gutter {
   width: 56px; flex-shrink: 0; border-right: 1px solid ${C.sheetEdge};
@@ -1056,7 +1058,7 @@ button { font-family: ${SANS}; cursor: pointer; }
 }
 .stay-lane { flex-grow: 1; position: relative; min-width: 0; cursor: pointer; }
 .stay-bar {
-  position: absolute; top: 8px; bottom: 8px; border-radius: 8px;
+  position: absolute; top: 6px; bottom: 6px; border-radius: 8px;
   border: 1px solid ${C.borderWarm}; background: ${C.card};
   display: flex; align-items: center; gap: 6px; padding: 0 10px;
   font-family: ${SANS}; overflow: hidden;

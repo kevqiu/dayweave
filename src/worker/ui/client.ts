@@ -3294,8 +3294,11 @@ function screenGrid() {
     h("div", { class: "grid-main" }, [
       h("div", { class: "grid-days" }, [
         gridHeaders(days),
-        gridScroll(days, span, band),
+        // Directly under the day headers, above the hours. Where you are
+        // sleeping is the frame the day sits inside, so it is read before the
+        // day rather than found at the foot of a column you have scrolled.
         lodgingStrip(days),
+        gridScroll(days, span, band),
       ]),
       traySide(),
     ]),

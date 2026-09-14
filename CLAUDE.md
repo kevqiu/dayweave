@@ -337,7 +337,12 @@ wheel as the palette's register allows.
     artboard's *Edit* can actually do: the name comes from the place and the
     note has its own item. No artboard draws the editor itself; it is the note
     editor's sheet with a time field.
-  - **The lodging row is one bar per stay, not one cell per day.**
+  - **The lodging row is one bar per stay, not one cell per day, and it sits
+    above the hours rather than under them.** `Planner.dc.html` rules it at
+    the foot of the grid, where it is below the fold on any column that has
+    scrolled. Where you are sleeping is the frame the day sits inside, so it
+    is read before the day: the strip is directly under the day headers.
+
     `Planner.dc.html` writes the hotel's name into every column it covers, so
     "The Blossom Hakata" is drawn three times in a row and reads at a glance as
     three hotels. A stay is one thing spanning days, so it is drawn as one bar
