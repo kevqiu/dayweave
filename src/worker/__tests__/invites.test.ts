@@ -706,6 +706,63 @@ describe("who is on this trip", () => {
 });
 
 describe("membership is the permission", () => {
+  it("lets invited members leave but reserves deletion for the owner", async () => {
+    const { mika, tripId, dayId } = await plannerFixture();
+    const jordan = browser(env);
+    await jordan.get(await inviteLink(mika, tripId));
+    await signIn(jordan, JORDAN);
+    expect((await jordan.post("/api/invite/accept")).status).toBe(200);
+    const ownerList = await mika.json<{ trips: { isOwner: boolean }[] }>("/api/trips");
+    const memberList = await jordan.json<{ trips: { isOwner: boolean }[] }>("/api/trips");
+    expect(ownerList.trips[0]?.isOwner).toBe(true);
+    expect(memberList.trips[0]?.isOwner).toBe(false);
+    expect((await jordan.post(`/api/trips/${tripId}/stops/note`, { title: "Jordan's note", dayId })).status).toBe(201);
+    const db = env.DB as D1Database;
+    const stopsBefore = await db.prepare("SELECT * FROM stops WHERE trip_id = ?").bind(tripId).all();
+    const before = await mika.json(`/api/trips/${tripId}`);
+    expect((await jordan.post(`/api/trips/${tripId}/delete`)).status).toBe(403);
+    expect((await mika.post(`/api/trips/${tripId}/leave`)).status).toBe(403);
+    expect(await mika.json(`/api/trips/${tripId}`)).toEqual(before);
+    expect((await jordan.post(`/api/trips/${tripId}/leave`)).status).toBe(200);
+    expect((await session(jordan)).trips).toHaveLength(0);
+    expect((await jordan.get(`/api/trips/${tripId}`)).status).toBe(404);
+    expect((await jordan.post(`/api/trips/${tripId}/stops/note`, { title: "No access", dayId })).status).toBe(404);
+    expect((await jordan.post(`/api/trips/${tripId}/leave`)).status).toBe(404);
+    const after = await mika.json<{ days: unknown; lodging: unknown }>(`/api/trips/${tripId}`);
+    expect((await db.prepare("SELECT * FROM stops WHERE trip_id = ?").bind(tripId).all()).results).toEqual(stopsBefore.results);
+    expect(after.lodging).toEqual((before as typeof after).lodging);
+    expect((await mika.post(`/api/trips/${tripId}/delete`)).status).toBe(200);
+  });
+
+  it("deletes a trip and its related records while preserving other trips", async () => {
+    const db = env.DB as D1Database;
+    const { mika, tripId, dayId, stayId } = await plannerFixture();
+    await inviteLink(mika, tripId);
+    await mika.post(`/api/trips/${tripId}/stops/note`, { title: "Remember this", dayId });
+    const other = await createTrip(db, {
+      name: "Another trip", startDate: "2026-04-01", endDate: "2026-04-02",
+      ownerId: "someone-else",
+    });
+    expect((await mika.post(`/api/trips/${tripId}/delete`)).status).toBe(200);
+    expect((await mika.get(`/api/trips/${tripId}`)).status).toBe(404);
+    expect((await session(mika)).trips).toHaveLength(0);
+    for (const table of ["trip_members", "trip_invites", "days", "stops", "lodging"]) {
+      expect(await db.prepare(`SELECT COUNT(*) AS count FROM ${table} WHERE trip_id = ?`).bind(tripId).first()).toEqual({ count: 0 });
+    }
+    expect(await db.prepare("SELECT id FROM trips WHERE id = ?").bind(other.id).first()).toEqual({ id: other.id });
+    expect((await mika.post(`/api/lodging/${stayId}/delete`)).status).toBe(404);
+    expect((await mika.post(`/api/trips/${tripId}/delete`)).status).toBe(404);
+  });
+
+  it.each(["stranger", "signed out"])("blocks trip deletion by a %s", async (identity) => {
+    const { mika, tripId } = await mikaWithATrip();
+    const outsider = browser(env);
+    if (identity === "stranger") await signIn(outsider, JORDAN);
+    expect((await outsider.post(`/api/trips/${tripId}/delete`)).status).toBe(identity === "stranger" ? 404 : 401);
+    expect((await outsider.post(`/api/trips/${tripId}/leave`)).status).toBe(identity === "stranger" ? 404 : 401);
+    expect((await mika.get(`/api/trips/${tripId}`)).status).toBe(200);
+  });
+
   it("serves trip routes as the app shell while keeping trip data authenticated", async () => {
     const signedOut = browser(env);
     for (const path of ["/trips/private-trip", "/trips/private-trip/plan"]) {

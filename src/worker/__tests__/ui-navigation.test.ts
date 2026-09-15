@@ -18,6 +18,21 @@ function load(names: string[], context: Record<string, unknown>, setup = "") {
 }
 
 describe("trip routes", () => {
+  it.each([true, false])("offers the correct trip action for isOwner=%s", (isOwner) => {
+    const h = (tag: string, attrs: any, children: any[]) => ({ tag, attrs, children, hidePopover: vi.fn() });
+    const confirmTripRemoval = vi.fn();
+    const api = load(["tripCardSettings"], { h, icon: () => null, confirmTripRemoval });
+    const trip = { id: "trip", name: "Lisbon", isOwner };
+    const settings = api.tripCardSettings(trip);
+    const menu = settings.children[1];
+    const action = menu.children[0];
+    expect(action.children[1]).toBe(isOwner ? "Delete trip" : "Leave Trip");
+    expect(confirmTripRemoval).not.toHaveBeenCalled();
+    action.attrs.onclick();
+    expect(menu.hidePopover).toHaveBeenCalledOnce();
+    expect(confirmTripRemoval).toHaveBeenCalledWith(trip);
+  });
+
   it.each(["map", "plan"])("restores a %s trip URL without pushing a new entry", async (view) => {
     const openTrip = vi.fn();
     const api = load(["tripPath", "restoreRoute"], {
@@ -269,9 +284,9 @@ describe("search and drag transitions", () => {
   it("opens a trip from its map preview with a tap or keyboard without hijacking attribution links", () => {
     const openTrip = vi.fn();
     const h = (tag: string, attrs: any, children: any[]) => ({ tag, attrs, children });
-    const api = load(["tripCard"], { h, openTrip, avatars: () => null });
+    const api = load(["tripCard", "tripCardSettings"], { h, openTrip, avatars: () => null, icon: () => null });
     const card = api.tripCard({ id: "trip", name: "Lisbon", members: [], stopCount: 0, visitedCount: 0 });
-    const preview = card.children[0];
+    const preview = card.children.find((child: any) => child.attrs.class === "trip-card-map");
     expect(preview.attrs.role).toBe("link");
     preview.attrs.onclick({ target: { closest: () => null } });
     expect(openTrip).toHaveBeenCalledWith("trip");

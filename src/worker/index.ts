@@ -434,6 +434,30 @@ app.get("/api/trips", async (c) => {
   });
 });
 
+app.post("/api/trips/:tripId/delete", async (c) => {
+  const trip = await tripForViewer(c.env.DB, c.req.param("tripId"), c.get("viewer").id);
+  if (!trip) return c.json(NO_SUCH_TRIP, 404);
+  if (trip.owner_id !== c.get("viewer").id) return c.json({ error: "Only the trip owner can delete this trip" }, 403);
+  const result = await c.env.DB.prepare(
+    `DELETE FROM trips WHERE id = ? AND owner_id = ?`,
+  ).bind(c.req.param("tripId"), c.get("viewer").id).run();
+  if (!result.meta.changes) return c.json(NO_SUCH_TRIP, 404);
+  return c.json({ ok: true });
+});
+
+app.post("/api/trips/:tripId/leave", async (c) => {
+  const userId = c.get("viewer").id;
+  const trip = await tripForViewer(c.env.DB, c.req.param("tripId"), userId);
+  if (!trip) return c.json(NO_SUCH_TRIP, 404);
+  if (trip.owner_id === userId) return c.json({ error: "The trip owner cannot leave their own trip" }, 403);
+  const result = await c.env.DB.prepare(
+    `DELETE FROM trip_members WHERE trip_id = ? AND user_id = ?
+       AND trip_id IN (SELECT id FROM trips WHERE owner_id != ?)`,
+  ).bind(trip.id, userId, userId).run();
+  if (!result.meta.changes) return c.json(NO_SUCH_TRIP, 404);
+  return c.json({ ok: true });
+});
+
 async function tripsFor(db: D1Database, userId: string) {
   const { results } = await db
     .prepare(
@@ -458,6 +482,7 @@ async function tripsFor(db: D1Database, userId: string) {
 
     trips.push({
       ...trip,
+      isOwner: trip.owner_id === userId,
       cities,
       mapPoints: [
         ...stops.filter((stop) => stop.lat !== null && stop.lng !== null).map((stop) => ({ lat: stop.lat, lng: stop.lng, hue: days.find((day) => day.id === stop.day_id)?.hue ?? "#94897A" })),

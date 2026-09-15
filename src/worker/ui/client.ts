@@ -711,6 +711,7 @@ function tripCard(trip) {
   const pct = trip.stopCount ? Math.round((trip.visitedCount / trip.stopCount) * 100) : 0;
 
   return h("article", { class: "trip-card" }, [
+    tripCardSettings(trip),
     h("div", { class: "trip-card-map", "data-trip-map": trip.id, role: "link", tabindex: "0", "aria-label": "Open " + trip.name, onclick: (event) => { if (!event.target.closest("a, button, .gm-style")) openTrip(trip.id); }, onkeydown: (event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); openTrip(trip.id); } } }, [
       h("span", { class: "map-preview-empty", text: (trip.mapPoints || []).length ? "Loading map…" : "Add a place to see this trip on the map" }, []),
     ]),
@@ -728,6 +729,75 @@ function tripCard(trip) {
       h("div", { class: "progress" }, [h("div", { style: "width:" + pct + "%" }, [])]),
     ]),
   ]);
+}
+
+function tripCardSettings(trip) {
+  const menuId = "trip-settings-menu-" + trip.id;
+  const menu = h("div", { id: menuId, class: "trip-card-menu", popover: "auto", "aria-label": "Trip settings" }, [
+    h("button", { onclick: () => { menu.hidePopover(); confirmTripRemoval(trip); } }, [icon(trip.isOwner ? "trash" : "arrowLeft"), trip.isOwner ? "Delete trip" : "Leave Trip"]),
+  ]);
+  const button = h("button", {
+    id: "trip-settings-" + trip.id, class: "trip-card-settings", type: "button",
+    "aria-label": "Settings for " + trip.name, popovertarget: menuId,
+    onclick: () => {
+      const bounds = button.getBoundingClientRect();
+      menu.style.left = Math.max(8, Math.min(bounds.right - 180, window.innerWidth - 188)) + "px";
+      menu.style.top = Math.min(bounds.bottom + 4, window.innerHeight - 64) + "px";
+    },
+  }, [h("span", { "aria-hidden": "true", text: "⋯" }, [])]);
+  return h("div", { class: "trip-card-tools" }, [button, menu]);
+}
+
+function confirmTripRemoval(trip) {
+  const action = trip.isOwner ? "Delete trip" : "Leave Trip";
+  let deleting = false;
+  const error = h("p", { class: "trip-delete-error", role: "alert", hidden: true }, []);
+  const cancel = h("button", { type: "button", autofocus: true, onclick: () => dialog.close() }, ["Cancel"]);
+  const confirm = h("button", { type: "button", class: "trip-delete-confirm", onclick: async () => {
+    if (deleting) return;
+    deleting = true;
+    cancel.disabled = confirm.disabled = true;
+    confirm.textContent = trip.isOwner ? "Deleting…" : "Leaving…";
+    error.hidden = true;
+    try {
+      await post("/api/trips/" + encodeURIComponent(trip.id) + (trip.isOwner ? "/delete" : "/leave"), {});
+      state.trips = state.trips.filter((item) => item.id !== trip.id);
+      const cached = tripMapCache.get(trip.id);
+      if (cached) for (const marker of cached.markers) marker.setMap(null);
+      tripMapCache.delete(trip.id);
+      dialog.close();
+      state.error = trip.isOwner ? "Trip deleted" : "You left the trip";
+      render();
+      const next = document.querySelector(".trip-card-settings, .trips-foot button");
+      if (next) next.focus();
+    } catch (failure) {
+      if (state.screen === "signIn") { dialog.close(); return; }
+      error.textContent = failure.message || "Could not " + (trip.isOwner ? "delete" : "leave") + " this trip. Please try again.";
+      error.hidden = false;
+      deleting = false;
+      cancel.disabled = confirm.disabled = false;
+      confirm.textContent = action;
+    }
+  } }, [action]);
+  const dialog = h("dialog", {
+    class: "trip-delete-dialog", "aria-labelledby": "trip-delete-title", "aria-describedby": "trip-delete-description",
+    onkeydown: (event) => event.stopPropagation(),
+    oncancel: (event) => { if (deleting) event.preventDefault(); },
+    onclose: () => {
+      dialog.remove();
+      const trigger = $("trip-settings-" + trip.id);
+      if (trigger) trigger.focus();
+    },
+  }, [
+    h("h2", { id: "trip-delete-title", text: (trip.isOwner ? "Delete “" : "Leave “") + trip.name + "”?" }, []),
+    h("p", { id: "trip-delete-description", text: trip.isOwner
+      ? "This will permanently delete this trip and all its plans for everyone on the trip. This cannot be undone."
+      : "You will lose access to this trip. The trip and your contributions will remain for the other members. You will need an invitation to rejoin." }, []),
+    error,
+    h("div", { class: "trip-delete-actions" }, [cancel, confirm]),
+  ]);
+  document.body.append(dialog);
+  dialog.showModal();
 }
 
 const tripMapCache = new Map();

@@ -91,11 +91,27 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .section-label.spaced { padding-top: 10px; }
 
 .trip-card {
+  position: relative;
   margin: 0 14px 12px; border-radius: 16px; border: 1.5px solid ${C.brandLight};
   background: ${C.card}; overflow: hidden; width: calc(100% - 28px);
   padding: 0; text-align: left; display: block; color: inherit; font: inherit;
 }
 .trip-card-map { height: 62px; background: #E9F1E6; position: relative; overflow: hidden; }
+.trip-card-tools { position: absolute; top: 8px; right: 8px; z-index: 3; }
+.trip-card-settings { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid ${C.border}; border-radius: 50%; background: ${C.card}; color: ${C.ink}; box-shadow: 0 2px 8px #33302B18; font-size: 25px; }
+.trip-card-menu { position: fixed; margin: 0; padding: 4px; width: 180px; border: 1px solid ${C.border}; border-radius: 12px; background: ${C.card}; box-shadow: 0 8px 24px #33302B24; }
+.trip-card-menu button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 10px; border: 0; border-radius: 8px; background: transparent; color: #963F32; font: inherit; }
+.trip-card-settings:hover, .trip-card-menu button:hover { background: ${C.highlight}; }
+.trip-card-settings:focus-visible, .trip-card-menu button:focus-visible, .trip-delete-actions button:focus-visible { outline: 2px solid ${C.brandInk}; outline-offset: 2px; }
+.trip-delete-dialog { box-sizing: border-box; width: min(420px, calc(100% - 32px)); margin: auto; padding: 24px; border: 1px solid ${C.border}; border-radius: 20px; background: ${C.card}; color: ${C.ink}; box-shadow: 0 16px 64px #33302B33; }
+.trip-delete-dialog::backdrop { background: #33302B80; }
+.trip-delete-dialog h2 { margin: 0 0 12px; font-family: ${SERIF}; font-size: 25px; font-weight: 500; overflow-wrap: anywhere; }
+.trip-delete-dialog p { font-size: 14px; line-height: 1.6; color: ${C.inkSoft}; }
+.trip-delete-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
+.trip-delete-actions button { min-height: 44px; padding: 10px 16px; border: 1px solid ${C.border}; border-radius: 10px; background: ${C.paper}; color: ${C.ink}; font: inherit; }
+.trip-delete-actions .trip-delete-confirm { background: #963F32; border-color: #963F32; color: white; }
+.trip-delete-actions button:disabled { opacity: .6; cursor: wait; }
+.trip-delete-dialog .trip-delete-error { color: #963F32; }
 /* A day of the trip, placed on the strip by src/lib/preview.ts. 15px on a
    2.5px ring of the card's own cream, which is what the artboard draws. */
 .trip-card-node {
