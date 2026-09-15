@@ -46,10 +46,14 @@ function localSignIn(origin: string) {
       signInLocal: createAuthEndpoint("/sign-in/local", { method: "POST", requireHeaders: true }, async (ctx) => {
         if (ctx.request?.headers.get("origin") !== origin) throw new APIError("FORBIDDEN");
         const adapter = ctx.context.internalAdapter;
-        const existing = await adapter.findUserByEmail("local@daytrail.test");
+        const existing = await adapter.findUserByEmail("local@dayweave.test")
+          ?? await adapter.findUserByEmail("local@daytrail.test");
+        if (existing && existing.user.email !== "local@dayweave.test") {
+          existing.user = await adapter.updateUser(existing.user.id, { email: "local@dayweave.test" });
+        }
         const user = existing?.user ?? await adapter.createUser({
           name: "Local Explorer",
-          email: "local@daytrail.test",
+          email: "local@dayweave.test",
           emailVerified: false,
           createdAt: new Date(),
           updatedAt: new Date(),

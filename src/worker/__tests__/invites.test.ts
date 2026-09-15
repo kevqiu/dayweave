@@ -330,7 +330,7 @@ describe("local development sign-in", () => {
     method: "POST", headers: { origin }, body: "{}",
   });
 
-  it("creates a normal session and returns to the same local workspace after sign-out", async () => {
+  it.each(["local@dayweave.test", "local@daytrail.test"])("returns to the same local workspace after sign-out with account %s", async (email) => {
     env.LOCAL_DEV_AUTH = "true";
     const who = browser(env, origin);
     expect((await who.get("/api/trips")).status).toBe(401);
@@ -343,12 +343,16 @@ describe("local development sign-in", () => {
       name: "Local trip", startDate: "2026-10-01", endDate: "2026-10-03",
     });
     expect(made.ok).toBe(true);
+    const db = env.DB as ReturnType<typeof testDatabase>;
+    const account = await db.prepare('SELECT id FROM "user" WHERE email = ?').bind("local@dayweave.test").first<{ id: string }>();
+    expect(account).not.toBeNull();
+    await db.prepare('UPDATE "user" SET email = ? WHERE id = ?').bind(email, account!.id).run();
     expect((await who.post("/api/auth/sign-out")).status).toBe(200);
     expect((await who.get("/api/trips")).status).toBe(401);
     expect((await localLogin(who)).status).toBe(200);
     const second = await session(who);
-    expect(second.me?.id).toBe(first.me?.id);
     expect(second.trips.map((trip) => trip.name)).toEqual(["Local trip"]);
+    expect((await db.prepare('SELECT id, email FROM "user"').all()).results).toEqual([{ id: account!.id, email: "local@dayweave.test" }]);
   });
 
   it.each([

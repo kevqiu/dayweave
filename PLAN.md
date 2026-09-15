@@ -1,4 +1,4 @@
-# yvr.kocho.sh — trip map
+# Dayweave — trip map
 
 A shared map of a trip. Stops come in from the places you already saved and the
 spreadsheet you already wrote, get grouped by day, and grey out as you visit them.

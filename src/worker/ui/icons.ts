@@ -252,5 +252,5 @@ export const house = ({ size = 12, color = "#FFFFFF" }: IconOptions = {}) =>
     'stroke-linecap="round" stroke-linejoin="round"',
   );
 
-export const daytrail = ({ size = 32, color = C.brand }: IconOptions = {}) =>
+export const dayweave = ({ size = 32, color = C.brand }: IconOptions = {}) =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 32 32" fill="none"><path d="M7 13a9 9 0 0 1 18 0" fill="${C.brandLight}"/><path d="M5 16H22C27 16 27 22 21 22H12C7 22 7 28 12 28H20" stroke="${color}" stroke-width="4" stroke-linecap="round"/><circle cx="25" cy="28" r="2" fill="${color}"/></svg>`;

@@ -1653,10 +1653,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 @keyframes trail-wave-opacity { 0%,100% { opacity: .68; } 14% { opacity: .44; } 35%,90% { opacity: .24; } }
 @media (prefers-reduced-motion: reduce) { .trail-wave-dot { animation: none; opacity: .55; } }
 .map-trail-layer { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
-.daytrail-scene { width: min(88%, 640px); aspect-ratio: 400 / 360; perspective: 900px; position: relative; }
-.daytrail-scene { transform-style: preserve-3d; transform: rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)); animation: trail-center 4.8s cubic-bezier(.42,0,.22,1) .6s both; }
+.dayweave-scene { width: min(88%, 640px); aspect-ratio: 400 / 360; perspective: 900px; position: relative; }
+.dayweave-scene { transform-style: preserve-3d; transform: rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)); animation: trail-center 4.8s cubic-bezier(.42,0,.22,1) .6s both; }
 @keyframes trail-center { from { translate: 8.25% 0; } to { translate: calc(14% - 15px) 0; } }
-.daytrail-plane { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; animation: trail-isometric 4.8s cubic-bezier(.42,0,.22,1) .6s both; }
+.dayweave-plane { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; animation: trail-isometric 4.8s cubic-bezier(.42,0,.22,1) .6s both; }
 .trail-ground { position: absolute; left: -300%; top: -300%; width: 700%; height: 700%; max-width: none; }
 .trail-block { position: absolute; width: 1.5%; height: 1.667%; transform: translate(-50%, -50%) rotateZ(var(--block-angle)); transform-style: preserve-3d; pointer-events: none; }
 .trail-block-solid { position: absolute; inset: 0; transform-style: preserve-3d; }
@@ -1718,8 +1718,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 @media (prefers-reduced-motion: reduce) {
   .splash *, .trail-layer { animation: none !important; }
-  .daytrail-scene { translate: calc(14% - 15px) 0; }
-  .daytrail-plane { transform: rotateX(42deg) rotateZ(-20deg) scale(1.18); }
+  .dayweave-scene { translate: calc(14% - 15px) 0; }
+  .dayweave-plane { transform: rotateX(42deg) rotateZ(-20deg) scale(1.18); }
   .trail-layer { transform: translateZ(var(--lift)); }
   .trail-marker-lift { transform: translateZ(var(--lift)); }
   .trail-number-bob { transform: none; }

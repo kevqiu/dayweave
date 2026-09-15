@@ -66,8 +66,8 @@ export function signInMap(): string {
     if (nodes.some((node) => Math.hypot(node.x - x, node.y - y) < 16)) return "";
     return `<div class="trail-block" style="left:${x / 4}%;top:${y / 3.6}%;--block-angle:${angle}deg;--reveal-delay:1.6s;--opacity-delay:${2.8 + leg + t}s"><div class="trail-block-solid"><i class="block-top"></i><i class="block-front"></i><i class="block-back"></i><i class="block-left"></i><i class="block-right"></i></div></div>`;
   })).join("");
-  return `<div class="daytrail-scene" aria-label="A dotted daytrail rises from a map into a gently waving gold path" role="img">
-    <div class="daytrail-plane">
+  return `<div class="dayweave-scene" aria-label="A dotted route rises from a map into a gently waving gold path" role="img">
+    <div class="dayweave-plane">
       <svg class="trail-ground" viewBox="-1200 -1080 2800 2520" aria-hidden="true">
         <rect x="-1200" y="-1080" width="2800" height="2520" fill="${C.mapFill}"/>
         <g fill="#E2E9D7">

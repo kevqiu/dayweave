@@ -141,7 +141,7 @@ const wideNow = () => window.matchMedia(WIDE).matches;
 const planning = () => state.screen === "trip" && state.view === "plan";
 
 function render() {
-  document.title = state.screen === "trip" && state.trip ? state.trip.trip.name + " / Daytrail" : "Daytrail";
+  document.title = state.screen === "trip" && state.trip ? state.trip.trip.name + " / Dayweave" : "Dayweave";
   // The Plan view is the grid at every width now — one column on a phone. The
   // frame only grows for the wide one; every other screen stays 375.
   const grid = planning() && wideNow();
@@ -1054,7 +1054,7 @@ function initSplashTilt() {
   const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
   if (!stage || motion.matches) return;
   const sensor = window.isSecureContext && window.DeviceOrientationEvent && window.matchMedia("(pointer: coarse)").matches;
-  const scene = stage.querySelector(".daytrail-scene");
+  const scene = stage.querySelector(".dayweave-scene");
   if (!scene) return;
   let active = false, disposed = false, baseline = null, frameId = null;
   let aimX = 0, aimY = 0, x = 0, y = 0;
@@ -1115,8 +1115,8 @@ function screenSignIn() {
     h("div", { class: "signin-map", html: window.__SIGNIN_MAP__ }, []),
     h("div", { class: "signin-body" }, [
       h("div", { class: "signin-head" }, [
-        h("div", { class: "signin-brand" }, [icon("daytrail"), h("span", { text: "Daytrail" }, [])]),
-        h("h1", { class: "signin-title", text: "Bring your daytrails to life." }, []),
+        h("div", { class: "signin-brand" }, [icon("dayweave"), h("span", { text: "Dayweave" }, [])]),
+        h("h1", { class: "signin-title", text: "Weave your way to somewhere new." }, []),
         h("div", {
           class: "signin-sub",
           text: "Map the places you dream of. Make each day your own. Explore together.",
@@ -2214,7 +2214,7 @@ function animateTrailWave(update) {
     if (!document.hidden) update(performance.now() - start);
   }, 60);
 }
-function dayTrailPoints(day, lodging) {
+function dayRoutePoints(day, lodging) {
   const stays = lodging.filter((stay) => Number.isFinite(stay.lat) && Number.isFinite(stay.lng) && stay.check_in <= day.date && stay.check_out >= day.date)
     .sort((a, b) => a.check_in.localeCompare(b.check_in) || a.check_out.localeCompare(b.check_out) || a.id.localeCompare(b.id));
   const points = stays.length ? [{ lat: stays[0].lat, lng: stays[0].lng }] : [];
@@ -2254,13 +2254,13 @@ function smoothTrail(points) {
   return path;
 }
 
-function paintDayTrail(maps) {
+function paintDayRoute(maps) {
   stopTrailWave();
   for (const trail of mapTrails) trail.setMap(null);
   mapTrails = [];
   const day = state.trip.days.find((day) => day.id === state.openDayId);
   if (!day) return;
-  const points = dayTrailPoints(day, state.trip.lodging || []);
+  const points = dayRoutePoints(day, state.trip.lodging || []);
   if (points.length < 2) return;
   const curve = smoothTrail(points);
   const icons = Array.from({ length: 24 }, (_, i) => ({
@@ -2378,7 +2378,7 @@ async function paintMap() {
     }
   }
 
-  paintDayTrail(maps);
+  paintDayRoute(maps);
   if (state.search) { paintSuggestionPins(maps); return; }
   clearLookMarker();
   if (focusSelectedMapStop()) return;
@@ -2547,7 +2547,7 @@ function mapPins(day, wide) {
     ]);
   });
   if (day) {
-    const points = smoothTrail(dayTrailPoints(day, state.trip.lodging || []));
+    const points = smoothTrail(dayRoutePoints(day, state.trip.lodging || []));
     if (points.length > 1) {
       const depth = wide ? 62 : 26;
       const legs = (points.length - 1) / 20;

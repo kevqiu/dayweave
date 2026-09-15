@@ -18,7 +18,7 @@ import { COLOR as C, DAY_PALETTE, DAY_BLACK, FONTS_HREF } from "./tokens.ts";
 /** Each icon in the size and colour the artboard that uses it specifies. */
 function iconSet(): Record<string, string> {
   return {
-    daytrail: icons.daytrail({ size: 40 }),
+    dayweave: icons.dayweave({ size: 40 }),
     search: icons.search({ size: 17, color: C.inkSoft }),
     searchLight: icons.search({ size: 14, color: C.paper }),
     close: icons.close({ size: 17, color: C.inkSoft }),
@@ -80,7 +80,7 @@ function iconSet(): Record<string, string> {
   };
 }
 
-const FAVICON = `data:image/svg+xml,${encodeURIComponent(icons.daytrail())}`;
+const FAVICON = `data:image/svg+xml,${encodeURIComponent(icons.dayweave())}`;
 
 export function page(mapsKey = "", localDev = false): string {
   const boot = {
@@ -96,16 +96,16 @@ export function page(mapsKey = "", localDev = false): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="${C.paper}">
-<title>Daytrail</title>
-<meta name="description" content="Bring your daytrails to life. Map the places you dream of, plan each day, and explore together with Daytrail.">
-<meta name="application-name" content="Daytrail">
-<meta name="apple-mobile-web-app-title" content="Daytrail">
-<meta property="og:site_name" content="Daytrail">
-<meta property="og:title" content="Daytrail — Bring your daytrails to life">
+<title>Dayweave</title>
+<meta name="description" content="Weave your way to somewhere new. Map the places you dream of, plan each day, and explore together with Dayweave.">
+<meta name="application-name" content="Dayweave">
+<meta name="apple-mobile-web-app-title" content="Dayweave">
+<meta property="og:site_name" content="Dayweave">
+<meta property="og:title" content="Dayweave — Weave your way to somewhere new">
 <meta property="og:description" content="Map the places you dream of, plan each day, and explore together.">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="Daytrail — Bring your daytrails to life">
+<meta name="twitter:title" content="Dayweave — Weave your way to somewhere new">
 <meta name="twitter:description" content="Map the places you dream of, plan each day, and explore together.">
 <link rel="icon" type="image/svg+xml" href="${FAVICON}">
 <link rel="preconnect" href="https://fonts.googleapis.com">

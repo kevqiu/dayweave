@@ -22,7 +22,7 @@ describe("map camera across UI updates", () => {
     const paint = vi.fn();
     const context = {
       state: { screen: "trip", view: "map" },
-      document: { title: "Daytrail" },
+      document: { title: "Dayweave" },
       frame: { replaceChildren: vi.fn(), append: vi.fn() },
       planning: () => false, wideNow: () => true,
       positionEditors: vi.fn(), splashCleanup: null, stopTrailWave: vi.fn(),

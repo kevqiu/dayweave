@@ -148,9 +148,9 @@ describe("bug bash regressions", () => {
     const arriving = { id: "b", check_in: "2026-10-04", check_out: "2026-10-07", lat: 36, lng: 131 };
     const day = { date: "2026-10-04", stops: [{ location: { lat: 35.5, lng: 130.5 } }] };
     const state = { trip: { lodging: [arriving, departing] } };
-    const api = load(["dayStays", "dayTrailPoints"], { state });
+    const api = load(["dayStays", "dayRoutePoints"], { state });
     expect(api.dayStays(day)).toEqual([departing, arriving]);
-    expect(api.dayTrailPoints(day, state.trip.lodging)).toEqual([{ lat: 35, lng: 130 }, day.stops[0]!.location, { lat: 36, lng: 131 }]);
+    expect(api.dayRoutePoints(day, state.trip.lodging)).toEqual([{ lat: 35, lng: 130 }, day.stops[0]!.location, { lat: 36, lng: 131 }]);
   });
 });
 
@@ -172,7 +172,7 @@ describe("located accommodations", () => {
       state, mapsKey: () => true, $: () => host,
       loadMaps: async () => ({ LatLngBounds: Bounds, Marker, Size: class {}, Point: class {} }),
       gmap: map, routeNumbers: () => ({}), pinLook: () => ({}), pinUrl: () => ({ url: "pin", box: 32 }),
-      fitPadding: () => 24, dayFitKey: () => "day-key", selectStay: openStay, clearLookMarker: vi.fn(), focusSelectedMapStop: () => false, paintDayTrail: vi.fn(),
+      fitPadding: () => 24, dayFitKey: () => "day-key", selectStay: openStay, clearLookMarker: vi.fn(), focusSelectedMapStop: () => false, paintDayRoute: vi.fn(),
     }, "let gmarkers = []; let mapFitted = null;\n");
     await api.paintMap();
     expect(markers).toHaveLength(1);
@@ -286,7 +286,7 @@ describe("search and drag transitions", () => {
   });
 
   it("builds a smooth trail from the current accommodation through every destination in order", () => {
-    const api = load(["dayTrailPoints", "smoothTrail"], {});
+    const api = load(["dayRoutePoints", "smoothTrail"], {});
     const day = { date: "2026-10-02", stops: [
       { location: { lat: 35.1, lng: 130.1 } }, { location: null },
       { location: { lat: 35.2, lng: 130.2 } }, { location: { lat: 35.3, lng: 130.1 } },
@@ -295,14 +295,14 @@ describe("search and drag transitions", () => {
       { lat: 1, lng: 2, check_in: "2026-09-01", check_out: "2026-09-03" },
       { lat: 35, lng: 130, check_in: "2026-10-01", check_out: "2026-10-03" },
     ];
-    const points = api.dayTrailPoints(day, lodging);
+    const points = api.dayRoutePoints(day, lodging);
     expect(points).toEqual([{ lat: 35, lng: 130 }, ...day.stops.filter((stop) => stop.location).map((stop) => stop.location)]);
     const curve = api.smoothTrail(points);
     for (let i = 0; i < points.length; i++) {
       expect(curve[i * 20].lat).toBeCloseTo(points[i].lat);
       expect(curve[i * 20].lng).toBeCloseTo(points[i].lng);
     }
-    expect(api.dayTrailPoints(day, [])).toHaveLength(3);
+    expect(api.dayRoutePoints(day, [])).toHaveLength(3);
     const crossing = api.smoothTrail([{ lat: 0, lng: 179.9 }, { lat: 0, lng: -179.9 }]);
     expect(Math.abs(crossing.at(-1).lng - crossing[0].lng)).toBeCloseTo(.2);
   });
@@ -338,8 +338,8 @@ describe("search and drag transitions", () => {
     const previous = { setMap: vi.fn() };
     const lines: any[] = [];
     const state = { openDayId: "day", trip: { days: [{ id: "day", hue: "#7A4FBF" }] } };
-    const api = load(["paintDayTrail"], { stopTrailWave: vi.fn(), animateTrailWave: vi.fn(), state, gmap: {}, dayTrailPoints: () => [{ lat: 1, lng: 2 }, { lat: 2, lng: 3 }], smoothTrail: (points: unknown) => points, previous }, "let mapTrails=[previous];");
-    api.paintDayTrail({ Polyline: class { constructor(public options: unknown) { lines.push(this); } }, SymbolPath: { CIRCLE: "circle" } });
+    const api = load(["paintDayRoute"], { stopTrailWave: vi.fn(), animateTrailWave: vi.fn(), state, gmap: {}, dayRoutePoints: () => [{ lat: 1, lng: 2 }, { lat: 2, lng: 3 }], smoothTrail: (points: unknown) => points, previous }, "let mapTrails=[previous];");
+    api.paintDayRoute({ Polyline: class { constructor(public options: unknown) { lines.push(this); } }, SymbolPath: { CIRCLE: "circle" } });
     expect(previous.setMap).toHaveBeenCalledWith(null);
     expect(lines[0].options.icons[0].icon.fillColor).toBe("#7A4FBF");
     expect(lines[0].options.clickable).toBe(false);
