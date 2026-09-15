@@ -78,6 +78,58 @@ describe("trip routes", () => {
 });
 
 describe("bug bash regressions", () => {
+  it("keeps the clicked day at the same viewport position when an earlier day closes", () => {
+    const state = { openDayId: "first" };
+    let top = 600;
+    const scroll = { scrollTop: 900 };
+    const anchor = { dataset: { dayId: "last" }, getBoundingClientRect: () => ({ top }) };
+    const api = load(["switchMapDay"], { state, document: { querySelectorAll: () => [anchor], querySelector: () => scroll }, render: () => { top = 280; } });
+    api.switchMapDay("last");
+    expect(state.openDayId).toBe("last");
+    expect(scroll.scrollTop).toBe(580);
+  });
+
+  it("selecting a map node reveals its day and clears a filter that would hide it", () => {
+    const state = { hideVisited: true, selectedStayId: "hotel", sheetTab: "stays" };
+    const api = load(["selectMapStop"], { state, render: vi.fn() });
+    api.selectMapStop({ id: "last" }, { id: "stop" });
+    expect(state).toMatchObject({ openDayId: "last", selectedStopId: "stop", revealStopId: "stop", hideVisited: false, selectedStayId: null, sheetTab: "stops" });
+  });
+
+  it.each([null, "b"])("uses the suggested insertion on the client and in the move request: %s", (afterStopId) => {
+    const stop = { id: "a" };
+    const source = [stop];
+    const target = [{ id: "b" }, { id: "c" }];
+    const state: any = { move: { stop }, trip: { days: [{ id: "target", stops: target }] } };
+    const post = vi.fn();
+    let undo: Function = () => {};
+    const api = load(["moveTo"], { state, closeLayer: vi.fn(), locateStop: () => ({ list: source, index: 0, stop }), post, optimistic: (apply: Function, request: Function) => { undo = apply(); request(); } });
+    api.moveTo("target", afterStopId);
+    expect(target.map((s) => s.id)).toEqual(afterStopId === null ? ["a", "b", "c"] : ["b", "a", "c"]);
+    expect(post).toHaveBeenCalledWith("/api/stops/a/move", { dayId: "target", afterStopId });
+    undo();
+    expect(source).toEqual([stop]);
+    expect(target.map((s) => s.id)).toEqual(["b", "c"]);
+  });
+
+  it("reorders within the untimed band without assigning a clock time", () => {
+    const state = { drag: { stopId: "a" } };
+    const col = { dataset: { dayId: "day" }, querySelectorAll: () => [{ dataset: { stopId: "b" }, style: { top: "720" }, offsetHeight: 50 }] };
+    const api = load(["resolveGridDrop"], { state, spanOf: () => ({ height: 660 }), dayById: () => ({ stops: [{ id: "b", time: "" }] }), PLAN: { minutesOf: () => null } });
+    api.resolveGridDrop(col, 760);
+    expect(state.drag).toMatchObject({ gridTime: "", afterStopId: "b", gridY: null });
+  });
+
+  it("reports the missing stay name inline without creating an obstructing toast", () => {
+    const field = { value: "", focus: vi.fn() };
+    const state: any = { stayEdit: { name: "", start: "2026-09-24", end: "2026-09-27" }, error: null };
+    const api = load(["saveStay"], { state, $: () => field, render: vi.fn() });
+    api.saveStay();
+    expect(state.stayEdit.error).toBe("Enter a name for this stay.");
+    expect(state.error).toBeNull();
+    expect(field.focus).toHaveBeenCalled();
+  });
+
   it("keeps the splash mounted through pending OAuth and a failed retry", async () => {
     const state: any = { signingIn: false, error: null };
     let reject: (error: Error) => void = () => {};
@@ -409,7 +461,7 @@ describe("search and drag transitions", () => {
     const state: any = { search: {}, openDayId: "first", selectedStopId: "stop" };
     let afterClose: () => void = () => {};
     const render = vi.fn();
-    const api = load(["switchMapDay"], { state, render, closeThen: (_depth: number, callback: () => void) => { afterClose = callback; } });
+    const api = load(["switchMapDay"], { state, render, document: { querySelectorAll: () => [], querySelector: () => null }, closeThen: (_depth: number, callback: () => void) => { afterClose = callback; } });
     api.switchMapDay("second");
     expect(state.openDayId).toBe("first");
     expect(render).not.toHaveBeenCalled();

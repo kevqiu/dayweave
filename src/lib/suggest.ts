@@ -12,6 +12,7 @@
 
 import { haversineMetres, type LatLng } from "./geo.ts";
 import { walkMinutes } from "./derive.ts";
+import { locality, sameCity } from "./locality.ts";
 
 export interface CandidateStop {
   id: string;
@@ -68,6 +69,7 @@ export interface Candidate {
   /** The stop it would follow, and the one it would come before. */
   after: string | null;
   before: string | null;
+  afterStopId?: string | null;
   addedMetres: number | null;
   addedMinutes: number | null;
   /** Lower is better. Infinity means it cannot be ranked at all. */
@@ -95,9 +97,9 @@ const CROWDED = 6;
 function bestInsertion(
   day: CandidateDay,
   point: LatLng,
-): { added: number; after: string | null; before: string | null } {
+): { added: number; after: string | null; before: string | null; afterStopId: string | null } {
   const located = day.stops.filter((s) => s.location);
-  if (located.length === 0) return { added: 0, after: null, before: null };
+  if (located.length === 0) return { added: 0, after: null, before: null, afterStopId: null };
 
   const first = located[0] as CandidateStop;
   const last = located[located.length - 1] as CandidateStop;
@@ -107,10 +109,11 @@ function bestInsertion(
     added: haversineMetres(point, first.location as LatLng),
     after: null as string | null,
     before: first.name as string | null,
+    afterStopId: null as string | null,
   };
 
   const atEnd = haversineMetres(last.location as LatLng, point);
-  if (atEnd < best.added) best = { added: atEnd, after: last.name, before: null };
+  if (atEnd < best.added) best = { added: atEnd, after: last.name, before: null, afterStopId: last.id };
 
   for (let i = 0; i < located.length - 1; i++) {
     const a = located[i] as CandidateStop;
@@ -119,7 +122,7 @@ function bestInsertion(
       haversineMetres(a.location as LatLng, point) +
       haversineMetres(point, b.location as LatLng) -
       haversineMetres(a.location as LatLng, b.location as LatLng);
-    if (detour < best.added) best = { added: detour, after: a.name, before: b.name };
+    if (detour < best.added) best = { added: detour, after: a.name, before: b.name, afterStopId: a.id };
   }
 
   return best;
@@ -156,7 +159,8 @@ export function suggestDays(stop: MovingStop, days: readonly CandidateDay[], tod
 function evaluate(stop: MovingStop, day: CandidateDay, today: string): Candidate {
   // The artboard writes a day as "Sun Oct 4 · Fukuoka to Kagoshima". The hand
   // written place label wins; the city its stops are in stands in otherwise.
-  const where = day.placeLabel ?? day.city;
+  const point = day.stops.find((s) => s.location)?.location || null;
+  const where = locality(day.placeLabel ?? day.city, point);
 
   const base: Candidate = {
     dayId: day.id,
@@ -187,11 +191,12 @@ function evaluate(stop: MovingStop, day: CandidateDay, today: string): Candidate
     return { ...base, kind: day.stops.length ? "ok" : "empty", reason: dayShape(day), score: 1 };
   }
 
-  const { added, after, before } = bestInsertion(day, stop.location);
+  const { added, after, before, afterStopId } = bestInsertion(day, stop.location);
+  base.afterStopId = afterStopId;
   const addedMinutes = minutesFor(added);
 
   const differentCity =
-    stop.city !== null && day.city !== null && stop.city !== day.city;
+    stop.city !== null && day.city !== null && !sameCity(stop.city, stop.location, day.city, point);
 
   if (differentCity) {
     const away = nearestMetres(day, stop.location) ?? added;
@@ -231,9 +236,7 @@ function evaluate(stop: MovingStop, day: CandidateDay, today: string): Candidate
   return {
     ...base,
     kind: "ok",
-    reason: addedMinutes === null
-      ? `${dayShape(day)} · ${formatDistance(added)} away`
-      : `${dayShape(day)} · adds ${addedMinutes} min`,
+    reason: `${dayShape(day)} · ${formatDistance(added)} extra straight-line distance`,
     after,
     before,
     addedMetres: added,
@@ -257,11 +260,7 @@ function withDetail(candidate: Candidate): Candidate {
   }
 
   if (candidate.addedMetres !== null) {
-    const walk =
-      candidate.addedMinutes === null
-        ? ""
-        : `, adds ${candidate.addedMinutes} min of walking to the day`;
-    parts.push(`${formatDistance(candidate.addedMetres)} away${walk}.`);
+    parts.push(`${formatDistance(candidate.addedMetres)} extra straight-line distance. Check transport and travel time.`);
   }
 
   return { ...candidate, detail: parts.join(" ") };

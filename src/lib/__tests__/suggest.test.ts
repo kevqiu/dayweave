@@ -55,7 +55,8 @@ describe("suggestDays", () => {
     expect(best?.after).toBe("Kushida Shrine");
     expect(best?.before).toBeNull();
     expect(best?.detail).toContain("Slots in after Kushida Shrine.");
-    expect(best?.detail).toMatch(/adds \d+ min of walking to the day/);
+    expect(best?.detail).toContain("extra straight-line distance");
+    expect(best?.afterStopId).toBe("b");
   });
 
   it("slots into the middle when that is what bends the path least", () => {

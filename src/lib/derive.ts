@@ -55,8 +55,8 @@ export function describeStop(
   if (stop.category) parts.push(stop.category);
 
   if (stop.location && previous?.location) {
-    const minutes = walkMinutes(previous.location, stop.location);
-    if (minutes !== null) parts.push(`${minutes} min walk`);
+    const metres = haversineMetres(previous.location, stop.location);
+    parts.push(`${metres < 1000 ? Math.round(metres / 10) * 10 + " m" : (metres / 1000).toFixed(1) + " km"} straight-line distance`);
   }
 
   return parts.join(" · ");

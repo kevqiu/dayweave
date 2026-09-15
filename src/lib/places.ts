@@ -12,6 +12,7 @@
  */
 
 import type { Bias, LatLng } from "./geo.ts";
+import { locality } from "./locality.ts";
 
 const BASE = "https://places.googleapis.com/v1";
 
@@ -297,7 +298,7 @@ function toDetails(place: DetailsResponse): PlaceDetails {
     lat,
     lng,
     address: place.formattedAddress ?? place.shortFormattedAddress ?? null,
-    city: cityFrom(components),
+    city: locality(cityFrom(components), { lat, lng }),
     countryCode: countryFrom(components),
     category: shortCategory(place.primaryTypeDisplayName?.text, place.primaryType),
     rating: typeof place.rating === "number" ? place.rating : null,

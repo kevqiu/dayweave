@@ -67,6 +67,7 @@ const state = {
   /* Inside a trip: the map and its sheet, or the Plan view (PLAN.md 4f). */
   view: "map",
   trips: [],
+  tripsLoading: true,
   trip: null,
   /* Who you are, and the invitation you are holding (PLAN.md 5). */
   me: null,
@@ -145,8 +146,7 @@ function render() {
   // The Plan view is the grid at every width now — one column on a phone. The
   // frame only grows for the wide one; every other screen stays 375.
   const grid = planning() && wideNow();
-  const unplannedScroll = state.openDayId === "unplanned" && document.querySelector(".rail-list, .sheet-scroll");
-  const unplannedScrollTop = unplannedScroll ? unplannedScroll.scrollTop : 0;
+  const savedScroll = [...document.querySelectorAll(".rail-list, .sheet-scroll, .grid-scroll, .untimed-list, .tray-list")].map((el) => ({ selector: "." + el.classList[0], top: el.scrollTop, key: el.dataset.scrollKey }));
 
   stopTrailWave();
   if (splashCleanup) { splashCleanup(); splashCleanup = null; }
@@ -183,9 +183,14 @@ function render() {
   // paint above only runs for the map, and settleGrid only for the grid.
   if (planning() && !grid) scrollRailToDay();
   if (planning()) settleGrid();
-  if (unplannedScroll) {
-    const scroll = document.querySelector(".rail-list, .sheet-scroll");
-    if (scroll) scroll.scrollTop = unplannedScrollTop;
+  for (const saved of savedScroll) {
+    const scroll = document.querySelector(saved.selector);
+    if (scroll && scroll.dataset.scrollKey === saved.key) scroll.scrollTop = saved.top;
+  }
+  if (state.revealStopId) {
+    const row = [...document.querySelectorAll(".order-row")].find((el) => el.dataset.stopId === state.revealStopId);
+    if (row) row.scrollIntoView({ block: "nearest", inline: "nearest" });
+    state.revealStopId = null;
   }
   if (state.stayPopover || state.stayMenu) renderStayOverlays();
 }
@@ -348,6 +353,7 @@ document.addEventListener("keydown", (event) => {
   }
   if (backStack.length) closeLayer();
   else if (state.trayOpen && !wideNow()) toggleTray(false);
+  else if (state.selectedStopId || state.selectedStayId) { state.selectedStopId = null; state.selectedStayId = null; render(); }
 });
 
 /**
@@ -660,7 +666,7 @@ function noticeToast() {
 function screenTrips() {
   const now = todayIso();
   const current = state.trips.filter((t) => t.start_date <= now && t.end_date >= now);
-  const upcoming = state.trips.filter((t) => t.start_date > now);
+  const upcoming = state.trips.filter((t) => t.start_date > now).sort((a, b) => a.start_date.localeCompare(b.start_date));
   const past = state.trips.filter((t) => t.end_date < now);
 
   const scroll = h("div", { class: "trips-scroll" }, []);
@@ -681,7 +687,8 @@ function screenTrips() {
     scroll.append(h("div", { class: "section-label spaced", text: "PAST" }, []));
     for (const trip of past) scroll.append(tripCard(trip));
   }
-  if (!state.trips.length && !state.invite) {
+  if (state.tripsLoading) scroll.append(h("div", { class: "empty-state", role: "status", text: "Loading your trips…" }, []));
+  if (!state.tripsLoading && !state.trips.length && !state.invite && !state.error) {
     scroll.append(
       h("div", { class: "empty-state" }, [
         h("h3", { text: "No trips yet" }, []),
@@ -836,7 +843,7 @@ async function paintTripMap(host) {
   let cached = tripMapCache.get(trip.id);
   if (!cached) {
     host.replaceChildren();
-    const map = new maps.Map(host, { center: points[0], zoom: 12, styles: window.__MAP_STYLE__, disableDefaultUI: true, gestureHandling: "none", keyboardShortcuts: false, clickableIcons: false });
+    const map = new maps.Map(host, { center: points[0], zoom: 12, styles: window.__MAP_STYLE__, disableDefaultUI: true, gestureHandling: "none", draggableCursor: "pointer", keyboardShortcuts: false, clickableIcons: false });
     map.addListener("click", () => openTrip(trip.id));
     cached = { host, map, markers: [], key: null };
     tripMapCache.set(trip.id, cached);
@@ -955,9 +962,9 @@ function dateFields(draft, after) {
   };
 
   return h("div", { class: "date-fields" }, [
-    field("start", "STARTS"),
+    field("start", draft === state.stayEdit ? "FIRST NIGHT" : "STARTS"),
     h("span", { class: "date-field-arrow", html: ICONS.chevronRight }, []),
-    field("end", "ENDS"),
+    field("end", draft === state.stayEdit ? "LAST NIGHT" : "ENDS"),
   ]);
 }
 
@@ -1342,14 +1349,16 @@ function showTrips() {
   routeTicket++;
   state.screen = "trips";
   state.trip = null;
+  state.tripsLoading = true;
   render();
   api("/api/trips").then((data) => {
     if (state.screen !== "trips") return;
     state.trips = data.trips;
+    state.tripsLoading = false;
     state.me = data.me;
     state.invite = data.invite;
     render();
-  }).catch(() => {});
+  }).catch((error) => { state.tripsLoading = false; state.error = error.message; render(); });
 }
 
 async function openTrip(tripId, restoring, view) {
@@ -1646,9 +1655,29 @@ function deskBar(on) {
  * here without a second implementation.
  */
 function switchMapDay(dayId) {
-  const change = () => { state.openDayId = dayId; state.selectedStopId = null; state.selectedStayId = null; state.stayPopover = null; state.stayMenu = null; state.stayNote = null; render(); };
+  const anchorId = dayId || state.openDayId;
+  const anchor = [...document.querySelectorAll(".day-wrap")].find((el) => el.dataset.dayId === anchorId);
+  const top = anchor ? anchor.getBoundingClientRect().top : null;
+  const change = () => {
+    state.openDayId = dayId; state.dayEdit = null; state.selectedStopId = null; state.selectedStayId = null; state.stayPopover = null; state.stayMenu = null; state.stayNote = null;
+    render();
+    const next = [...document.querySelectorAll(".day-wrap")].find((el) => el.dataset.dayId === anchorId);
+    const scroll = document.querySelector(".rail-list, .sheet-scroll");
+    if (next && scroll && top !== null) scroll.scrollTop += next.getBoundingClientRect().top - top;
+  };
   if (state.search) closeThen(1, change);
   else change();
+}
+
+function selectMapStop(day, stop) {
+  state.openDayId = day.id;
+  state.selectedStayId = null;
+  state.sheetTab = "stops";
+  state.hideVisited = false;
+  state.selectedStopId = stop.id;
+  state.revealStopId = stop.id;
+  state.menuOpen = false;
+  render();
 }
 
 function deskRail() {
@@ -1664,6 +1693,7 @@ function deskRail() {
   }
 
   const list = h("div", { class: "rail-list" }, []);
+  list.append(h("button", { class: "filter-pill", "aria-pressed": String(state.hideVisited), onclick: () => { state.hideVisited = !state.hideVisited; render(); } }, [state.hideVisited ? "Show all stops" : "Hide visited"]));
   for (const day of trip.days) {
     const open = day.id === state.openDayId;
     const past = day.date < today;
@@ -1694,9 +1724,9 @@ function deskRail() {
     wrap.append(dayEditButton(day));
     if (state.dayEdit === day.id) wrap.append(dayEditPanel(day));
     const stays = dayStays(day);
-    if (stays.length) wrap.append(dayStayBar(day, stays[0], "start"));
+    if (open && stays.length) wrap.append(dayStayBar(day, stays[0], "start"));
     if (open) {
-      const body = h("div", { class: "rail-stops" }, day.stops.map((stop) => railStop(day, stop)));
+      const body = h("div", { class: "rail-stops" }, day.stops.filter((stop) => !state.hideVisited || statusOf(day, stop) !== "done").map((stop) => railStop(day, stop)));
       for (const stay of stays.slice(1)) body.append(dayStayBar(day, stay, "end"));
       body.append(
         state.search && state.search.dayId === day.id ? sheetSearch(true) : h("button", { class: "add-place", onclick: () => openSearch(day.id) }, [
@@ -1776,8 +1806,9 @@ function deskDetail(stop) {
   const panel = h("div", { class: "desk-detail" }, [
     h("div", { class: "detail-head" }, [
       h("div", { class: "detail-when" }, [
-        h("span", { class: "detail-dot", style: "background:" + STATUS_FILL[st] }, []),
+        h("span", { class: "detail-dot", style: "background:" + (day ? day.hue : "#94897A") }, []),
         h("span", { text: when }, []),
+        h("button", { class: "detail-close", "aria-label": "Close details", onclick: () => { state.selectedStopId = null; render(); } }, [icon("close")]),
       ]),
       h("div", { class: "detail-name", text: stop.title }, []),
       stop.description ? h("div", { class: "detail-sub", text: stop.description }, []) : null,
@@ -1864,13 +1895,14 @@ function screenTrip() {
       // deliberately not here: the collapsed sheet has no header at all, so a
       // heading that appears only on expanding reads as the sheet becoming a
       // different screen. The control it sat beside is the useful half.
-      full && state.sheetTab === "stops"
+      state.sheetTab === "stops"
         ? h("div", { class: "all-stops" }, [
             h("button", {
               class: "filter-pill",
               "aria-pressed": state.hideVisited ? "true" : "false",
               onclick: () => { state.hideVisited = !state.hideVisited; render(); },
-            }, [state.hideVisited ? "Not visited" : "Filter"]),
+            }, [state.hideVisited ? "Show all stops" : "Hide visited"]),
+            h("button", { class: "filter-pill", onclick: showPlan }, ["Planner"]),
           ])
         : null,
       h("div", { class: "sheet-scroll" },
@@ -1986,7 +2018,7 @@ function dismissGrabber(sheetId, close) {
       sheet.style.transform = "translateY(" + down + "px)";
     };
 
-    const end = () => {
+    const end = (event) => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", end);
       window.removeEventListener("pointercancel", end);
@@ -2415,12 +2447,7 @@ async function paintMap() {
       marker.addListener("click", () => {
         // Tapping a pin on another day opens that day, which is the only way
         // the pin can grow a number and the row it belongs to can be read.
-        if (!open) state.openDayId = day.id;
-        state.selectedStayId = null;
-        state.sheetTab = "stops";
-        state.selectedStopId = stop.id === state.selectedStopId ? null : stop.id;
-        state.menuOpen = false;
-        render();
+        selectMapStop(day, stop);
       });
       gmarkers.push(marker);
       bounds.extend(stop.location);
@@ -2604,8 +2631,7 @@ function mapPins(day, wide) {
       title: stop.title,
       onclick: () => {
         if (stays.includes(stop)) { selectStay(stop); return; }
-        state.selectedStopId = stop.id;
-        render();
+        selectMapStop(day, stop);
       },
     }, [
       h("i", {
@@ -2643,7 +2669,7 @@ function sheetTabs() {
       class: "sheet-tab" + (state.sheetTab === key ? " on" : ""),
       "aria-pressed": state.sheetTab === key ? "true" : "false",
       onclick: () => {
-        const change = () => { state.sheetTab = key; state.dayEdit = null; render(); };
+        const change = () => { state.sheetTab = key; state.dayEdit = null; state.selectedStopId = null; state.selectedStayId = null; render(); };
         if (state.search || state.stayEdit) closeThen(1, change); else change();
       },
     }, [icon(name), label]);
@@ -2671,10 +2697,7 @@ function sheetContents(hasStops) {
       : day.stops;
 
     const toggle = () => {
-      state.openDayId = open ? null : day.id;
-      state.selectedStopId = null;
-      state.dayEdit = null;
-      render();
+      switchMapDay(open ? null : day.id);
     };
     const editing = state.dayEdit === day.id;
     // What a person called the day, then where it is. Both are optional and
@@ -2718,7 +2741,7 @@ function sheetContents(hasStops) {
 
     if (editing) wrap.append(dayEditPanel(day));
     const stays = dayStays(day);
-    if (stays.length) wrap.append(dayStayBar(day, stays[0], "start"));
+    if (open && stays.length) wrap.append(dayStayBar(day, stays[0], "start"));
 
     if (open) {
       if (!hasStops) {
@@ -3038,6 +3061,9 @@ function sheetStay(inline) {
         h("div", { class: "underlined stay-search-field", "aria-busy": String(Boolean(draft.busy)) }, [
           h("input", {
             id: "stay-name",
+            "aria-label": "Stay name",
+            "aria-describedby": draft.error ? "stay-error" : null,
+            "aria-invalid": String(Boolean(draft.error && !draft.name.trim())),
             placeholder: "Hotel, rental or address",
             value: draft.name,
             autocomplete: "off",
@@ -3046,7 +3072,9 @@ function sheetStay(inline) {
         ]),
         h("div", { id: "stay-loading", hidden: !draft.busy }, [searchSkeleton("Searching for accommodations")]),
         results,
+        draft.error ? h("p", { id: "stay-error", class: "field-error", role: "alert", text: draft.error }, []) : null,
         dateFields(draft, null),
+        h("p", { class: "trip-edit-note", text: "The end date is the last night of your stay, included in the night count." }, []),
         h("div", { class: "note-actions" }, [
           h("button", { class: "save", onclick: saveStay }, ["Save"]),
           h("button", { class: "cancel", onclick: close }, ["Cancel"]),
@@ -3104,8 +3132,9 @@ function saveStay() {
   const field = $("stay-name");
   const name = (field ? field.value : draft.name).trim();
   if (!name || !draft.start || !draft.end) {
-    state.error = "A stay needs a name and both of its dates";
+    draft.error = !name ? "Enter a name for this stay." : "Choose the first and last nights.";
     render();
+    if (!name && $("stay-name")) $("stay-name").focus({ preventScroll: true });
     return;
   }
 
@@ -3327,7 +3356,7 @@ function dragHandle(day, stop) {
       suppressTap = drag.moved;
       // Let go over the day rail or off the end of the tray and the card goes
       // back where it came from. A drop has to land on something.
-      if (drag.moved && !drag.outside) commitDrag(drag);
+      if (event.type !== "pointercancel" && drag.moved && !drag.outside) commitDrag(drag);
       else render();
     };
 
@@ -3435,14 +3464,14 @@ function resolveDropTarget(x, y) {
     resolveGridDrop(hit, y - hit.getBoundingClientRect().top);
     return;
   }
-  drag.gridTime = undefined;
+  drag.gridTime = hit.dataset.untimed ? "" : undefined;
   drag.gridY = null;
 
   const id = hit.dataset.dayId === "unplanned" ? null : hit.dataset.dayId;
   drag.targetDayId = id;
 
   const rows = [...hit.querySelectorAll(".order-row[data-stop-id]")]
-    .filter((row) => row.dataset.stopId !== drag.stopId);
+    .filter((row) => row.dataset.stopId !== drag.stopId && !row.hidden);
 
   if (rows.length) {
     // An open day: the row it would follow is whichever midpoint it has passed.
@@ -3651,17 +3680,8 @@ function walkLabel(from, to) {
   const dLng = rad(to.location.lng - from.location.lng);
   const h = Math.sin(dLat / 2) ** 2 +
     Math.cos(rad(from.location.lat)) * Math.cos(rad(to.location.lat)) * Math.sin(dLng / 2) ** 2;
-  const metres = 2 * R * Math.asin(Math.min(1, Math.sqrt(h))) * 1.3;
-  const minutes = Math.max(1, Math.round(metres / 80));
-  // Past 45 minutes it is not a walk, so the thread gives the distance
-  // instead of a walking time nobody would act on. Same threshold the derived
-  // line uses, so the two never say different things about one gap.
-  if (minutes > 45) {
-    return metres < 10000
-      ? (metres / 1000).toFixed(1) + " km away"
-      : Math.round(metres / 1000) + " km away";
-  }
-  return minutes + " min walk";
+  const metres = 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+  return (metres < 1000 ? Math.round(metres / 10) * 10 + " m" : (metres / 1000).toFixed(1) + " km") + " straight-line distance";
 }
 
 /** The lifted card, and the thread it will drop on to. */
@@ -3777,6 +3797,7 @@ function stopActions(stop, done, showTimes) {
         style: "position:absolute;right:7px;bottom:34px;width:180px;border-radius:11px;background:#FFFCF6;" +
           "border:1px solid #E4D9C5;box-shadow:0 6px 20px rgba(84,68,44,0.20);overflow:hidden;z-index:10",
       }, [
+        h("button", { class: "gpop-item", onclick: () => { state.menuOpen = false; openTime(stop); } }, [icon("calendar"), stop.time ? "Edit time" : "Set time"]),
         h("div", {
           style: "display:flex;align-items:center;gap:9px;height:40px;padding:0 12px;cursor:pointer",
           onclick: () => { state.menuOpen = false; openMove(stop.id); },
@@ -3955,13 +3976,13 @@ function tripMenu() {
   return [
     h("div", { class: "scrim light", onclick: close }, []),
     h("div", { class: "trip-menu" }, [
-      wideNow() ? null : item("pinInk", "Map view", {
+      wideNow() ? null : item("pinInk", "Map", {
         on: state.view === "map",
         // This menu, and the Plan view under it if it is showing. The Plan
         // layer's own close is what puts the map back.
         onclick: () => state.view === "plan" ? closeThen(1, leavePlan) : closeLayer(),
       }),
-      wideNow() ? null : item("grid", "Plan view", {
+      wideNow() ? null : item("grid", "Planner", {
         on: state.view === "plan",
         // Close the menu, and open the Plan view once that has landed rather
         // than on top of a traversal that is still on its way.
@@ -4017,12 +4038,15 @@ function sheetTripEdit() {
         h("div", { class: "underlined" }, [
           h("input", {
             id: "trip-edit-name",
+            "aria-label": "Trip name",
+            "aria-describedby": draft.error ? "trip-name-error" : null,
             placeholder: "Give the trip a name",
             value: draft.name,
             autocomplete: "off",
             oninput: (e) => { draft.name = e.target.value; },
           }, []),
         ]),
+        draft.error ? h("p", { id: "trip-name-error", class: "field-error", role: "alert", text: draft.error }, []) : null,
         dateFields(draft, null),
         h("div", { class: "trip-edit-note" }, [
           h("span", {
@@ -4051,8 +4075,9 @@ function saveTripEdit() {
   const field = $("trip-edit-name");
   const name = (field ? field.value : draft.name).trim();
   if (!name || !draft.start || !draft.end) {
-    state.error = "A trip needs a name and both of its dates";
+    draft.error = !name ? "Enter a name for this trip." : "Choose both trip dates.";
     render();
+    if (!name && $("trip-edit-name")) $("trip-edit-name").focus({ preventScroll: true });
     return;
   }
 
@@ -4226,8 +4251,17 @@ function queueDayName(day, value) {
 /* ----------------------------------------------------------- move to day */
 
 async function openMove(stopId) {
-  openLayer(() => { state.move = null; state.preview = null; render(); });
+  const context = { dayId: state.openDayId, view: state.view, sheetFull: state.sheetFull, scroll: document.querySelector(".rail-list, .sheet-scroll")?.scrollTop || 0 };
+  openLayer(() => {
+    state.move = null; state.preview = null;
+    state.view = context.view;
+    if (!context.committed) { state.openDayId = context.dayId; state.sheetFull = context.sheetFull; }
+    render();
+    const scroll = document.querySelector(".rail-list, .sheet-scroll");
+    if (scroll && !context.committed) scroll.scrollTop = context.scroll;
+  });
   state.move = await api("/api/stops/" + stopId + "/move-options");
+  state.move.context = context;
   state.preview = null;
   render();
 }
@@ -4244,15 +4278,15 @@ function sheetMove() {
 
   return [
     h("div", { class: "scrim", onclick: close }, []),
-    h("div", { class: "sheet modal", id: "move-sheet", style: "max-height:92%" }, [
+    h("div", { class: "sheet modal" + (state.preview ? " move-preview" : ""), id: "move-sheet", style: "max-height:" + (state.preview ? "42%" : "92%") }, [
       dismissGrabber("move-sheet", close),
       h("div", { class: "modal-head" }, [
         h("div", { class: "modal-title", text: "Move to another date" }, []),
         h("div", { class: "modal-sub", text: move.stop.name + " · currently " + move.stop.currently }, []),
       ]),
       move.best ? bestCard(move.best) : null,
-      h("div", { class: "pick-label", text: move.best ? "OR PICK A DAY" : "PICK A DAY" }, []),
-      list,
+      state.preview ? null : h("div", { class: "pick-label", text: move.best ? "OR PICK A DAY" : "PICK A DAY" }, []),
+      state.preview ? null : list,
     ]),
   ];
 }
@@ -4269,7 +4303,7 @@ function bestCard(best) {
     // The neighbours are named in bold, as the artboard writes them.
     h("div", { class: "best-detail", html: emphasise(best) }, []),
     h("div", { class: "best-actions" }, [
-      h("button", { class: "go", onclick: () => moveTo(best.dayId) }, ["Move here"]),
+      h("button", { class: "go", onclick: () => moveTo(best.dayId, best.afterStopId) }, ["Move here"]),
       h("button", {
         class: "preview",
         "aria-pressed": previewing ? "true" : "false",
@@ -4277,7 +4311,9 @@ function bestCard(best) {
           // Shows the day it would land on, on the map behind, without
           // committing anything.
           state.preview = previewing ? null : best.dayId;
-          if (state.preview) state.openDayId = state.preview;
+          state.openDayId = state.preview || state.move.context.dayId;
+          state.view = state.preview ? "map" : state.move.context.view;
+          state.sheetFull = state.preview ? false : state.move.context.sheetFull;
           render();
         },
       }, [previewing ? "Hide" : "Preview"]),
@@ -4312,8 +4348,9 @@ function pickRow(candidate) {
   ]);
 }
 
-function moveTo(dayId) {
+function moveTo(dayId, afterStopId) {
   const stopId = state.move.stop.id;
+  if (state.move.context) state.move.context.committed = true;
   state.selectedStopId = null;
   closeLayer();
 
@@ -4328,10 +4365,12 @@ function moveTo(dayId) {
         : (state.trip.days.find((d) => d.id === dayId) || {}).stops;
       if (!target) { at.list.splice(at.index, 0, at.stop); return () => {}; }
 
-      // The sheet offers the end of a day, which is what the endpoint does
-      // when it is not told a neighbour.
-      target.push(at.stop);
-      if (dayId) state.openDayId = dayId;
+      const index = afterStopId === undefined ? target.length : afterStopId === null ? 0 : target.findIndex((s) => s.id === afterStopId) + 1;
+      target.splice(index, 0, at.stop);
+      state.openDayId = dayId || "unplanned";
+      if (dayId) state.planDayId = dayId;
+      state.selectedStopId = stopId;
+      state.revealStopId = stopId;
 
       return () => {
         const back = target.indexOf(at.stop);
@@ -4339,7 +4378,7 @@ function moveTo(dayId) {
         at.list.splice(at.index, 0, at.stop);
       };
     },
-    () => post("/api/stops/" + stopId + "/move", { dayId }),
+    () => post("/api/stops/" + stopId + "/move", { dayId, afterStopId }),
     "That did not move",
   );
 }
@@ -4634,17 +4673,26 @@ async function addNoteStop() {
 }
 
 async function pasteLink() {
-  const url = window.prompt("Paste a Google Maps link");
-  if (!url) return;
   const s = state.search;
-  try {
-    await post("/api/trips/" + state.trip.trip.id + "/stops/link", { url, dayId: s.dayId });
-    state.trip = await api("/api/trips/" + state.trip.trip.id);
-    render();
-  } catch (error) {
-    s.note = error.message;
-    renderResults($("results"));
-  }
+  const results = $("results");
+  const field = h("input", { type: "url", placeholder: "https://maps.google.com/…", "aria-label": "Google Maps link", class: "time-field" }, []);
+  const errorLine = h("p", { role: "alert", class: "field-error" }, []);
+  const submit = h("button", { class: "save", onclick: async () => {
+    const url = field.value.trim();
+    if (!url) { errorLine.textContent = "Paste a Google Maps link."; field.focus(); return; }
+    submit.disabled = true;
+    errorLine.textContent = "Adding place…";
+    try {
+      await post("/api/trips/" + state.trip.trip.id + "/stops/link", { url, dayId: s.dayId });
+      state.trip = await api("/api/trips/" + state.trip.trip.id);
+      render();
+    } catch (error) {
+      errorLine.textContent = error.message;
+      submit.disabled = false;
+    }
+  } }, ["Add place"]);
+  results.replaceChildren(h("div", { class: "note-editor" }, [field, errorLine, h("div", { class: "note-actions" }, [submit, h("button", { class: "cancel", onclick: () => renderResults(results) }, ["Cancel"])])]));
+  field.focus();
 }
 
 
@@ -5029,12 +5077,47 @@ function screenGrid() {
           ? dayEditPanel(days.find((day) => day.id === state.dayEdit)) : null,
         lodgingRow(days),
         lodgingStrip(days),
-        gridScroll(days, span, band, wide),
+        h("div", { class: "planner-modes" }, [
+          h("button", { "aria-pressed": String(!state.untimedView), onclick: () => { state.untimedView = false; render(); } }, ["Timeline"]),
+          h("button", { "aria-pressed": String(Boolean(state.untimedView)), onclick: () => { state.untimedView = true; render(); } }, ["No assigned time (" + trip.days.reduce((n, day) => n + day.stops.filter((s) => !s.accommodation && PLAN.minutesOf(s.time) === null).length, 0) + ")"]),
+        ]),
+        state.untimedView ? untimedPlanner() : gridScroll(days, span, band, wide),
       ]),
       trayDrawer(wide),
     ]),
     noticeToast(),
     ...dragLayer(),
+  ]);
+}
+
+function untimedPlanner() {
+  const list = h("div", { class: "untimed-list" }, []);
+  for (const day of state.trip.days) {
+    const stops = day.stops.filter((stop) => !stop.accommodation && PLAN.minutesOf(stop.time) === null);
+    if (!stops.length) continue;
+    list.append(h("section", { class: "untimed-group drop-zone open", "data-day-id": day.id, "data-untimed": "1" }, [
+      h("h3", { text: day.label + (day.name ? " · " + day.name : "") + " · " + stops.length }, []),
+      ...stops.map((stop) => h("div", { class: "untimed-item order-row", "data-stop-id": stop.id, "data-search": (stop.title + " " + day.label).toLowerCase() }, [
+        dragHandle(day, stop),
+        h("div", { class: "untimed-text" }, [h("strong", { text: stop.title }, []), stop.note ? h("div", { class: "untimed-note", text: stop.note }, []) : null]),
+        h("button", { class: "detail-link", onclick: () => openTime(stop), "aria-label": "Set time for " + stop.title }, ["Set time"]),
+        h("button", { class: "detail-link", onclick: () => openMove(stop.id), "aria-label": "Move " + stop.title }, ["Move"]),
+      ])),
+    ]));
+  }
+  const empty = h("p", { class: "trip-edit-note", role: "status", text: "No matching untimed stops." }, []);
+  list.append(empty);
+  const applyFilter = () => {
+    const query = (state.untimedQuery || "").toLowerCase().trim();
+    for (const row of list.querySelectorAll(".untimed-item")) row.hidden = !row.dataset.search.includes(query);
+    for (const group of list.querySelectorAll(".untimed-group")) group.hidden = !group.querySelector(".untimed-item:not([hidden])");
+    empty.hidden = Boolean(list.querySelector(".untimed-item:not([hidden])"));
+  };
+  const filter = h("input", { type: "search", placeholder: "Find an untimed stop or day", "aria-label": "Find an untimed stop or day", value: state.untimedQuery || "", oninput: (event) => { state.untimedQuery = event.target.value; applyFilter(); } }, []);
+  applyFilter();
+  return h("div", { class: "untimed-planner" }, [
+    h("div", { class: "untimed-tools" }, [filter, h("p", { text: "Assigned to a day, ready to schedule. To be planned holds items without a day." }, [])]),
+    list,
   ]);
 }
 
@@ -5053,7 +5136,7 @@ let gridSettled = null;
 function settleGrid() {
   const scroll = document.querySelector(".grid-scroll");
   if (!scroll) return;
-  const key = state.trip.trip.id + ":" + state.planPage + ":" + gridDays();
+  const key = scroll.dataset.scrollKey;
   if (gridSettled === key) return;
   gridSettled = key;
 
@@ -5085,10 +5168,10 @@ function gridTimes(days) {
 function bandHeight(days) {
   let most = 0;
   for (const day of days) {
-    const n = day.stops.filter((s) => !PLAN.minutesOf(s.time)).length;
+    const n = day.stops.filter((s) => !s.accommodation && PLAN.minutesOf(s.time) === null).length;
     if (n > most) most = n;
   }
-  return most ? 20 + most * 42 : 0;
+  return most ? 20 + most * 56 : 0;
 }
 
 function gridBar(from, total, page) {
@@ -5210,7 +5293,7 @@ let gridObserver = null;
 function gridScroll(days, span, band, wide) {
   if (gridObserver) gridObserver.disconnect();
   const baseHeight = span.height;
-  const scroll = h("div", { class: "grid-scroll" }, [gridContent(days, span, band)]);
+  const scroll = h("div", { class: "grid-scroll", "data-scroll-key": state.trip.trip.id + ":" + days.map((day) => day.id).join(",") }, [gridContent(days, span, band)]);
   if (wide) {
     gridObserver = new ResizeObserver(() => {
       if (!scroll.isConnected || state.drag) return;
@@ -5308,7 +5391,7 @@ function gridColumn(day, span, band, flip) {
   for (const stop of day.stops) {
     if (stop.accommodation) continue;
     if (PLAN.minutesOf(stop.time) !== null) continue;
-    col.append(gridCard(day, stop, { top: span.height + 20 + row * 42, height: 38 }, "untimed"));
+    col.append(gridCard(day, stop, { top: span.height + 20 + row * 56, height: 50 }, "untimed"));
     row++;
   }
 
@@ -5379,7 +5462,8 @@ function gridCard(day, stop, box, kind) {
     class: "gcard order-row " + st + (kind ? " " + kind : "") + (selected ? " selected" : "")
       + (dragging ? " ghost" : ""),
     "data-stop-id": stop.id,
-    style: "top:" + box.top + "px;height:" + box.height + "px;--day-color:" + day.hue + ";--visited-color:" + mutedHue(day.hue),
+    title: stop.title + (sub ? "\n" + sub : ""),
+    style: "top:" + box.top + "px;min-height:" + Math.max(44, box.height) + "px;--day-color:" + day.hue + ";--visited-color:" + mutedHue(day.hue),
     onclick: () => {
       if (suppressTap) { suppressTap = false; return; }
       state.selectedStopId = selected ? null : stop.id;
@@ -5540,7 +5624,10 @@ function resolveGridDrop(col, y) {
   if (y > span.height) {
     drag.gridTime = "";
     drag.gridY = null;
-    drag.afterStopId = undefined;
+    const rows = [...col.querySelectorAll(".gcard.untimed")].filter((row) => row.dataset.stopId !== drag.stopId);
+    const timed = (day?.stops || []).filter((stop) => stop.id !== drag.stopId && PLAN.minutesOf(stop.time) !== null);
+    drag.afterStopId = timed.length ? timed[timed.length - 1].id : null;
+    for (const row of rows) if (y > parseFloat(row.style.top) + row.offsetHeight / 2) drag.afterStopId = row.dataset.stopId;
     return;
   }
 
@@ -5643,12 +5730,14 @@ function rangeLabel(a, b) {
     state.me = data.me;
     state.trips = data.trips;
     state.invite = data.invite;
+    state.tripsLoading = false;
     if (location.pathname.startsWith("/trips/")) await restoreRoute();
     else render();
   } catch (error) {
     // A 401 has already put the sign-in screen up, in api(). Anything else is
     // a real failure, and the trips screen says so rather than staying blank.
     if (error.status !== 401) {
+      state.tripsLoading = false;
       state.error = error.message;
       render();
     }

@@ -8,6 +8,7 @@
  */
 
 import { orderKeyAppend, orderKeyBetween } from "../lib/order.ts";
+import { locality } from "../lib/locality.ts";
 import { inviteToken } from "../lib/invite.ts";
 import { describeStop, isAccommodation, tripCities } from "../lib/derive.ts";
 import type { PlaceDetails } from "../lib/places.ts";
@@ -200,7 +201,8 @@ export async function moveStopToDay(
 
 /** The day's city, taken from whatever its stops say they are in. */
 export function cityOfDay(dayId: string, stops: readonly StopRow[]): string | null {
-  return stops.find((s) => s.day_id === dayId && s.city)?.city ?? null;
+  const stop = stops.find((s) => s.day_id === dayId && s.city);
+  return stop ? locality(stop.city, stop.lat !== null && stop.lng !== null ? { lat: stop.lat, lng: stop.lng } : null) : null;
 }
 
 export async function listDays(db: D1Database, tripId: string): Promise<DayRow[]> {
@@ -559,13 +561,13 @@ export function stopsForDay(
       title: stop.place_name ?? stop.title,
       description: isRoute
         ? describeStop({ category: stop.category, location }, previous)
-        : [stop.city, stop.category].filter(Boolean).join(" · "),
+        : [locality(stop.city, location), stop.category].filter(Boolean).join(" · "),
       note: stop.note,
       time: stop.start_time ?? "",
       status: stop.status,
       author: author.initials,
       authorColor: author.color,
-      city: stop.city,
+      city: locality(stop.city, location),
       accommodation: isAccommodation(stop.category),
       navigateUrl: navigateUrl(location, stop.google_place_id),
       location,
@@ -577,9 +579,9 @@ export function stopsForDay(
 export function citiesForTrip(days: readonly DayRow[], stops: readonly StopRow[]): string[] {
   const inDayOrder: (string | null)[] = [];
   for (const day of days) {
-    for (const stop of stops.filter((s) => s.day_id === day.id)) inDayOrder.push(stop.city);
+    for (const stop of stops.filter((s) => s.day_id === day.id)) inDayOrder.push(locality(stop.city, stop.lat !== null && stop.lng !== null ? { lat: stop.lat, lng: stop.lng } : null));
   }
-  for (const stop of stops.filter((s) => s.day_id === null)) inDayOrder.push(stop.city);
+  for (const stop of stops.filter((s) => s.day_id === null)) inDayOrder.push(locality(stop.city, stop.lat !== null && stop.lng !== null ? { lat: stop.lat, lng: stop.lng } : null));
   return tripCities(inDayOrder);
 }
 

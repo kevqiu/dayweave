@@ -21,18 +21,18 @@ describe("walkMinutes", () => {
 });
 
 describe("describeStop", () => {
-  it("reads as section 4c says: category, then the walk in", () => {
+  it("shows distance without asserting a walkable route", () => {
     expect(describeStop({ category: "ramen", location: B }, { category: null, location: A }))
-      .toBe("ramen · 8 min walk");
+      .toBe("ramen · 500 m straight-line distance");
   });
 
   it("is the category alone for the first stop of a day", () => {
     expect(describeStop({ category: "ramen", location: B }, null)).toBe("ramen");
   });
 
-  it("drops the walk when the previous stop is a train ride away", () => {
+  it("also labels long distances without choosing a transport mode", () => {
     expect(describeStop({ category: "onsen", location: FAR }, { category: null, location: A }))
-      .toBe("onsen");
+      .toBe("onsen · 222.2 km straight-line distance");
   });
 
   it("is empty rather than a placeholder when we know nothing", () => {

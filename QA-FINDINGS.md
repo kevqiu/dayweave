@@ -1,0 +1,48 @@
+# UI/UX findings checklist — 2026-09-15
+
+Source: `C:/Users/Kevin/.codex/visualizations/2026/09/15/01a0a35f-a0ab-7bd0-a703-ddf6bbcd47e2/daytrail-qa-report.md`.
+
+Scope: local changes only. Existing untracked `work/` content was inspected by inventory and left untouched. No live trip was edited and nothing was deployed. The existing artboard/token language is retained; behavior and sizing changes below implement the user's requested revisions to that specification.
+
+## Priority requests and defects
+
+- [x] **B09 — user-reported map selection.** Google and fallback markers now share a selection handler that opens the day, reveals the selected row with nearest scrolling, and clears a visited filter that would hide it. Local fallback-marker browser checks at 390px and 1024px revealed the selected sixth stop at the bottom of the scroll viewport; desktop selection exposed Close details. Unit test covers selecting across days and from the accommodation tab. Live Google cross-day markers still need verification.
+- [x] **B10 — user-reported lower-day jump, independently reproduced on mobile.** Before: opening Day 8 changed scrollTop 917 → 0 and moved its header from y519 to y1122, outside the viewport. After: y648 → y648, with scrollTop adjusting 530 → 173 as the earlier day closes. Rendering now preserves list/grid scroll offsets; day changes anchor the clicked header. At 1024px the clicked header remains visible; browser scroll bounds can prevent an identical y-coordinate when collapsing earlier content would require negative scrollTop. No blank spacer is inserted to fake that position.
+- [x] **B11 — screenshot-supported user report.** Untimed grid cards now have 50px minimum height with 56px spacing; timed cards have a 44px minimum. Map/list titles wrap in rows that grow, and full notes are available in the untimed list. At 1440×1000, all 42 displayed grid cards had metadata bottoms inside their card bounds. At 320×740, wrapped activity titles and three-line notes fit without document overflow. The exact original screenshot trigger was not independently recreated before editing.
+- [x] **U11 — explicit accommodation request.** Day accommodation bars render only inside the expanded day on mobile and desktop. Local browser verification found one day-stay anchor for the one expanded day. The separate Accommodations tab and Planner's stay strip remain available.
+- [x] **U01 — explicit untimed-backlog request/design choice.** Added a dedicated No assigned time view beside Timeline. It lists all trip days, supports search by stop/day, preserves filter and scroll while opening editors, shows full titles/notes, and offers Set time and Move on each item. Validated with 73 untimed items, including 20 in one day, at 320px and 390px. Scheduling the last item at 11:30 reduced the backlog count and persisted after reload. Desktop shares the same implementation.
+- [ ] **B01 — one pointer observation in the report; touch behavior remains open.** Fixed the render-time grid scroll reset, included the selected mobile day in the grid scroll key, implemented insertion within the untimed band, and made pointer cancellation abort a drop. Local pointer drag in a scrolled day retained scrollTop 958 and moved the item between the intended untimed neighbors without assigning a time. Unit tests cover untimed drop semantics. This does not establish real-device touch behavior or close the report's requested touch/scrolled-desktop retest.
+- [x] **B02 — confirmed validation obstruction.** Stay/trip-edit validation is draft-local, names the missing value, and focuses the empty name field. Stay error is associated with its input. At 320px, blank-name Save showed an inline error while both dates and Save/Cancel remained visible; opening the calendar produced no toast or horizontal overflow. Unit test verifies no global toast is created.
+- [x] **B03 — confirmed preview/save mismatch.** Suggestion candidates now carry a stable predecessor ID. Move here uses it for both optimistic insertion and the API request, including null for insertion first. Local browser move preview named two neighbors; execution and reload retained the moved item between those exact neighbors. Tests cover first/middle placement and rollback. Dedicated success Undo is still a design follow-up under U10.
+- [x] **B04 — confirmed misleading transport claim.** Displayed stop/move/drag estimates now identify straight-line distance, without asserting walkability or travel time. No special-case ferry guess is made. Derivation tests cover short and long distances. Actual transport routing remains outside this change.
+- [x] **B05 — confirmed locality inconsistency.** NYC county labels are normalized to borough names using both coordinates and names; move comparison treats those boroughs as one city. Applied to new place details, stored stop payloads, day labels and trip summaries. Tests ensure unrelated counties and Jersey City are not merged. This is a focused NYC correction, not a global locality taxonomy.
+- [x] **B06 — confirmed display-only newline loss.** Stop, stay, desktop detail and untimed-list notes use preserved whitespace and wrapping. Browser verified a three-line note with `pre-wrap` at 320px and mobile expanded-stop accessibility text retained its line breaks. Compact timeline/rail summaries remain abbreviated intentionally.
+- [ ] **B07 — unconfirmed transient.** Added a loading/empty distinction and suppressed the empty-account message during errors. The original transient was not independently reproduced; delayed-auth/network validation remains open.
+- [x] **B08 — confirmed obscured preview/context loss.** Preview opens the map with a compact move sheet and collapses the full mobile list; opening from Planner also temporarily reveals Map. Cancel restores the starting view/day/full-sheet state and saved list scroll. Mobile browser verified map exposure with Move here/Hide visible, then cancellation restored Day 8 and the full sheet. Successful previewed move returned to Planner and the destination day.
+- [x] **E01 — confirmed Codex-browser compatibility issue.** Replaced prompt() with an in-page Maps-link input, inline validation, loading state, error handling and Cancel. Local browser verified blank validation and cancellation. Successful Google link resolution/import was not exercised against the real provider.
+
+## Remaining design suggestions
+
+- [x] **U02:** Stay fields now say First night / Last night and explain the inclusive end date. Stored date semantics are unchanged.
+- [x] **U03:** Mobile Map exposes a Planner button directly; map stop menus offer Set/Edit time. Menu naming now uses Map/Planner consistently.
+- [x] **U04, partial:** Mobile place names use the artboard's 13.5px size and map/rail titles wrap. The list workflow exposes full Planner names. Narrow calendar columns still abbreviate titles; a complete small-text/accessibility redesign was not undertaken.
+- [x] **U05:** Explicit desktop Close details, Escape closure, and clearing destination selection on tab changes. Browser verified closure at 1024px.
+- [x] **U06, partial:** The detail date dot now uses the day's hue. A comprehensive color legend/status redesign remains a suggestion.
+- [ ] **U07:** Reservation state, confirmation references, booking links and check-in/out times remain product/data-model work. No reservation status was inferred or bookings made.
+- [ ] **U08, partial:** Estimates no longer imply routable walking times. Visit durations, opening-hour conflicts, transfer buffers, route modes and day-load checks remain product work requiring reliable data.
+- [x] **U09:** Desktop now offers the visited filter; both layouts use Hide visited / Show all stops. Untimed view explains assigned-day/no-time versus To be planned/no-day.
+- [ ] **U10, partial:** Upcoming trips sort chronologically; view naming is aligned and moved rows are selected/revealed. A dedicated move-success notification with Undo and complete destructive-action copy harmonization remain open.
+
+## Unconfirmed observations
+
+- [ ] **O01:** Intermittent live blank basemap not reproduced or diagnosed. Local validation deliberately uses the fallback map.
+- [ ] **O02:** Stale live marker numbering not reproduced. The local moved stop's list order survives reload; that is not evidence about live Google marker updates.
+
+## Verification and limits
+
+- `node node_modules/vitest/vitest.mjs run --reporter=dot`: **276 tests pass**, 19 files. Added behavioral regressions for day anchoring, cross-day map selection, suggestion insertion/rollback, untimed drops, inline validation, and locality normalization.
+- `node node_modules/typescript/bin/tsc --noEmit`: **passes**.
+- `git diff --check`: **passes**.
+- Local browser checks: 390×844 and 320×740 mobile; 1440×1000 and 1024×768 desktop. Browser console initially clean; card containment, note whitespace, document overflow, selection reveal, detail closure, validation/calendar access, filtering, scheduling persistence, move persistence, preview/cancel and pointer reorder checked.
+- Reproducible fixture: run `node scripts/qa-preview.mjs`, then open `http://127.0.0.1:4183/trips/qa`. It uses real UI code and isolated in-memory scheduling/move endpoints. Restart resets it. It does not access the live fixture, production database, auth, or Google services.
+- Browser gestures are pointer-driven. Real touch, OS keyboards, inertial scrolling, pinch/long press, auth restoration under delay, collaboration, live routing, and real-provider link import remain unverified. Existing tests cover production logic; the browser fixture is not a full production backend E2E environment.
