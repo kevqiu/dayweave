@@ -186,7 +186,7 @@ afterAll(() => {
 const ORIGIN = "https://yvr.kocho.sh";
 
 /** One browser: it keeps its cookies, and it forgets them when it is new. */
-function browser(env: Record<string, unknown>) {
+function browser(env: Record<string, unknown>, origin = ORIGIN) {
   const jar = new Map<string, string>();
 
   const request = async (path: string, init: RequestInit = {}) => {
@@ -197,7 +197,7 @@ function browser(env: Record<string, unknown>) {
     if (init.body) headers.set("content-type", "application/json");
 
     const response = await app.request(
-      `${ORIGIN}${path}`,
+      `${origin}${path}`,
       { ...init, headers, redirect: "manual" },
       env as never,
     );
@@ -323,6 +323,57 @@ async function inviteLink(who: ReturnType<typeof browser>, tripId: string) {
   };
   return made.invite.url.slice(ORIGIN.length);
 }
+
+describe("local development sign-in", () => {
+  const origin = "http://localhost:1337";
+  const localLogin = (who: ReturnType<typeof browser>) => who.request("/api/auth/sign-in/local", {
+    method: "POST", headers: { origin }, body: "{}",
+  });
+
+  it("creates a normal session and returns to the same local workspace after sign-out", async () => {
+    env.LOCAL_DEV_AUTH = "true";
+    const who = browser(env, origin);
+    expect((await who.get("/api/trips")).status).toBe(401);
+    expect(await (await who.get("/")).text()).toContain("window.__LOCAL_DEV__ = true;");
+    expect((await localLogin(who)).status).toBe(200);
+    const first = await session(who);
+    expect(first.me?.name).toBe("Local Explorer");
+    expect(who.jar.has("better-auth.session_token")).toBe(true);
+    const made = await who.post("/api/trips", {
+      name: "Local trip", startDate: "2026-10-01", endDate: "2026-10-03",
+    });
+    expect(made.ok).toBe(true);
+    expect((await who.post("/api/auth/sign-out")).status).toBe(200);
+    expect((await who.get("/api/trips")).status).toBe(401);
+    expect((await localLogin(who)).status).toBe(200);
+    const second = await session(who);
+    expect(second.me?.id).toBe(first.me?.id);
+    expect(second.trips.map((trip) => trip.name)).toEqual(["Local trip"]);
+  });
+
+  it.each([
+    [undefined, origin],
+    ["false", origin],
+    ["true", ORIGIN],
+    ["true", "https://localhost.example.com"],
+  ])("does not expose local sign-in with flag %s at %s", async (flag, host) => {
+    env.LOCAL_DEV_AUTH = flag;
+    const who = browser(env, host);
+    expect(await (await who.get("/")).text()).toContain("window.__LOCAL_DEV__ = false;");
+    expect((await localLogin(who)).status).toBe(404);
+    expect((await who.get("/api/trips")).status).toBe(401);
+  });
+
+  it.each([undefined, "https://example.com"])("rejects a missing or foreign origin: %s", async (requestOrigin) => {
+    env.LOCAL_DEV_AUTH = "true";
+    const who = browser(env, origin);
+    const response = await who.request("/api/auth/sign-in/local", {
+      method: "POST", headers: requestOrigin ? { origin: requestOrigin } : {}, body: "{}",
+    });
+    expect(response.status).toBe(403);
+    expect((await who.get("/api/trips")).status).toBe(401);
+  });
+});
 
 describe("signing in", () => {
   it("reports the deployed commit without requiring a session", async () => {

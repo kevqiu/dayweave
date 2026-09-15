@@ -82,7 +82,7 @@ function iconSet(): Record<string, string> {
 
 const FAVICON = `data:image/svg+xml,${encodeURIComponent(icons.daytrail())}`;
 
-export function page(mapsKey = ""): string {
+export function page(mapsKey = "", localDev = false): string {
   const boot = {
     icons: iconSet(),
     map: mapBackground(),
@@ -96,7 +96,7 @@ export function page(mapsKey = ""): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="${C.paper}">
-<title>Daytrail — Bring your daytrails to life</title>
+<title>Daytrail</title>
 <meta name="description" content="Bring your daytrails to life. Map the places you dream of, plan each day, and explore together with Daytrail.">
 <meta name="application-name" content="Daytrail">
 <meta name="apple-mobile-web-app-title" content="Daytrail">
@@ -124,6 +124,7 @@ window.__SIGNIN_MAP__ = ${JSON.stringify(boot.signInMap)};
 // and then the drawn map stands in — as it also does if the script does not
 // load within 8 seconds.
 window.__MAPS_KEY__ = ${JSON.stringify(mapsKey)};
+window.__LOCAL_DEV__ = ${JSON.stringify(localDev)};
 window.__MAP_STYLE__ = ${JSON.stringify(mapStyle())};
 window.__LOOK_PIN__ = ${JSON.stringify(lookPinIcon())};
 window.__ME_PIN__ = ${JSON.stringify(meIcon())};

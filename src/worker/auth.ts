@@ -1,4 +1,6 @@
 import { betterAuth } from "better-auth";
+import { APIError, createAuthEndpoint } from "better-auth/api";
+import { setSessionCookie } from "better-auth/cookies";
 import type { worker } from "../../alchemy.run.ts";
 
 type Env = typeof worker.Env;
@@ -34,6 +36,32 @@ const ORIGINS = [
 
 /** `alchemy dev` serves on localhost, which is not a hostname to hard-code. */
 const isLocal = (url: URL) => url.hostname === "localhost" || url.hostname === "127.0.0.1";
+
+export const localDevEnabled = (env: Env, url: URL) => env.LOCAL_DEV_AUTH === "true" && isLocal(url);
+
+function localSignIn(origin: string) {
+  return {
+    id: "local-development",
+    endpoints: {
+      signInLocal: createAuthEndpoint("/sign-in/local", { method: "POST", requireHeaders: true }, async (ctx) => {
+        if (ctx.request?.headers.get("origin") !== origin) throw new APIError("FORBIDDEN");
+        const adapter = ctx.context.internalAdapter;
+        const existing = await adapter.findUserByEmail("local@daytrail.test");
+        const user = existing?.user ?? await adapter.createUser({
+          name: "Local Explorer",
+          email: "local@daytrail.test",
+          emailVerified: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }, { method: "local-development" });
+        const session = await adapter.createSession(user.id);
+        if (!session) throw new APIError("INTERNAL_SERVER_ERROR");
+        await setSessionCookie(ctx, { session, user });
+        return ctx.json({ ok: true });
+      }),
+    },
+  };
+}
 
 export function originFor(url: URL): string {
   if (isLocal(url)) return url.origin;
@@ -87,6 +115,7 @@ function build(env: Env, origin: string) {
     baseURL: origin,
     basePath: "/api/auth",
     trustedOrigins: [...ORIGINS],
+    plugins: localDevEnabled(env, new URL(origin)) ? [localSignIn(origin)] : [],
 
     socialProviders: {
       google: {

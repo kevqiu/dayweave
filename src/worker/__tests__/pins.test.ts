@@ -139,11 +139,11 @@ describe("pinLook", () => {
   });
 
   describe("a bed", () => {
-    it("keeps its green, its roof and its size whatever day is open", () => {
+    it("uses the active day color or black, retaining its roof and size", () => {
       state.selectedStopId = null;
       for (const open of [true, false]) {
         const look = api.pinLook(today, bed, open, undefined);
-        expect(look.fill).toBe(api.PIN.bed);
+        expect(look.fill).toBe(open ? today.hue : api.PIN.bed);
         expect(look.roof).toBe(true);
         expect(look.number).toBe(null);
         // Never mini: a bed is exempt from the whole scheme, size included.

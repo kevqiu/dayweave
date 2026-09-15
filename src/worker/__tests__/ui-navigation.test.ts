@@ -62,6 +62,98 @@ describe("trip routes", () => {
   });
 });
 
+describe("bug bash regressions", () => {
+  it("keeps the splash mounted through pending OAuth and a failed retry", async () => {
+    const state: any = { signingIn: false, error: null };
+    let reject: (error: Error) => void = () => {};
+    const post = vi.fn(() => new Promise((_resolve, fail) => { reject = fail; }));
+    const button = { disabled: false, setAttribute: vi.fn(), lastElementChild: { textContent: "" }, before: vi.fn() };
+    const render = vi.fn();
+    const api = load(["signInWithGoogle", "updateSignInStatus"], {
+      state, post, render, location: { pathname: "/" }, window: { location: {} },
+      document: { querySelector: (selector: string) => selector === ".signin-google" ? button : null },
+      h: (_tag: string, props: unknown) => props,
+    });
+    const signingIn = api.signInWithGoogle();
+    await api.signInWithGoogle();
+    expect(post).toHaveBeenCalledOnce();
+    expect(button.disabled).toBe(true);
+    expect(button.lastElementChild.textContent).toBe("Taking you to Google…");
+    reject(new Error("Try again"));
+    await signingIn;
+    expect(button.disabled).toBe(false);
+    expect(button.before).toHaveBeenCalledWith(expect.objectContaining({ role: "alert", text: "Try again" }));
+    expect(render).not.toHaveBeenCalled();
+  });
+
+  it("adds distinct repeat visits and preserves the original membership after failure", () => {
+    const original = { id: "original" };
+    const day = { id: "day", label: "Thursday", stops: [original] };
+    const state = { search: { dayId: "day" }, trip: { trip: { id: "trip" }, days: [day] } };
+    const undo: Function[] = [];
+    const post = vi.fn();
+    const api = load(["addPlace"], { state, crypto, post, optimistic: (apply: Function, request: Function) => { undo.push(apply()); request(); } });
+    const row = { placeId: "place", name: "Cafe", onTrip: true, onTripDay: "Wednesday" };
+    api.addPlace(row);
+    api.addPlace(row);
+    expect(new Set(day.stops.map((stop) => stop.id)).size).toBe(3);
+    expect(post).toHaveBeenCalledTimes(2);
+    undo[1]!();
+    undo[0]!();
+    expect(day.stops).toEqual([original]);
+    expect(row).toMatchObject({ onTrip: true, onTripDay: "Wednesday" });
+  });
+
+  it("saves the day immediately on Done without replaying the pending autosave", async () => {
+    vi.useFakeTimers();
+    try {
+      const day = { id: "day", name: "Old" };
+      const state = { dayEdit: "day" };
+      const post = vi.fn(async () => ({}));
+      const api = load(["queueDayName", "finishDayEdit"], { state, post, render: vi.fn(), clearTimeout, setTimeout }, 'let dayNameTimer=null; let dayNameBefore="Old";');
+      api.queueDayName(day, "New name");
+      api.finishDayEdit(day);
+      expect(state.dayEdit).toBeNull();
+      expect(post).toHaveBeenCalledWith("/api/days/day", { name: "New name" });
+      await vi.runAllTimersAsync();
+      expect(post).toHaveBeenCalledOnce();
+    } finally { vi.useRealTimers(); }
+  });
+
+  it.each([false, true])("centers search in the visible map with desktop=%s", async (wide) => {
+    const location = { lat: 35, lng: 130 };
+    const zoom = 15;
+    const padding = { top: 50, bottom: 410, left: 24, right: 24 };
+    const gmap = { panTo: vi.fn(), getZoom: () => zoom };
+    const api = load(["centreOnResult", "paddedMapCenter"], { loadMaps: async () => ({}), gmap, wideNow: () => wide, fitPadding: () => padding });
+    await api.centreOnResult({ location });
+    const center = gmap.panTo.mock.calls[0]![0];
+    const project = (lat: number) => (1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * 256 * 2 ** zoom;
+    expect(project(location.lat) - project(center.lat)).toBeCloseTo(wide ? 0 : -180);
+    expect(center.lng).toBe(location.lng);
+  });
+
+  it("fits accommodation popovers below top rows and above bottom rows", () => {
+    const api = load(["floatingPosition"], {});
+    const bounds = { left: 8, top: 8, right: 367, bottom: 659 };
+    const size = { width: 340, height: 180 };
+    expect(api.floatingPosition({ left: 20, right: 350, top: 84, bottom: 114 }, size, bounds)).toEqual({ left: 10, top: 120, maxHeight: 180 });
+    expect(api.floatingPosition({ left: 20, right: 350, top: 600, bottom: 630 }, size, bounds)).toEqual({ left: 10, top: 414, maxHeight: 180 });
+    const tall = api.floatingPosition({ left: 20, right: 350, top: 300, bottom: 330 }, { width: 340, height: 900 }, bounds);
+    expect(tall.top + tall.maxHeight).toBeLessThanOrEqual(bounds.bottom);
+  });
+
+  it("orders a changeover day from the departing stay to the arriving stay", () => {
+    const departing = { id: "a", check_in: "2026-10-01", check_out: "2026-10-04", lat: 35, lng: 130 };
+    const arriving = { id: "b", check_in: "2026-10-04", check_out: "2026-10-07", lat: 36, lng: 131 };
+    const day = { date: "2026-10-04", stops: [{ location: { lat: 35.5, lng: 130.5 } }] };
+    const state = { trip: { lodging: [arriving, departing] } };
+    const api = load(["dayStays", "dayTrailPoints"], { state });
+    expect(api.dayStays(day)).toEqual([departing, arriving]);
+    expect(api.dayTrailPoints(day, state.trip.lodging)).toEqual([{ lat: 35, lng: 130 }, day.stops[0]!.location, { lat: 36, lng: 131 }]);
+  });
+});
+
 describe("located accommodations", () => {
   it("draws real stays, includes the current stay in camera bounds, and opens its editor", async () => {
     const stay = { id: "stay", name: "Equator guesthouse", lat: 0, lng: 0, check_in: "2026-10-01", check_out: "2026-10-03" };
@@ -76,7 +168,7 @@ describe("located accommodations", () => {
     }
     const map = { getDiv: () => host, fitBounds: vi.fn(), setZoom: vi.fn() };
     const openStay = vi.fn();
-    const api = load(["paintMap", "locatedStays"], {
+    const api = load(["paintMap", "locatedStays", "unplannedDay"], {
       state, mapsKey: () => true, $: () => host,
       loadMaps: async () => ({ LatLngBounds: Bounds, Marker, Size: class {}, Point: class {} }),
       gmap: map, routeNumbers: () => ({}), pinLook: () => ({}), pinUrl: () => ({ url: "pin", box: 32 }),
@@ -251,13 +343,25 @@ describe("search and drag transitions", () => {
     expect(previous.setMap).toHaveBeenCalledWith(null);
     expect(lines[0].options.icons[0].icon.fillColor).toBe("#7A4FBF");
     expect(lines[0].options.clickable).toBe(false);
+    const dotsOnScreen = (length: number) => lines[0].options.icons.flatMap((sequence: any) => {
+      expect(sequence.offset).toMatch(/px$/);
+      expect(sequence.repeat).toMatch(/px$/);
+      const dots = [];
+      for (let at = parseFloat(sequence.offset); at <= length; at += parseFloat(sequence.repeat)) dots.push(at);
+      return dots;
+    }).sort((a: number, b: number) => a - b);
+    for (const length of [160, 1600, 16000]) {
+      const dots = dotsOnScreen(length);
+      expect(dots).toHaveLength(length / 8 + 1);
+      expect(dots.every((dot: number, i: number) => !i || dot - dots[i - 1] === 8)).toBe(true);
+    }
   });
   it("focuses a selected accommodation and skips stays without coordinates", () => {
     const state: any = { sheetTab: "stays", selectedStayId: "stay", trip: { days: [], lodging: [
       { id: "stay", lat: 35, lng: 130 }, { id: "unlocated", lat: null, lng: null },
     ] } };
     const gmap = { getZoom: () => 12, setZoom: vi.fn(), panTo: vi.fn() };
-    const api = load(["focusSelectedMapStop"], { state, gmap, fitPadding: () => ({ top: 40, bottom: 40, left: 40, right: 40 }) }, "let focusedMapStop=null; let mapFitted=null;");
+    const api = load(["focusSelectedMapStop", "paddedMapCenter"], { state, gmap, fitPadding: () => ({ top: 40, bottom: 40, left: 40, right: 40 }) }, "let focusedMapStop=null; let mapFitted=null;");
     expect(api.focusSelectedMapStop()).toBe(true);
     expect(gmap.setZoom).toHaveBeenCalledWith(15);
     expect(gmap.panTo.mock.calls[0]![0].lat).toBeCloseTo(35);
@@ -273,7 +377,7 @@ describe("search and drag transitions", () => {
       { id: "a", location: { lat: 35, lng: 130 } }, { id: "b", location: { lat: 36, lng: 131 } },
     ] }] } };
     const gmap = { getZoom: () => 12, setZoom: vi.fn(), panTo: vi.fn() };
-    const api = load(["focusSelectedMapStop"], { state, gmap, fitPadding: () => ({ top: 60, bottom: 400, left: 40, right: 40 }) }, "let focusedMapStop=null; let mapFitted=null;");
+    const api = load(["focusSelectedMapStop", "paddedMapCenter"], { state, gmap, fitPadding: () => ({ top: 60, bottom: 400, left: 40, right: 40 }) }, "let focusedMapStop=null; let mapFitted=null;");
     expect(api.focusSelectedMapStop()).toBe(true);
     expect(gmap.setZoom).toHaveBeenCalledWith(15);
     expect(gmap.panTo.mock.calls[0]![0].lat).toBeLessThan(35);

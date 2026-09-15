@@ -1457,6 +1457,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   gap: 11px; box-shadow: 0 1px 3px rgba(80,66,44,0.08); padding: 0;
 }
 .signin-google[disabled] { opacity: 0.6; }
+.signin-local { max-width: 360px; margin-top: 12px; flex-shrink: 0; }
 .signin-google span:last-child { font-size: 15px; font-weight: 600; color: ${C.ink}; }
 /*
  * The G, and it is Google's now.
@@ -1485,14 +1486,15 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 .me-menu-who {
   padding: 9px 13px 8px; border-bottom: 1px solid ${C.line};
-  font-size: 11px; color: ${C.grey}; white-space: nowrap;
+  font-size: 13px; color: ${C.grey}; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis;
 }
 .desk-rail .day-wrap { position: relative; }
 .desk-rail .rail-day { padding-right: 38px; }
 .desk-rail .day-wrap > .day-pencil { position: absolute; right: 2px; top: 4px; }
 .gcol-head { position: relative; padding-right: 32px; }
-.gcol-head > .day-pencil { position: absolute; right: 1px; top: 2px; }
+.gcol-head > .day-pencil { position: absolute; right: 1px; top: 50%; transform: translateY(-50%); }
+.screen.desk.narrow .gcol-head { padding-right: 36px; }
 .grid-days > .day-edit { flex-shrink: 0; }
 .me-menu button {
   display: block; width: 100%; text-align: left; padding: 10px 13px;
@@ -1531,14 +1533,24 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .stay-card .stay-row { border: 0; padding: 7px; height: auto; min-height: 52px; }
 .stay-card .stay-name { font-weight: 500; }
 .stay-menu-anchor { position: relative; flex: 0 0 34px; }
-.stay-menu { position: absolute; right: 0; bottom: calc(100% + 4px); width: 180px; border-radius: 11px; background: ${C.card}; border: 1px solid ${C.borderWarm}; box-shadow: 0 6px 20px rgba(84,68,44,.2); overflow: hidden; z-index: 30; }
+.stay-menu { position: fixed; width: 180px; border-radius: 11px; background: ${C.card}; border: 1px solid ${C.borderWarm}; box-shadow: 0 6px 20px rgba(84,68,44,.2); overflow-y: auto; z-index: 121; }
+.stay-popover { position: fixed; width: 340px; border-radius: 12px; border: 1px solid ${C.borderWarm}; background: ${C.card}; box-shadow: 0 10px 28px rgba(84,68,44,.2); overflow-y: auto; z-index: 120; padding: 12px; }
+.stay-popover-title { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+.stay-popover .stay-details { padding: 0; }
+.stay-popover .stay-actions { flex-wrap: nowrap; }
+.day-stay-bar { display: flex; align-items: center; gap: 9px; padding: 6px 12px; background: ${C.highlight}; border-bottom: 1px solid ${C.sheetEdge}; }
+.day-stay-bar > span { flex-shrink: 0; }
+.day-stay-bar .stay-bar { position: static; height: 30px; min-width: 0; flex: 1; text-align: left; }
+.day-stay-bar .stay-bar[aria-expanded="true"], .stay-lane .stay-bar[aria-expanded="true"] { border-color: ${C.ink}; }
+.day-stay-end { margin-top: 6px; border-radius: 8px; }
 .stay-menu button { display: flex; align-items: center; gap: 9px; width: 100%; height: 40px; border: 0; padding: 0 12px; background: none; text-align: left; font-size: 13px; font-weight: 500; }
 .stay-menu button + button { border-top: 1px solid ${C.line}; color: #A06B52; }
 .stay-menu button:hover, .stay-menu button:focus-visible { background: ${C.brandWash}; }
 .stay-note-editor { margin-top: 8px; }
 .stay-note-editor textarea { width: 100%; min-height: 90px; resize: vertical; border: 1px solid ${C.border}; border-radius: 8px; padding: 10px; font: inherit; background: ${C.card}; }
-.suggestion-pin { position: absolute; z-index: 20; width: 32px; height: 40px; transform: translate(-50%, -100%); border: 2px solid white; border-radius: 18px; background: ${C.card}; display: grid; place-items: center; box-shadow: 0 2px 5px #0003; }
-.suggestion-pin.selected { width: 40px; height: 50px; z-index: 21; }
+.suggestion-pin { position: absolute; z-index: 20; width: 22px; height: 28px; padding: 0; transform: translate(-50%, -100%); border: 2px solid white; border-radius: 18px; background: ${C.card}; display: grid; place-items: center; box-shadow: 0 2px 5px #0003; }
+.suggestion-pin.selected { width: 26px; height: 33px; z-index: 21; }
+.suggestion-pin::after { content: ""; position: absolute; width: 44px; height: 44px; left: 50%; top: 50%; transform: translate(-50%, -50%); }
 .search-skeleton { padding: 10px 12px; }
 .search-skeleton-row { display: flex; gap: 12px; align-items: center; height: 52px; }
 .search-skeleton-row > i, .search-skeleton-row span { background: linear-gradient(90deg, ${C.line} 20%, ${C.card} 50%, ${C.line} 80%); background-size: 220% 100%; animation: skeleton-shimmer 1.1s ease-in-out infinite; border-radius: 5px; }
@@ -1547,7 +1559,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .search-skeleton-row span { display: block; height: 9px; width: 70%; margin: 7px 0; }
 .search-skeleton-row span + span { width: 90%; height: 7px; }
 .stop.done .stop-name, .rail-stop.done .rail-name, .gcard.done .gcard-title { text-decoration: none; }
-.desk-map { top: 0; left: auto; right: auto; bottom: auto; }
+.desk-map { top: 0; left: auto; right: auto; bottom: auto; cursor: pointer; }
 .day-pencil { display: flex; align-items: center; justify-content: center; padding: 0; }
 .desk-rail .day-wrap > .day-pencil { top: 2px; }
 .inline-search .results { padding-bottom: 0; }
@@ -1563,11 +1575,15 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .trip-card-map .gm-style { font-family: ${SANS}; }
 .search-close { position: absolute; right: 6px; top: 6px; z-index: 2; display: flex; padding: 7px; border: 0; background: transparent; border-radius: 8px; }
 .search-close:hover { background: ${C.highlight}; }
+.inline-search .search-close { top: 16px; }
+.result-add-anyway { flex-shrink: 0; align-self: center; border: 0; border-radius: 8px; background: transparent; color: ${C.inkSoft}; padding: 8px; font-size: 11px; font-weight: 600; }
+.result-add-anyway:hover { background: ${C.card}; }
+.signin-error { font-size: 13px; color: ${C.link}; padding-bottom: 10px; }
 .trips-scroll { min-height: 0; }
 @media (min-width: 780px) and (min-height: 560px) {
   .screen.centred.roomy { padding: clamp(20px, 4vw, 56px); background: ${C.paper}; }
   .screen.centred.roomy > .card-column { width: min(1200px, 100%); height: 100%; max-height: none; border: 0; border-radius: 0; box-shadow: none; }
-  .roomy .trips-bar { height: 78px; padding: 0 0 24px; }
+  .roomy .trips-bar { height: 54px; padding: 0; flex-shrink: 0; order: -2; }
   .roomy .trips-title { font-size: 40px; }
   .roomy .trips-scroll { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 16px 24px; padding-bottom: 24px; }
   .roomy .section-label, .roomy .invite-card, .roomy .empty-state { grid-column: 1 / -1; padding-left: 0; }
@@ -1581,7 +1597,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .roomy .trip-card-name { font-size: 26px; }
   .roomy .trip-card-sub { font-size: 13px; }
   .roomy .trip-card-foot { margin-top: 20px; }
-  .roomy .trips-foot { position: static; padding: 18px 0 0; background: none; }
+  .roomy .trips-foot { position: static; display: flex; justify-content: flex-end; flex-shrink: 0; order: -1; padding: 12px 0 18px; background: none; }
   .roomy .trips-foot .btn-dark { width: 220px; }
   .screen.centred.splash { padding: 0; background: ${C.paper}; }
   .screen.centred.splash > .card-column { display: grid; grid-template-columns: 1.1fr 1fr; width: 100%; height: 100%; max-height: none; border: 0; border-radius: 0; box-shadow: none; }

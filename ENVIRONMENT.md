@@ -4,6 +4,11 @@ Use Node 24 and install the committed dependencies with npm ci. Keep the nine
 variables listed below in a gitignored .env file in the repository root.
 Alchemy loads this file for local development; run npm run dev.
 
+Local development shows a Continue locally button for signing in as Local
+Explorer without Google. It uses the local database and normal session cookies.
+This sign-in is enabled only by alchemy dev on localhost or 127.0.0.1; deployed
+Workers do not enable it.
+
 For release, commit changes and run npm run deploy. The release script checks
 the variables, requires a clean checkout, pins stage dev, and verifies the
 deployed Git SHA at both public hostnames. It never prints secret values.

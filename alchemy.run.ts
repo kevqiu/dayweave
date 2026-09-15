@@ -81,6 +81,7 @@ export const worker = await Worker("api", {
   compatibilityFlags: ["nodejs_compat"],
   bindings: {
     DEPLOY_COMMIT: process.env.DEPLOY_COMMIT ?? "local",
+    LOCAL_DEV_AUTH: app.local ? "true" : "false",
     DB: db,
     SESSIONS: sessions,
     PLACES_CACHE: placesCache,

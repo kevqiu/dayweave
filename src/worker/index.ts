@@ -61,7 +61,7 @@ import {
   type UserRow,
 } from "./store.ts";
 import { avatarColor, guestAvatarColor } from "./ui/tokens.ts";
-import { authFor } from "./auth.ts";
+import { authFor, localDevEnabled } from "./auth.ts";
 import { page } from "./ui/page.ts";
 import type { worker } from "../../alchemy.run.ts";
 
@@ -306,7 +306,7 @@ const todayIso = () => new Date().toISOString().slice(0, 10);
 app.on("GET", ["/", "/trips/:tripId", "/trips/:tripId/plan"], (c) => {
   c.header("X-Deploy-Commit", c.env.DEPLOY_COMMIT);
   // The browser key is public by design; the Places key stays server-side.
-  return c.html(page(c.env.GOOGLE_MAPS_BROWSER_KEY));
+  return c.html(page(c.env.GOOGLE_MAPS_BROWSER_KEY, localDevEnabled(c.env, new URL(c.req.url))));
 });
 
 app.get("/version", (c) => c.json({ commit: c.env.DEPLOY_COMMIT }));

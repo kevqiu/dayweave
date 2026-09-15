@@ -63,6 +63,7 @@ const state = {
   /* The account menu behind the header avatar, and the wait for Google. */
   meMenu: false,
   signingIn: false,
+  signingInLocally: false,
   /* Inside a trip: the map and its sheet, or the Plan view (PLAN.md 4f). */
   view: "map",
   trips: [],
@@ -94,6 +95,7 @@ const state = {
   /* Adding or changing one stay. */
   stayEdit: null,
   selectedStayId: null,
+  stayPopover: null,
   stayMenu: null,
   stayNote: null,
   /* The calendar hanging off whichever date field was tapped. */
@@ -139,9 +141,12 @@ const wideNow = () => window.matchMedia(WIDE).matches;
 const planning = () => state.screen === "trip" && state.view === "plan";
 
 function render() {
+  document.title = state.screen === "trip" && state.trip ? state.trip.trip.name + " / Daytrail" : "Daytrail";
   // The Plan view is the grid at every width now — one column on a phone. The
   // frame only grows for the wide one; every other screen stays 375.
   const grid = planning() && wideNow();
+  const unplannedScroll = state.openDayId === "unplanned" && document.querySelector(".rail-list, .sheet-scroll");
+  const unplannedScrollTop = unplannedScroll ? unplannedScroll.scrollTop : 0;
 
   stopTrailWave();
   if (splashCleanup) { splashCleanup(); splashCleanup = null; }
@@ -178,6 +183,11 @@ function render() {
   // paint above only runs for the map, and settleGrid only for the grid.
   if (planning() && !grid) scrollRailToDay();
   if (planning()) settleGrid();
+  if (unplannedScroll) {
+    const scroll = document.querySelector(".rail-list, .sheet-scroll");
+    if (scroll) scroll.scrollTop = unplannedScrollTop;
+  }
+  if (state.stayPopover || state.stayMenu) renderStayOverlays();
 }
 
 // The two densities are one view, so crossing the width re-renders into the
@@ -211,8 +221,15 @@ window.addEventListener("resize", () => {
 /* -------------------------------------------------------------- history */
 
 document.addEventListener("click", (event) => {
-  if (state.stayMenu && !event.target.closest(".stay-menu-anchor")) { state.stayMenu = null; render(); }
+  if (event.target.closest("[data-stay-anchor], .stay-popover, .stay-menu-anchor, .stay-menu")) return;
+  if (state.stayMenu || state.stayPopover) {
+    state.stayMenu = null;
+    if (state.stayPopover) { state.stayPopover = null; state.selectedStayId = null; state.stayNote = null; }
+    render();
+  }
 });
+document.addEventListener("scroll", () => positionStayOverlays(), true);
+window.addEventListener("resize", () => positionStayOverlays());
 
 /**
  * Back has to mean back.
@@ -320,7 +337,15 @@ function closeLayer() {
 
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
-  if (state.stayMenu) { state.stayMenu = null; render(); document.querySelector(".stay-menu-anchor button")?.focus(); return; }
+  if (state.stayMenu || state.stayPopover) {
+    const anchor = state.stayMenu ? "stay-options-" + state.stayMenu : state.stayPopover;
+    if (state.stayMenu) state.stayMenu = null;
+    else { state.stayPopover = null; state.stayNote = null; state.selectedStayId = null; }
+    render();
+    const button = $(anchor);
+    if (button) button.focus();
+    return;
+  }
   if (backStack.length) closeLayer();
   else if (state.trayOpen && !wideNow()) toggleTray(false);
 });
@@ -796,7 +821,7 @@ function screenNewTrip() {
       h("button", { class: "icon-btn", onclick: closeLayer }, [icon("close")]),
       h("div", { class: "top-bar-title", text: "New trip" }, []),
     ]),
-    h("div", { style: "padding:0 18px 18px;flex-shrink:0" }, [
+    h("div", { style: "padding:0 18px 32px;flex-shrink:0" }, [
       h("div", { class: "ask", text: "Where are we going?" }, []),
       h("div", { class: "underlined" }, [
         h("input", {
@@ -809,7 +834,7 @@ function screenNewTrip() {
       ]),
     ]),
     h("div", { style: "padding:0 18px;flex-shrink:0" }, [
-      h("div", { class: "ask small", text: "And when?" }, []),
+      h("div", { class: "ask small", style: "margin-bottom:12px", text: "And when?" }, []),
       dateFields(draft, refreshCreate),
       // The length of the trip, under the two fields that decide it. The foot
       // used to carry this as a second copy of the same dates; with the dates
@@ -1109,7 +1134,7 @@ function screenSignIn() {
             text: "Sign in below to accept it.",
           }, [])
         : null,
-      state.error ? h("div", { class: "err", style: "padding:0 0 10px", text: state.error }, []) : null,
+      state.error ? h("div", { class: "err signin-error", role: "alert", style: "padding:0 0 10px", text: state.error }, []) : null,
       h("button", {
         class: "signin-google",
         disabled: state.signingIn,
@@ -1118,6 +1143,7 @@ function screenSignIn() {
         icon("googleG", "signin-g"),
         h("span", { text: state.signingIn ? "Taking you to Google…" : "Continue with Google" }, []),
       ]),
+      window.__LOCAL_DEV__ ? h("button", { class: "btn-dark signin-local", onclick: signInLocally, text: "Continue locally" }, []) : null,
     ]),
   ], { tall: true });
 }
@@ -1130,9 +1156,10 @@ function screenSignIn() {
  * browser and land the consent screen inside a JSON parse.
  */
 async function signInWithGoogle() {
+  if (state.signingIn || state.signingInLocally) return;
   state.signingIn = true;
   state.error = null;
-  render();
+  updateSignInStatus();
   try {
     const data = await post("/api/auth/sign-in/social", { provider: "google", callbackURL: location.pathname });
     if (!data.url) throw new Error("sign-in did not come back with anywhere to go");
@@ -1140,7 +1167,38 @@ async function signInWithGoogle() {
   } catch (error) {
     state.signingIn = false;
     state.error = error.message;
-    render();
+    updateSignInStatus();
+  }
+}
+
+function updateSignInStatus() {
+  const button = document.querySelector(".signin-google");
+  if (!button) return;
+  button.disabled = Boolean(state.signingIn || state.signingInLocally);
+  button.setAttribute("aria-busy", String(state.signingIn));
+  button.lastElementChild.textContent = state.signingIn ? "Taking you to Google…" : "Continue with Google";
+  const local = document.querySelector(".signin-local");
+  if (local) {
+    local.disabled = button.disabled;
+    local.textContent = state.signingInLocally ? "Opening local workspace…" : "Continue locally";
+  }
+  const existing = document.querySelector(".signin-error");
+  if (existing) existing.remove();
+  if (state.error) button.before(h("div", { class: "signin-error", role: "alert", text: state.error }, []));
+}
+
+async function signInLocally() {
+  if (state.signingIn || state.signingInLocally) return;
+  state.signingInLocally = true;
+  state.error = null;
+  updateSignInStatus();
+  try {
+    await post("/api/auth/sign-in/local", {});
+    window.location.reload();
+  } catch (error) {
+    state.signingInLocally = false;
+    state.error = error.message;
+    updateSignInStatus();
   }
 }
 
@@ -1185,8 +1243,9 @@ function showSignIn() {
   // cannot say who invited them or to what.
   api("/api/invite/pending").then((data) => {
     if (state.screen !== "signIn") return;
+    const changed = JSON.stringify(state.invite) !== JSON.stringify(data.invite);
     state.invite = data.invite;
-    render();
+    if (changed && !state.signingIn && !state.signingInLocally) render();
   }).catch(() => {});
 }
 
@@ -1303,10 +1362,6 @@ const STATUS_RING = { done: "#EFE9DF", now: "#E4EEE1", ahead: "#F8EECF" };
  *
  * The rules, in the order they win:
  *
- * - **Somewhere you sleep is never dimmed and never recoloured.** A hotel is
- *   where the day begins and ends, so it stays solid green with a roof on it
- *   whatever is selected and whatever day is open. It carries a roof instead
- *   of a number because it is not a stop on the route.
  * - **The open day is full size and numbered.** Every other day is a mini dot
  *   of its own colour, so the shape of the whole trip is visible without the
  *   other days competing with the one being planned.
@@ -1320,12 +1375,7 @@ const PIN = {
   full: 26,
   mini: 16,
   selected: 32,
-  /**
-   * The one green that never changes. The deepest step of the day ramp, which
-   * is also day one's colour, so a hotel reads as part of the same family
-   * rather than as a fifth colour.
-   */
-  bed: "#3F6B4A",
+  bed: "#202124",
 };
 
 /** Where a stop sits in the day's route. Beds are not on the route. */
@@ -1354,12 +1404,12 @@ function mutedHue(hex) {
 
 function pinLook(day, stop, open, number) {
   const st = statusOf(day, stop);
-  const selected = stop.id === state.selectedStopId;
+  const selected = stop.id === state.selectedStopId || stop.id === state.selectedStayId;
   const anySelected = Boolean(state.selectedStopId);
 
   if (stop.accommodation) {
     return {
-      fill: PIN.bed,
+      fill: open ? day.hue : PIN.bed,
       // Never shrunk either. A bed is exempt from the whole scheme: it does
       // not fade for a day being over, it does not fade for something else
       // being selected, and it does not go mini for being on another day.
@@ -1462,7 +1512,7 @@ function screenTripDesk() {
         mapsKey()
           ? h("div", { id: "gmap", style: "position:absolute;inset:0" }, [])
           : h("div", { style: "position:absolute;inset:0", html: window.__MAP__ }, []),
-        ...(mapsKey() || state.search ? [] : mapPins(trip.days.find((d) => d.id === state.openDayId), true)),
+        ...(mapsKey() || state.search ? [] : mapPins(state.openDayId === "unplanned" ? unplannedDay() : trip.days.find((d) => d.id === state.openDayId), true)),
         ...searchMapLayer(),
         ...mapControls(),
       ]),
@@ -1526,7 +1576,7 @@ function deskBar(on) {
  * here without a second implementation.
  */
 function switchMapDay(dayId) {
-  const change = () => { state.openDayId = dayId; state.selectedStopId = null; render(); };
+  const change = () => { state.openDayId = dayId; state.selectedStopId = null; state.selectedStayId = null; state.stayPopover = null; state.stayMenu = null; state.stayNote = null; render(); };
   if (state.search) closeThen(1, change);
   else change();
 }
@@ -1573,8 +1623,11 @@ function deskRail() {
 
     wrap.append(dayEditButton(day));
     if (state.dayEdit === day.id) wrap.append(dayEditPanel(day));
+    const stays = dayStays(day);
+    if (stays.length) wrap.append(dayStayBar(day, stays[0], "start"));
     if (open) {
       const body = h("div", { class: "rail-stops" }, day.stops.map((stop) => railStop(day, stop)));
+      for (const stay of stays.slice(1)) body.append(dayStayBar(day, stay, "end"));
       body.append(
         state.search && state.search.dayId === day.id ? sheetSearch(true) : h("button", { class: "add-place", onclick: () => openSearch(day.id) }, [
           icon("plusGrey"), "Add a place",
@@ -1585,14 +1638,19 @@ function deskRail() {
     list.append(wrap);
   }
 
+  const unplannedOpen = state.openDayId === "unplanned";
   list.append(
-    h("div", { class: "day-wrap drop-zone", "data-day-id": "unplanned" }, [
-      h("div", { class: "rail-day", "data-day-id": "unplanned" }, [
+    h("div", { class: "day-wrap drop-zone" + (unplannedOpen ? " open" : ""), "data-day-id": "unplanned" }, [
+      h("button", { class: "rail-day" + (unplannedOpen ? " open" : ""), "data-day-id": "unplanned", "aria-expanded": String(unplannedOpen), onclick: () => switchMapDay(unplannedOpen ? null : "unplanned") }, [
         h("span", { class: "rail-hue", style: "background:#94897A" }, []),
         h("span", { class: "rail-label", text: "To be planned" }, []),
         h("span", { class: "drop-here", text: "DROP HERE", hidden: true }, []),
         h("span", { class: "rail-count", text: String(trip.unplanned.length) }, []),
       ]),
+      unplannedOpen ? h("div", { class: "rail-stops" }, [
+        ...trip.unplanned.map((stop) => railStop(unplannedDay(), stop)),
+        state.search && !state.search.dayId ? sheetSearch(true) : h("button", { class: "add-place", onclick: () => openSearch("unplanned") }, [icon("plusGrey"), "Add a place"]),
+      ]) : null,
     ]),
   );
 
@@ -1620,7 +1678,7 @@ function railStop(day, stop) {
         render();
       },
     }, [
-      h("span", { class: "stop-index", style: "color:" + day.hue + ";border-color:" + day.hue, text: String(routeNumbers(day)[stop.id] || day.stops.indexOf(stop) + 1) }, []),
+      day.id === "unplanned" ? null : h("span", { class: "stop-index", style: "color:" + day.hue + ";border-color:" + day.hue, text: String(routeNumbers(day)[stop.id] || day.stops.indexOf(stop) + 1) }, []),
       stop.time ? h("span", { class: "rail-time", style: "color:" + day.hue, text: stop.time }, []) : null,
       h("div", { class: "stop-text" }, [
         h("span", { class: "rail-name", text: stop.title }, []),
@@ -1720,7 +1778,7 @@ function screenTrip() {
       mapsKey()
         ? h("div", { id: "gmap", style: "position:absolute;inset:0" }, [])
         : h("div", { style: "position:absolute;inset:0", html: window.__MAP__ }, []),
-      ...(mapsKey() || state.search ? [] : mapPins(openDay)),
+      ...(mapsKey() || state.search ? [] : mapPins(state.openDayId === "unplanned" ? unplannedDay() : openDay)),
       ...searchMapLayer(),
       // Main.dc.html puts a three-key legend here. It is gone: the ring around
       // a pin already says done or not, the day list beside it says which day
@@ -2158,12 +2216,13 @@ function animateTrailWave(update) {
 }
 function dayTrailPoints(day, lodging) {
   const stays = lodging.filter((stay) => Number.isFinite(stay.lat) && Number.isFinite(stay.lng) && stay.check_in <= day.date && stay.check_out >= day.date)
-    .sort((a, b) => b.check_in.localeCompare(a.check_in));
+    .sort((a, b) => a.check_in.localeCompare(b.check_in) || a.check_out.localeCompare(b.check_out) || a.id.localeCompare(b.id));
   const points = stays.length ? [{ lat: stays[0].lat, lng: stays[0].lng }] : [];
   for (const stop of day.stops) {
     if (stop.accommodation || !stop.location || !Number.isFinite(stop.location.lat) || !Number.isFinite(stop.location.lng)) continue;
     points.push({ lat: stop.location.lat, lng: stop.location.lng });
   }
+  if (stays.length > 1) points.push({ lat: stays[stays.length - 1].lat, lng: stays[stays.length - 1].lng });
   return points.filter((point, i) => !i || point.lat !== points[i - 1].lat || point.lng !== points[i - 1].lng);
 }
 
@@ -2204,27 +2263,14 @@ function paintDayTrail(maps) {
   const points = dayTrailPoints(day, state.trip.lodging || []);
   if (points.length < 2) return;
   const curve = smoothTrail(points);
-  const distances = [0];
-  for (let i = 1; i < curve.length; i++) {
-    const a = curve[i - 1], b = curve[i];
-    distances.push(distances[i - 1] + Math.hypot(b.lat - a.lat, (b.lng - a.lng) * Math.cos((a.lat + b.lat) * Math.PI / 360)));
-  }
-  const total = distances[distances.length - 1];
-  if (!total) return;
-  const count = Math.min(240, Math.max(24, (points.length - 1) * 24));
-  const positions = [];
-  let segment = 1;
-  const icons = Array.from({ length: count }, (_, i) => {
-    const target = total * i / (count - 1);
-    while (segment < distances.length - 1 && distances[segment] < target) segment++;
-    const fraction = (target - distances[segment - 1]) / (distances[segment] - distances[segment - 1] || 1);
-    positions.push((segment - 1 + fraction) / 20);
-    return { icon: { path: maps.SymbolPath.CIRCLE, scale: 1.6, fillColor: day.hue, fillOpacity: .55, strokeOpacity: 0 }, offset: (100 * i / (count - 1)) + "%" };
-  });
+  const icons = Array.from({ length: 24 }, (_, i) => ({
+    icon: { path: maps.SymbolPath.CIRCLE, scale: 1.6, fillColor: day.hue, fillOpacity: .55, strokeOpacity: 0 },
+    offset: (i * 8) + "px", repeat: "192px",
+  }));
   const line = new maps.Polyline({ map: gmap, path: curve, strokeOpacity: 0, clickable: false, zIndex: 5, icons });
   mapTrails.push(line);
   animateTrailWave((elapsed) => {
-    for (let i = 0; i < icons.length; i++) icons[i].icon.fillOpacity = elapsed === null ? .55 : trailWaveOpacity(positions[i], elapsed, points.length - 1);
+    for (let i = 0; i < icons.length; i++) icons[i].icon.fillOpacity = elapsed === null ? .55 : trailWaveOpacity(i / icons.length, elapsed, 1);
     line.set("icons", icons);
   });
 }
@@ -2252,6 +2298,8 @@ async function paintMap() {
       clickableIcons: false,
       keyboardShortcuts: false,
       gestureHandling: "greedy",
+      draggableCursor: "pointer",
+      draggingCursor: "grabbing",
     });
   }
 
@@ -2272,9 +2320,9 @@ async function paintMap() {
   const focus = new maps.LatLngBounds();
   let focused = 0;
 
-  for (const day of state.trip.days) {
+  for (const day of [...state.trip.days, unplannedDay()]) {
     const open = day.id === state.openDayId;
-    const numbers = open ? routeNumbers(day) : {};
+    const numbers = open && day.id !== "unplanned" ? routeNumbers(day) : {};
 
     for (const stop of day.stops) {
       if (!stop.location) continue;
@@ -2313,11 +2361,13 @@ async function paintMap() {
   const openDay = state.trip.days.find((day) => day.id === state.openDayId);
   for (const stay of locatedStays()) {
     const position = { lat: stay.lat, lng: stay.lng };
-    const pin = pinUrl(pinLook(openDay || {}, { id: stay.id, accommodation: true }, false));
+    const active = Boolean(openDay && stay.check_in <= openDay.date && stay.check_out >= openDay.date);
+    const look = pinLook(openDay || {}, { id: stay.id, accommodation: true }, active);
+    const pin = pinUrl(look);
     const marker = new maps.Marker({
       position, map: gmap, title: stay.name,
       icon: { url: pin.url, scaledSize: new maps.Size(pin.box, pin.box), anchor: new maps.Point(pin.box / 2, pin.box / 2) },
-      zIndex: 30,
+      zIndex: look.z,
     });
     marker.addListener("click", () => selectStay(stay));
     gmarkers.push(marker);
@@ -2352,10 +2402,10 @@ async function paintMap() {
  */
 let focusedMapStop = null;
 function focusSelectedMapStop() {
-  const stay = state.sheetTab === "stays" && (state.trip.lodging || []).find((stay) => stay.id === state.selectedStayId);
+  const stay = (state.trip.lodging || []).find((stay) => stay.id === state.selectedStayId);
   const stop = stay
     ? { id: "stay:" + stay.id, location: Number.isFinite(stay.lat) && Number.isFinite(stay.lng) ? { lat: stay.lat, lng: stay.lng } : null }
-    : state.trip.days.flatMap((day) => day.stops).find((stop) => stop.id === state.selectedStopId);
+    : [...state.trip.days.flatMap((day) => day.stops), ...(state.trip.unplanned || [])].find((stop) => stop.id === state.selectedStopId);
   if (!stop || !stop.location) {
     if (focusedMapStop) mapFitted = null;
     focusedMapStop = null;
@@ -2365,20 +2415,23 @@ function focusSelectedMapStop() {
   if (focusedMapStop !== key) {
     focusedMapStop = key;
     const zoom = Math.max(gmap.getZoom() || 0, 15);
-    const padding = fitPadding();
-    const world = 256 * Math.pow(2, zoom);
-    const radians = Math.max(-85, Math.min(85, stop.location.lat)) * Math.PI / 180;
-    const y = (1 - Math.log(Math.tan(radians) + 1 / Math.cos(radians)) / Math.PI) / 2 + (padding.bottom - padding.top) / (2 * world);
-    const center = { lat: Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) * 180 / Math.PI, lng: stop.location.lng + (padding.right - padding.left) * 180 / world };
+    const center = paddedMapCenter(stop.location, zoom, fitPadding());
     if (gmap.getZoom() < zoom) gmap.setZoom(zoom);
     gmap.panTo(center);
   }
   return true;
 }
 
+function paddedMapCenter(location, zoom, padding) {
+  const world = 256 * Math.pow(2, zoom);
+  const radians = Math.max(-85, Math.min(85, location.lat)) * Math.PI / 180;
+  const y = (1 - Math.log(Math.tan(radians) + 1 / Math.cos(radians)) / Math.PI) / 2 + (padding.bottom - padding.top) / (2 * world);
+  return { lat: Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) * 180 / Math.PI, lng: location.lng + (padding.right - padding.left) * 180 / world };
+}
+
 function dayFitKey() {
   const day = state.trip.days.find((d) => d.id === state.openDayId);
-  const stops = day ? day.stops.filter((s) => s.location) : [];
+  const stops = (day ? day.stops : state.openDayId === "unplanned" ? state.trip.unplanned || [] : []).filter((s) => s.location);
   return state.trip.trip.id + ":" + state.openDayId + ":" + stops.map((s) => s.id + ":" + s.location.lat + ":" + s.location.lng).join(",") + ":" + (state.trip.lodging || []).map((s) => [s.id, s.lat, s.lng, s.check_in, s.check_out].join(":")).join(",");
 }
 
@@ -2398,7 +2451,7 @@ function paintSuggestionPins(maps) {
   const bounds = new maps.LatLngBounds();
   for (const row of rows) {
     const selected = row.placeId === search.lookingAt;
-    const size = selected ? 40 : 32;
+    const size = selected ? 26 : 22;
     const marker = new maps.Marker({ position: row.location, map: gmap, title: row.name,
       icon: { url: window.__LOOK_PIN__, scaledSize: new maps.Size(size, size * 1.25), anchor: new maps.Point(size / 2, size * 1.16) }, zIndex: selected ? 60 : 50 });
     marker.addListener("click", () => lookAt(row));
@@ -2417,7 +2470,7 @@ async function centreOnResult(row) {
   const maps = await loadMaps();
   if (!maps || !gmap || !row.location) return;
 
-  gmap.panTo(row.location);
+  gmap.panTo(wideNow() ? row.location : paddedMapCenter(row.location, gmap.getZoom() || 15, fitPadding()));
 }
 
 function clearLookMarker() {
@@ -2458,10 +2511,11 @@ function mapPins(day, wide) {
    * wrong, which is worse than leaving them off. The pins that are here get
    * the same colours, sizes and numbers as the real map's.
    */
-  const numbers = day ? routeNumbers(day) : {};
+  const numbers = day && day.id !== "unplanned" ? routeNumbers(day) : {};
 
   const pins = located.map((stop) => {
-    const look = pinLook(day || {}, stop, true, numbers[stop.id]);
+    const active = Boolean(day && (!stays.includes(stop) || stop.check_in <= day.date && stop.check_out >= day.date));
+    const look = pinLook(day || {}, stop, active, numbers[stop.id]);
     /*
      * The band the pins are fitted into.
      *
@@ -2593,9 +2647,14 @@ function sheetContents(hasStops) {
     );
 
     if (editing) wrap.append(dayEditPanel(day));
+    const stays = dayStays(day);
+    if (stays.length) wrap.append(dayStayBar(day, stays[0], "start"));
 
     if (open) {
-      if (!hasStops) wrap.append(emptyDayBody());
+      if (!hasStops) {
+        wrap.append(emptyDayBody());
+        for (const stay of stays.slice(1)) wrap.append(dayStayBar(day, stay, "end"));
+      }
       else {
         // The 36px time column holds the grid together, but only when there
         // is something to put in it. Many stops never get a time (PLAN.md
@@ -2606,6 +2665,7 @@ function sheetContents(hasStops) {
         const numbers = routeNumbers(day);
         const body = h("div", { class: "day-body" },
           shown.map((stop) => stopCard(day, stop, showTimes, numbers[stop.id])));
+        for (const stay of stays.slice(1)) body.append(dayStayBar(day, stay, "end"));
         body.append(
           h("button", { class: "add-stop", "aria-label": "Add a place", onclick: () => openSearch(day.id) }, [icon("plusGrey")]),
         );
@@ -2616,12 +2676,15 @@ function sheetContents(hasStops) {
   }
 
   const unplanned = trip.unplanned;
+  const unplannedOpen = state.openDayId === "unplanned";
+  const toggleUnplanned = () => switchMapDay(unplannedOpen ? null : "unplanned");
   out.push(
-    h("div", { class: "day-wrap drop-zone", "data-day-id": "unplanned" }, [
-      h("div", { class: "day-head", "data-day-id": "unplanned" }, [
+    h("div", { class: "day-wrap drop-zone" + (unplannedOpen ? " open" : ""), "data-day-id": "unplanned" }, [
+      h("div", { class: "day-head" + (unplannedOpen ? " open" : ""), "data-day-id": "unplanned" }, [
         h("button", {
           class: "day-head-tap",
-          onclick: () => { state.openDayId = "unplanned"; render(); },
+          "aria-expanded": String(unplannedOpen),
+          onclick: toggleUnplanned,
         }, [
           h("span", { class: "day-hue", style: "background:#94897A" }, []),
           h("div", { class: "day-head-text" }, [
@@ -2632,11 +2695,37 @@ function sheetContents(hasStops) {
           h("span", { class: "drop-here", text: "DROP HERE TO MOVE", hidden: true }, []),
           h("span", { class: "day-progress", text: String(unplanned.length) }, []),
         ]),
+        h("button", { class: "day-chevron", onclick: toggleUnplanned, title: unplannedOpen ? "Close" : "Open" }, [
+          h("span", { style: "display:flex;transform:rotate(" + (unplannedOpen ? 0 : -90) + "deg)", html: ICONS.chevron }, []),
+        ]),
       ]),
+      unplannedOpen ? h("div", { class: "day-body" }, [
+        ...unplanned.map((stop) => stopCard(unplannedDay(), stop, false, null)),
+        h("button", { class: "add-stop", "aria-label": "Add a place", onclick: () => openSearch("unplanned") }, [icon("plusGrey")]),
+      ]) : null,
     ]),
   );
 
   return out;
+}
+
+function unplannedDay() {
+  return { id: "unplanned", hue: "#94897A", stops: state.trip.unplanned || [] };
+}
+
+function dayStays(day) {
+  return (state.trip.lodging || []).filter((stay) => stay.check_in <= day.date && stay.check_out >= day.date)
+    .sort((a, b) => a.check_in.localeCompare(b.check_in) || a.check_out.localeCompare(b.check_out) || a.id.localeCompare(b.id));
+}
+
+function dayStayBar(day, stay, edge) {
+  const anchor = "stay-" + day.id + "-" + stay.id + "-" + edge;
+  return h("div", { class: "day-stay-bar" + (edge === "end" ? " day-stay-end" : "") }, [
+    icon("houseInk"),
+    h("button", { id: anchor, "data-stay-anchor": stay.id, class: "stay-bar", "aria-expanded": String(state.stayPopover === anchor), onclick: () => selectStay(stay, anchor) }, [
+      h("span", { class: "stay-bar-name", text: stay.name }, []),
+    ]),
+  ]);
 }
 
 /* ------------------------------------------------------- accommodations */
@@ -2695,12 +2784,15 @@ function staysPanel() {
 }
 
 /** Sep 30 – Oct 2 · 3 nights, or one date for a single night. */
-function selectStay(stay) {
+function selectStay(stay, anchor) {
+  if (!stay) return;
   state.selectedStopId = null;
-  state.selectedStayId = state.selectedStayId === stay.id ? null : stay.id;
+  const close = state.selectedStayId === stay.id && state.stayPopover === (anchor || null);
+  state.selectedStayId = close ? null : stay.id;
+  state.stayPopover = close ? null : anchor || null;
   state.stayMenu = null;
   state.stayNote = null;
-  if (!planning()) state.sheetTab = "stays";
+  if (!planning() && !anchor) state.sheetTab = "stays";
   render();
 }
 
@@ -2713,11 +2805,7 @@ function stayDetails(stay) {
       h("a", { class: "action dark", href: url, target: "_blank", rel: "noreferrer" }, [icon("navigateLight"), "Navigate"]),
       h("button", { class: "action", onclick: () => { state.stayMenu = null; state.stayNote = { id: stay.id, text: stay.note || "" }; render(); } }, [icon("pencil"), stay.note ? "Edit note" : "Add note"]),
       h("div", { class: "stay-menu-anchor" }, [
-        h("button", { class: "action kebab", title: "Stay options", "aria-expanded": String(state.stayMenu === stay.id), onclick: () => { state.stayMenu = state.stayMenu === stay.id ? null : stay.id; render(); } }, [icon("kebab")]),
-        state.stayMenu === stay.id ? h("div", { class: "stay-menu", "aria-label": "Stay options" }, [
-          h("button", { onclick: () => { state.stayMenu = null; openStay(stay); } }, [icon("pencil"), "Edit Stay"]),
-          h("button", { onclick: () => { state.stayMenu = null; state.selectedStayId = null; removeStay(stay); } }, [icon("trash"), "Delete"]),
-        ]) : null,
+        h("button", { id: "stay-options-" + stay.id, class: "action kebab", title: "Stay options", "aria-expanded": String(state.stayMenu === stay.id), onclick: () => { state.stayMenu = state.stayMenu === stay.id ? null : stay.id; render(); } }, [icon("kebab")]),
       ]),
     ]),
     state.stayNote && state.stayNote.id === stay.id ? h("div", { class: "stay-note-editor" }, [
@@ -2732,6 +2820,69 @@ function stayDetails(stay) {
       ]),
     ]) : null,
   ]);
+}
+
+function renderStayOverlays() {
+  if (!state.trip || state.screen !== "trip") {
+    state.stayPopover = null;
+    state.stayMenu = null;
+    state.stayNote = null;
+    state.selectedStayId = null;
+    return;
+  }
+  if (state.stayPopover) {
+    const stay = byStayId(state.selectedStayId);
+    if (stay && $(state.stayPopover)) {
+      frame.append(h("div", { class: "stay-popover", "data-floating-anchor": state.stayPopover, role: "dialog", "aria-label": stay.name }, [
+        h("div", { class: "stay-popover-title", text: stay.name }, []),
+        stayDetails(stay),
+      ]));
+    } else { state.stayPopover = null; state.stayNote = null; }
+  }
+  if (state.stayMenu) {
+    const stay = byStayId(state.stayMenu);
+    const anchor = "stay-options-" + state.stayMenu;
+    if (stay && $(anchor)) frame.append(h("div", { class: "stay-menu", "data-floating-anchor": anchor, "aria-label": "Stay options" }, [
+      h("button", { onclick: () => { state.stayMenu = null; state.stayPopover = null; openStay(stay); } }, [icon("pencil"), "Edit Stay"]),
+      h("button", { onclick: () => { state.stayMenu = null; state.stayPopover = null; state.selectedStayId = null; removeStay(stay); } }, [icon("trash"), "Delete"]),
+    ]));
+  }
+  positionStayOverlays();
+}
+
+function floatingPosition(anchor, size, bounds) {
+  const gap = 6;
+  const below = bounds.bottom - anchor.bottom - gap;
+  const above = anchor.top - bounds.top - gap;
+  const down = below >= size.height || below >= above;
+  const height = Math.min(size.height, Math.max(0, down ? below : above));
+  return {
+    left: Math.max(bounds.left, Math.min(anchor.right - size.width, bounds.right - size.width)),
+    top: down ? Math.max(bounds.top, anchor.bottom + gap) : Math.max(bounds.top, anchor.top - gap - height),
+    maxHeight: height,
+  };
+}
+
+function positionStayOverlays() {
+  if (!state.stayPopover && !state.stayMenu) return;
+  const box = frame.getBoundingClientRect();
+  const viewport = window.visualViewport;
+  const bounds = { left: Math.max(box.left, viewport ? viewport.offsetLeft : 0) + 8, right: Math.min(box.right, viewport ? viewport.offsetLeft + viewport.width : window.innerWidth) - 8,
+    top: Math.max(box.top, viewport ? viewport.offsetTop : 0) + 8, bottom: Math.min(box.bottom, viewport ? viewport.offsetTop + viewport.height : window.innerHeight) - 8 };
+  for (const popup of document.querySelectorAll("[data-floating-anchor]")) {
+    const anchor = $(popup.dataset.floatingAnchor);
+    if (!anchor) { popup.remove(); continue; }
+    popup.style.maxWidth = Math.max(0, bounds.right - bounds.left) + "px";
+    popup.style.maxHeight = "none";
+    const rect = anchor.getBoundingClientRect();
+    const scroll = anchor.closest(".rail-list, .sheet-scroll");
+    const visible = scroll ? scroll.getBoundingClientRect() : bounds;
+    popup.style.visibility = rect.bottom < visible.top || rect.top > visible.bottom ? "hidden" : "visible";
+    const position = floatingPosition(rect, popup.getBoundingClientRect(), bounds);
+    popup.style.left = position.left + "px";
+    popup.style.top = position.top + "px";
+    popup.style.maxHeight = position.maxHeight + "px";
+  }
 }
 
 function stayRange(stay) {
@@ -2981,7 +3132,7 @@ function stopCard(day, stop, showTimes, number) {
          * the thing on the map and this is a reference to it, and two solid
          * discs of the same colour on one row would compete.
          */
-        h("span", {
+        day.id === "unplanned" ? null : h("span", {
           class: stop.accommodation ? "stop-index bed" : "stop-index",
           style: "color:" + (stop.accommodation ? PIN.bed : day.hue) +
             ";border-color:" + (stop.accommodation ? PIN.bed : day.hue),
@@ -3872,6 +4023,10 @@ function dayEditButton(day) {
 }
 
 function toggleDayEdit(dayId) {
+  state.stayPopover = null;
+  state.stayMenu = null;
+  state.stayNote = null;
+  state.selectedStayId = null;
   if (state.dayEdit === dayId) { state.dayEdit = null; render(); return; }
   state.dayEdit = dayId;
   // What the day was called when the panel opened, so a write that fails has
@@ -3917,10 +4072,11 @@ function dayEditPanel(day) {
         autocomplete: "off",
         maxlength: "60",
         oninput: (e) => queueDayName(day, e.target.value),
+        onkeydown: (e) => { if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); finishDayEdit(day); } },
       }, []),
       h("button", {
         class: "day-edit-done",
-        onclick: () => { state.dayEdit = null; render(); },
+        onclick: () => finishDayEdit(day),
         text: "Done",
       }, []),
     ]),
@@ -3966,6 +4122,19 @@ function setDayHue(day, hex) {
  */
 let dayNameTimer = null;
 let dayNameBefore = "";
+
+function finishDayEdit(day) {
+  clearTimeout(dayNameTimer);
+  const name = day.name || "";
+  const was = dayNameBefore;
+  state.dayEdit = null;
+  render();
+  post("/api/days/" + day.id, { name }).catch((error) => {
+    day.name = was;
+    state.error = "That name did not save: " + error.message;
+    render();
+  });
+}
 
 function queueDayName(day, value) {
   // The field keeps what was typed; only the model behind it is updated, so
@@ -4287,7 +4456,7 @@ function resultRow(row) {
         h("span", { class: "result-name", text: row.name }, []),
         h("span", { class: "result-meta", text: "Already on " + row.onTripDay }, []),
       ]),
-      h("span", { class: "result-tag", text: "On trip" }, []),
+      h("button", { class: "result-add-anyway", text: "Add Anyway", onclick: () => addPlace(row) }, []),
     ]);
   }
 
@@ -4321,7 +4490,7 @@ function resultRow(row) {
  *
  * The search row already carries everything a stop needs to be drawn — a name,
  * a category, a coordinate — so the stop appears on the day and the row turns
- * to "On trip" straight away. The walking time on it is left to the re-read,
+ * to "Add Anyway" straight away. The walking time on it is left to the re-read,
  * because that depends on the neighbour it lands next to and the server is
  * what works it out.
  */
@@ -4332,8 +4501,10 @@ function addPlace(row) {
 
   optimistic(
     () => {
+      const wasOnTrip = row.onTrip;
+      const wasOnTripDay = row.onTripDay;
       const provisional = {
-        id: "pending_" + row.placeId,
+        id: "pending_" + crypto.randomUUID(),
         title: row.name,
         description: row.category || "",
         note: "",
@@ -4352,8 +4523,8 @@ function addPlace(row) {
       return () => {
         const at = list.indexOf(provisional);
         if (at !== -1) list.splice(at, 1);
-        row.onTrip = false;
-        row.onTripDay = null;
+        row.onTrip = wasOnTrip;
+        row.onTripDay = wasOnTripDay;
       };
     },
     () => post("/api/trips/" + state.trip.trip.id + "/stops", {
@@ -4788,7 +4959,6 @@ function screenGrid() {
           ? dayEditPanel(days.find((day) => day.id === state.dayEdit)) : null,
         lodgingRow(days),
         lodgingStrip(days),
-        state.selectedStayId && byStayId(state.selectedStayId) ? stayDetails(byStayId(state.selectedStayId)) : null,
         gridScroll(days, span, band, wide),
       ]),
       trayDrawer(wide),
@@ -5104,7 +5274,10 @@ function lodgingStrip(days) {
               // added as a margin, so the bar still ends exactly on the seam.
               style: "left:calc(" + (bar.left * 100) + "% + 2px);width:calc(" + (bar.width * 100) + "% - 4px)",
       title: stayRange(byStayId(bar.id) || { check_in: "", check_out: "" }),
-      onclick: () => selectStay(byStayId(bar.id)),
+      id: "stay-grid-" + bar.id,
+      "data-stay-anchor": bar.id,
+      "aria-expanded": String(state.stayPopover === "stay-grid-" + bar.id),
+      onclick: () => selectStay(byStayId(bar.id), "stay-grid-" + bar.id),
     }, [
       h("span", { class: "stay-bar-name", text: bar.name }, []),
     ])));
