@@ -98,9 +98,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 .trip-card-map { height: 62px; background: #E9F1E6; position: relative; overflow: hidden; }
 .trip-card-tools { position: absolute; top: 8px; right: 8px; z-index: 3; }
-.trip-card-settings { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid ${C.border}; border-radius: 50%; background: ${C.card}; color: ${C.ink}; box-shadow: 0 2px 8px #33302B18; font-size: 25px; }
-.trip-card-menu { position: fixed; margin: 0; padding: 4px; width: 180px; border: 1px solid ${C.border}; border-radius: 12px; background: ${C.card}; box-shadow: 0 8px 24px #33302B24; }
-.trip-card-menu button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 10px; border: 0; border-radius: 8px; background: transparent; color: #963F32; font: inherit; }
+.trip-card-settings { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 1px solid ${C.border}; border-radius: 6px; background: ${C.card}; color: ${C.ink}; box-shadow: 0 2px 8px #33302B18; font-size: 20px; line-height: 1; }
+.trip-card-menu { box-sizing: border-box; position: fixed; margin: 0; padding: 3px; width: 144px; border: 1px solid ${C.border}; border-radius: 8px; background: ${C.card}; box-shadow: 0 8px 24px #33302B24; }
+.trip-card-menu button { display: flex; align-items: center; gap: 7px; width: 100%; min-height: 32px; padding: 6px 8px; border: 0; border-radius: 5px; background: transparent; color: #963F32; font: inherit; font-size: 12px; }
+.trip-card-menu button svg { width: 13px; height: 13px; }
 .trip-card-settings:hover, .trip-card-menu button:hover { background: ${C.highlight}; }
 .trip-card-settings:focus-visible, .trip-card-menu button:focus-visible, .trip-delete-actions button:focus-visible { outline: 2px solid ${C.brandInk}; outline-offset: 2px; }
 .trip-delete-dialog { box-sizing: border-box; width: min(420px, calc(100% - 32px)); margin: auto; padding: 24px; border: 1px solid ${C.border}; border-radius: 20px; background: ${C.card}; color: ${C.ink}; box-shadow: 0 16px 64px #33302B33; }

@@ -734,15 +734,15 @@ function tripCard(trip) {
 function tripCardSettings(trip) {
   const menuId = "trip-settings-menu-" + trip.id;
   const menu = h("div", { id: menuId, class: "trip-card-menu", popover: "auto", "aria-label": "Trip settings" }, [
-    h("button", { onclick: () => { menu.hidePopover(); confirmTripRemoval(trip); } }, [icon(trip.isOwner ? "trash" : "arrowLeft"), trip.isOwner ? "Delete trip" : "Leave Trip"]),
+    h("button", { onclick: () => { menu.hidePopover(); confirmTripRemoval(trip); } }, [icon(trip.isOwner ? "trash" : "door"), trip.isOwner ? "Delete trip" : "Leave Trip"]),
   ]);
   const button = h("button", {
     id: "trip-settings-" + trip.id, class: "trip-card-settings", type: "button",
     "aria-label": "Settings for " + trip.name, popovertarget: menuId,
     onclick: () => {
       const bounds = button.getBoundingClientRect();
-      menu.style.left = Math.max(8, Math.min(bounds.right - 180, window.innerWidth - 188)) + "px";
-      menu.style.top = Math.min(bounds.bottom + 4, window.innerHeight - 64) + "px";
+      menu.style.left = Math.max(8, Math.min(bounds.right - 144, window.innerWidth - 152)) + "px";
+      menu.style.top = Math.min(bounds.bottom + 4, window.innerHeight - 48) + "px";
     },
   }, [h("span", { "aria-hidden": "true", text: "⋯" }, [])]);
   return h("div", { class: "trip-card-tools" }, [button, menu]);

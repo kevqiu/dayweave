@@ -132,6 +132,13 @@ export const grip = ({ color = "#A59C90" }: IconOptions = {}) =>
     color === "#A59C90" ? "0.4" : "1"
   }"><g fill="${color}"><circle cx="3.5" cy="3" r="1.3"></circle><circle cx="8.5" cy="3" r="1.3"></circle><circle cx="3.5" cy="8" r="1.3"></circle><circle cx="8.5" cy="8" r="1.3"></circle><circle cx="3.5" cy="13" r="1.3"></circle><circle cx="8.5" cy="13" r="1.3"></circle></g></svg>`;
 
+export const door = (o: IconOptions = {}) =>
+  svg(
+    `<path d="M4 21h16M6 21V3h12v18M6 3l8 3v15"></path><path d="M11 12v2"></path>`,
+    o,
+    'stroke-linecap="round" stroke-linejoin="round"',
+  );
+
 export const trash = (o: IconOptions = {}) =>
   svg(
     `<path d="M4 7h16M9 7V5h6v2M7 7l1 13h8l1-13"></path>`,

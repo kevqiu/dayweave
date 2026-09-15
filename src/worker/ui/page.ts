@@ -45,6 +45,7 @@ function iconSet(): Record<string, string> {
     grip: icons.grip(),
     gripDark: icons.grip({ color: C.inkSoft }),
     trash: icons.trash({ size: 15 }),
+    door: icons.door({ size: 15, color: "currentColor" }),
     frameAll: icons.frameAll({ size: 17, color: C.inkSoft }),
     locate: icons.locate({ size: 18, color: C.inkSoft }),
     bowl: icons.bowl({ size: 17, color: C.greenStroke }),
