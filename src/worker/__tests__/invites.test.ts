@@ -663,6 +663,42 @@ describe("following a link", () => {
 });
 
 describe("who is on this trip", () => {
+  it("allows only the organizer to remove another member and revokes their access", async () => {
+    const { mika, tripId } = await mikaWithATrip();
+    const jordan = browser(env);
+    await jordan.get(await inviteLink(mika, tripId));
+    await signIn(jordan, JORDAN);
+    await jordan.post("/api/invite/accept");
+    const people = await mika.json(`/api/trips/${tripId}/people`) as { people: { id: string; canRemove: boolean }[] };
+    const owner = people.people[0]!;
+    const member = people.people[1]!;
+    expect(owner.canRemove).toBe(false);
+    expect(member.canRemove).toBe(true);
+    expect((await jordan.post(`/api/trips/${tripId}/people/${owner.id}/remove`)).status).toBe(403);
+    expect((await mika.post(`/api/trips/${tripId}/people/${owner.id}/remove`)).status).toBe(400);
+    expect((await mika.post(`/api/trips/${tripId}/people/${member.id}/remove`)).status).toBe(200);
+    expect((await jordan.get(`/api/trips/${tripId}`)).status).toBe(404);
+  });
+
+  it("persists Smart Plan times while protecting existing appointments and trip scope", async () => {
+    const { mika, tripId } = await mikaWithATrip();
+    const trip = await mika.json(`/api/trips/${tripId}`) as { days: { id: string }[] };
+    const dayId = trip.days[0]!.id;
+    for (const [id, day, time] of [["fixed", dayId, "12:00"], ["loose", null, null], ["untimed", dayId, null]]) {
+      await (env.DB as D1Database).prepare("INSERT INTO stops (id, trip_id, day_id, title, start_time, order_key, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .bind(id, tripId, day, id, time, id, "test-user", 1, 1).run();
+    }
+    expect((await mika.post(`/api/trips/${tripId}/smart-plan`, { dayId: "foreign" })).status).toBe(400);
+    const planned = await (await mika.post(`/api/trips/${tripId}/smart-plan`, { dayId })).json() as { placements: { id: string }[] };
+    expect(planned.placements.map((p) => p.id)).toEqual(["untimed"]);
+    const unplanned = await (await mika.post(`/api/trips/${tripId}/smart-plan`, {})).json() as { placements: { id: string }[] };
+    expect(unplanned.placements.map((p) => p.id)).toEqual(["loose"]);
+    const fixed = await (env.DB as D1Database).prepare("SELECT start_time FROM stops WHERE id = 'fixed'").first<{ start_time: string }>();
+    expect(fixed?.start_time).toBe("12:00");
+    const nobody = browser(env);
+    expect((await nobody.post(`/api/trips/${tripId}/smart-plan`, {})).status).toBe(401);
+  });
+
   it("names everyone, marks you, and says who started it", async () => {
     const { mika, tripId } = await mikaWithATrip();
     const jordan = browser(env);

@@ -23,7 +23,7 @@ describe("walkMinutes", () => {
 describe("describeStop", () => {
   it("shows distance without asserting a walkable route", () => {
     expect(describeStop({ category: "ramen", location: B }, { category: null, location: A }))
-      .toBe("ramen · 500 m straight-line distance");
+      .toBe("ramen · 500 m");
   });
 
   it("is the category alone for the first stop of a day", () => {
@@ -32,7 +32,7 @@ describe("describeStop", () => {
 
   it("also labels long distances without choosing a transport mode", () => {
     expect(describeStop({ category: "onsen", location: FAR }, { category: null, location: A }))
-      .toBe("onsen · 222.2 km straight-line distance");
+      .toBe("onsen · 222.2 km");
   });
 
   it("is empty rather than a placeholder when we know nothing", () => {

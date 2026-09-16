@@ -55,7 +55,8 @@ describe("suggestDays", () => {
     expect(best?.after).toBe("Kushida Shrine");
     expect(best?.before).toBeNull();
     expect(best?.detail).toContain("Slots in after Kushida Shrine.");
-    expect(best?.detail).toContain("extra straight-line distance");
+    expect(best?.detail).toContain("470 m");
+    expect(best?.detail).not.toContain("straight-line");
     expect(best?.afterStopId).toBe("b");
   });
 

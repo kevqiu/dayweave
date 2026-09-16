@@ -146,13 +146,14 @@ function render() {
   // The Plan view is the grid at every width now — one column on a phone. The
   // frame only grows for the wide one; every other screen stays 375.
   const grid = planning() && wideNow();
-  const savedScroll = [...document.querySelectorAll(".rail-list, .sheet-scroll, .grid-scroll, .untimed-list, .tray-list")].map((el) => ({ selector: "." + el.classList[0], top: el.scrollTop, key: el.dataset.scrollKey }));
+  const savedScroll = [...document.querySelectorAll(".rail-list, .sheet-scroll, .grid-scroll, .tray-list")].map((el) => ({ selector: "." + el.classList[0], top: el.scrollTop, key: el.dataset.scrollKey }));
 
   stopTrailWave();
   if (splashCleanup) { splashCleanup(); splashCleanup = null; }
   frame.replaceChildren();
   if (state.screen === "signIn") { frame.append(screenSignIn()); initSplashTilt(); return; }
   if (state.screen === "trips") { frame.append(screenTrips()); paintTripMaps(); }
+  else if (state.screen === "settings") frame.append(screenSettings());
   else if (state.screen === "newTrip") frame.append(screenNewTrip());
   else if (state.screen === "trip") {
     // Three screens, one payload: the Planner, and the trip itself at the two
@@ -294,6 +295,7 @@ function setRoute(path, replace) {
 }
 
 async function restoreRoute() {
+  if (location.pathname === "/settings") { state.screen = "settings"; render(); return; }
   const match = location.pathname.match(/^\/trips\/([^/]+)(\/plan)?\/?$/);
   const view = match && match[2] ? "plan" : "map";
   if (!match) { showTrips(); return; }
@@ -619,6 +621,7 @@ function copyInvite(url) {
 }
 
 function personRow(person) {
+  const menuId = "member-menu-" + person.id;
   return h("div", { class: "person-row" }, [
     h("div", { class: "who", style: "background:" + person.color, text: person.initials }, []),
     h("div", { class: "person-text" }, [
@@ -628,6 +631,26 @@ function personRow(person) {
       ]),
       h("span", { class: "s", text: person.line }, []),
     ]),
+    person.canRemove ? h("button", { class: "icon-btn member-menu-button", "aria-label": "Options for " + person.name, popovertarget: menuId, onclick: (event) => {
+      const bounds = event.currentTarget.getBoundingClientRect();
+      const menu = $(menuId);
+      menu.style.left = Math.max(8, Math.min(bounds.right - 144, window.innerWidth - 152)) + "px";
+      menu.style.top = Math.min(bounds.bottom + 4, window.innerHeight - 60) + "px";
+    } }, [icon("kebab")]) : null,
+    person.canRemove ? h("div", { id: menuId, popover: "auto", class: "member-menu" }, [
+      h("button", { class: "gpop-item danger", onclick: async () => {
+        const data = state.people;
+        const before = data.people;
+        data.people = before.filter((p) => p.id !== person.id);
+        render();
+        try {
+          await post("/api/trips/" + data.tripId + "/people/" + encodeURIComponent(person.id) + "/remove", {});
+          const fresh = await api("/api/trips/" + data.tripId + "/people");
+          if (state.people === data) state.people = fresh;
+          await refreshTrip();
+        } catch (error) { data.people = before; state.error = error.message; render(); }
+      } }, [icon("trash"), "Remove"]),
+    ]) : null,
   ]);
 }
 
@@ -1291,11 +1314,52 @@ async function signInLocally() {
  * on a control, not a layer over the screen, and the kebab is the one the
  * artboards already draw that way.
  */
+function unitPreferences() {
+  try { return JSON.parse(localStorage.getItem("dayweave.units") || "{}") || {}; } catch { return {}; }
+}
+
+function displayDistance(text) {
+  if (!text || unitPreferences().distance !== "mi") return text;
+  return text.replace(/(\d+(?:\.\d+)?)\s*(km|m)\b/g, (_, value, unit) => {
+    const miles = Number(value) * (unit === "km" ? 1000 : 1) / 1609.344;
+    return Number(miles.toFixed(miles < 0.1 ? 2 : 1)) + " mi";
+  });
+}
+
+function screenSettings() {
+  const preferences = unitPreferences();
+  const row = (key, title, detail, options, fallback) => h("fieldset", { class: "setting-row" }, [
+    h("legend", { text: title }, []),
+    h("p", { text: detail }, []),
+    h("div", { class: "unit-options" }, options.map(([value, label]) => h("label", {}, [
+      h("input", { type: "radio", name: key, value, checked: (preferences[key] || fallback) === value, onchange: () => {
+        try { localStorage.setItem("dayweave.units", JSON.stringify(Object.assign(unitPreferences(), { [key]: value }))); }
+        catch { state.error = "Your browser could not save this preference."; }
+        render();
+        document.querySelector('input[name="' + key + '"][value="' + value + '"]')?.focus();
+      } }, []), h("span", { text: label }, []),
+    ]))),
+  ]);
+  return column([
+    h("div", { class: "top-bar people-bar" }, [
+      h("button", { class: "icon-btn", "aria-label": "Back to trips", onclick: goTrips }, [icon("chevronLeft")]),
+      h("div", { class: "people-bar-text" }, [h("span", { class: "t", text: "Settings" }, [])]),
+    ]),
+    h("div", { class: "settings-content" }, [
+      h("div", { class: "section-label", text: "UNITS & PREFERENCES" }, []),
+      h("p", { class: "settings-intro", text: "Make Dayweave feel familiar. Your preferences are saved on this device." }, []),
+      row("temperature", "Temperature unit", "Your preferred temperature scale.", [["C", "Celsius · °C"], ["F", "Fahrenheit · °F"]], "C"),
+      row("distance", "Distance unit", "Used for distances throughout your trips.", [["km", "Kilometres · km"], ["mi", "Miles · mi"]], "km"),
+    ]), noticeToast(),
+  ], { tall: true });
+}
+
 function meMenu() {
   return h("div", { class: "me-menu" }, [
     state.me && state.me.email
       ? h("div", { class: "me-menu-who", text: state.me.email }, [])
       : null,
+    h("button", { text: "Settings", onclick: () => { state.meMenu = false; setRoute("/settings"); state.screen = "settings"; render(); } }, []),
     h("button", { text: "Sign out", onclick: signOut }, []),
   ]);
 }
@@ -1782,7 +1846,7 @@ function railStop(day, stop) {
       stop.time ? h("span", { class: "rail-time", style: "color:" + day.hue, text: stop.time }, []) : null,
       h("div", { class: "stop-text" }, [
         h("span", { class: "rail-name", text: stop.title }, []),
-        h("span", { class: "rail-meta", text: stop.note || stop.description }, []),
+        h("span", { class: "rail-meta", text: stop.note || displayDistance(stop.description) }, []),
       ]),
     ]),
   ]);
@@ -1811,7 +1875,7 @@ function deskDetail(stop) {
         h("button", { class: "detail-close", "aria-label": "Close details", onclick: () => { state.selectedStopId = null; render(); } }, [icon("close")]),
       ]),
       h("div", { class: "detail-name", text: stop.title }, []),
-      stop.description ? h("div", { class: "detail-sub", text: stop.description }, []) : null,
+      stop.description ? h("div", { class: "detail-sub", text: displayDistance(stop.description) }, []) : null,
       h("div", { class: "detail-actions" }, [
         stop.navigateUrl
           ? h("a", {
@@ -3044,7 +3108,7 @@ function sheetStay(inline) {
         },
       }, [
         h("span", { class: "stay-result-name", text: row.name }, []),
-          h("span", { class: "stay-result-meta", text: row.meta || row.city || row.address || "" }, []),
+          h("span", { class: "stay-result-meta", text: displayDistance(row.meta) || row.city || row.address || "" }, []),
       ]),
     );
   }
@@ -3247,7 +3311,7 @@ function stopCard(day, stop, showTimes, number) {
           : null,
         h("div", { class: "stop-text" }, [
           h("span", { class: "stop-name", text: stop.title }, []),
-          h("span", { class: "stop-meta", text: stop.description }, []),
+          h("span", { class: "stop-meta", text: displayDistance(stop.description) }, []),
         ]),
         h("span", {
           class: "stop-author",
@@ -3344,7 +3408,7 @@ function dragHandle(day, stop) {
       paintDrag();
     };
 
-    const end = () => {
+    const end = (endEvent) => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", end);
       window.removeEventListener("pointercancel", end);
@@ -3354,12 +3418,34 @@ function dragHandle(day, stop) {
       const drag = state.drag;
       state.drag = null;
       suppressTap = drag.moved;
+      setTimeout(() => { suppressTap = false; }, 0);
+      cancelAnimationFrame(autoScrollFrame);
       // Let go over the day rail or off the end of the tray and the card goes
       // back where it came from. A drop has to land on something.
-      if (event.type !== "pointercancel" && drag.moved && !drag.outside) commitDrag(drag);
+      if (endEvent.type !== "pointercancel" && drag.moved && !drag.outside) commitDrag(drag);
       else render();
     };
 
+    let autoScrollFrame = 0;
+    let lastFrame = 0;
+    const autoScroll = (now) => {
+      if (!state.drag) return;
+      const scroll = document.querySelector(".grid-scroll");
+      if (scroll && state.drag.moved) {
+        const rect = scroll.getBoundingClientRect();
+        const x = state.drag.x;
+        const y = state.drag.y;
+        if (x >= rect.left && x <= rect.right) {
+          const speed = y < rect.top + 56 ? -Math.min(1, (rect.top + 56 - y) / 56) : y > rect.bottom - 56 ? Math.min(1, (y - rect.bottom + 56) / 56) : 0;
+          scroll.scrollTop += speed * Math.min(32, now - (lastFrame || now)) * 0.65;
+          resolveDropTarget(x, y);
+          paintDrag();
+        }
+      }
+      lastFrame = now;
+      autoScrollFrame = requestAnimationFrame(autoScroll);
+    };
+    autoScrollFrame = requestAnimationFrame(autoScroll);
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", end);
     window.addEventListener("pointercancel", end);
@@ -3451,6 +3537,11 @@ function resolveDropTarget(x, y) {
    */
   let hit = null;
   for (const wrap of wraps) {
+    const viewport = wrap.closest(".grid-scroll");
+    if (viewport) {
+      const visible = viewport.getBoundingClientRect();
+      if (y < visible.top || y > visible.bottom || x < visible.left || x > visible.right) continue;
+    }
     const rect = wrap.getBoundingClientRect();
     if (y < rect.top || y > rect.bottom) continue;
     if (x < rect.left || x > rect.right) continue;
@@ -3681,7 +3772,7 @@ function walkLabel(from, to) {
   const h = Math.sin(dLat / 2) ** 2 +
     Math.cos(rad(from.location.lat)) * Math.cos(rad(to.location.lat)) * Math.sin(dLng / 2) ** 2;
   const metres = 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
-  return (metres < 1000 ? Math.round(metres / 10) * 10 + " m" : (metres / 1000).toFixed(1) + " km") + " straight-line distance";
+  return displayDistance(metres < 1000 ? Math.round(metres / 10) * 10 + " m" : Number((metres / 1000).toFixed(1)) + " km");
 }
 
 /** The lifted card, and the thread it will drop on to. */
@@ -3700,7 +3791,7 @@ function dragLayer() {
       h("span", { style: "display:flex", html: ICONS.gripDark }, []),
       h("div", { class: "stop-text" }, [
         h("span", { class: "stop-name", text: drag.title }, []),
-        h("span", { class: "stop-meta", text: drag.description }, []),
+        h("span", { class: "stop-meta", text: displayDistance(drag.description) }, []),
       ]),
     ]),
   ];
@@ -3991,7 +4082,7 @@ function tripMenu() {
       wideNow() ? null : h("div", { class: "rule" }, []),
       // PLAN.md section 4d's "changing the dates later", which was written
       // and unbuilt: there was no way to rename a trip or move its dates.
-      item("pencilInk", "Change trip", {
+      item("pencilInk", "Edit trip", {
         onclick: () => closeThen(1, openTripEdit),
       }),
       item("arrowLeft", "Back to trips", {
@@ -4324,7 +4415,7 @@ function bestCard(best) {
 /** Bolds the two stop names inside the sentence the server built. */
 function emphasise(best) {
   const escape = (text) => text.replace(/[&<>]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[ch]);
-  let html = escape(best.detail || "");
+  let html = escape(displayDistance(best.detail || ""));
   for (const name of [best.after, best.before]) {
     if (!name) continue;
     html = html.replace(escape(name), "<strong>" + escape(name) + "</strong>");
@@ -4342,7 +4433,7 @@ function pickRow(candidate) {
     h("span", { class: "dot", style: "background:" + candidate.hue }, []),
     h("div", { class: "pick-text" }, [
       h("span", { class: "pick-name", text: candidate.label }, []),
-      h("span", { class: "pick-why", text: candidate.reason }, []),
+      h("span", { class: "pick-why", text: displayDistance(candidate.reason) }, []),
     ]),
     choosable ? icon("chevronRight") : null,
   ]);
@@ -4585,7 +4676,7 @@ function resultRow(row) {
       ]),
       h("div", { class: "result-text" }, [
         h("span", { class: "result-name", text: row.name }, []),
-        h("span", { class: "result-meta", text: row.meta }, []),
+        h("span", { class: "result-meta", text: displayDistance(row.meta) }, []),
       ]),
     ]),
     h("button", { class: "result-add", title: "Add to the trip", onclick: () => addPlace(row) }, [
@@ -4842,51 +4933,57 @@ function shortLabel(label) {
  * be meant, so a scroll down the day never changes the day underneath it.
  */
 function swipeDays(el) {
-  let x = 0;
-  let y = 0;
-  let live = false;
-
-  /*
-   * Down on the day, up on the window.
-   *
-   * A swipe that started on the clock and finished a few pixels outside it —
-   * over the tray, over the rail, off the edge of the screen — never fired a
-   * pointerup here at all, so the swipe did nothing. It is the same rule the
-   * drag handle already follows and for the same reason: the element a gesture
-   * starts on is not the element it ends on.
-   */
-  /*
-   * The furthest the finger got, kept as it moves.
-   *
-   * A horizontal drag across a vertically scrolling element is a gesture the
-   * browser may decide is its own, and when it does it sends pointercancel and
-   * no pointerup at all — so waiting for pointerup meant the swipe did nothing
-   * on a real phone. The travel is measured on the way and a cancel counts the
-   * same as a finish. A touch-action of pan-y on the scroller makes that
-   * rarer; this makes it harmless when it happens anyway.
-   */
+  let start = null;
   let dx = 0;
-  let dy = 0;
-
-  const done = () => {
+  let horizontal = false;
+  let moving = false;
+  const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const move = (event) => {
+    if (!start || state.drag) return;
+    dx = event.clientX - start.x;
+    const dy = event.clientY - start.y;
+    horizontal = Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.4;
+    if (!horizontal) return;
+    const next = state.trip.days[planIndex() + (dx < 0 ? 1 : -1)];
+    const offset = next ? dx : dx / 4;
+    el.style.transform = "translateX(" + (reduced() ? 0 : offset) + "px)";
+    el.style.opacity = String(Math.max(0.45, 1 - Math.abs(offset) / el.clientWidth));
+    el.setAttribute("aria-label", next ? "Swipe to " + next.label : "End of trip");
+  };
+  const done = (event) => {
     window.removeEventListener("pointermove", move);
     window.removeEventListener("pointerup", done);
     window.removeEventListener("pointercancel", done);
-    if (!live) return;
-    live = false;
-    if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
-    stepDay(dx < 0 ? 1 : -1);
+    if (!start) return;
+    start = null;
+    const direction = dx < 0 ? 1 : -1;
+    const next = state.trip.days[planIndex() + direction];
+    const commit = event.type !== "pointercancel" && horizontal && Math.abs(dx) >= 48 && next;
+    if (horizontal) {
+      suppressTap = true;
+      setTimeout(() => { suppressTap = false; }, 0);
+    }
+    moving = true;
+    const animation = el.animate([
+      { transform: el.style.transform || "translateX(0)", opacity: el.style.opacity || 1 },
+      { transform: "translateX(" + (commit ? -direction * el.clientWidth : 0) + "px)", opacity: commit ? 0 : 1 },
+    ], { duration: reduced() ? 0 : 180, easing: "ease-out", fill: "forwards" });
+    animation.onfinish = () => {
+      animation.cancel();
+      el.style.transform = "";
+      el.style.opacity = "";
+      moving = false;
+      if (!commit || !el.isConnected) return;
+      stepDay(direction);
+      const incoming = document.querySelector(".grid-scroll");
+      if (incoming) incoming.animate([{ transform: "translateX(" + direction * 60 + "px)", opacity: 0.5 }, { transform: "translateX(0)", opacity: 1 }], { duration: reduced() ? 0 : 180, easing: "ease-out" });
+    };
   };
-
-  const move = (e) => {
-    if (!live) return;
-    dx = e.clientX - x;
-    dy = e.clientY - y;
-  };
-
-  el.addEventListener("pointerdown", (e) => {
-    if (state.drag) return;
-    x = e.clientX; y = e.clientY; dx = 0; dy = 0; live = true;
+  el.addEventListener("pointerdown", (event) => {
+    if (state.drag || moving || event.target.closest("button, input, .gpop")) return;
+    start = { x: event.clientX, y: event.clientY };
+    dx = 0;
+    horizontal = false;
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", done);
     window.addEventListener("pointercancel", done);
@@ -4902,7 +4999,7 @@ function trayCard(stop, full) {
     dragHandle({ id: null }, stop),
     h("div", { class: "stop-text" }, [
       h("span", { class: "tray-name", text: stop.title }, []),
-      h("span", { class: "tray-meta", text: stop.description }, []),
+      h("span", { class: "tray-meta", text: displayDistance(stop.description) }, []),
     ]),
     full
       ? h("button", {
@@ -5077,47 +5174,12 @@ function screenGrid() {
           ? dayEditPanel(days.find((day) => day.id === state.dayEdit)) : null,
         lodgingRow(days),
         lodgingStrip(days),
-        h("div", { class: "planner-modes" }, [
-          h("button", { "aria-pressed": String(!state.untimedView), onclick: () => { state.untimedView = false; render(); } }, ["Timeline"]),
-          h("button", { "aria-pressed": String(Boolean(state.untimedView)), onclick: () => { state.untimedView = true; render(); } }, ["No assigned time (" + trip.days.reduce((n, day) => n + day.stops.filter((s) => !s.accommodation && PLAN.minutesOf(s.time) === null).length, 0) + ")"]),
-        ]),
-        state.untimedView ? untimedPlanner() : gridScroll(days, span, band, wide),
+        gridScroll(days, span, band, wide),
       ]),
       trayDrawer(wide),
     ]),
     noticeToast(),
     ...dragLayer(),
-  ]);
-}
-
-function untimedPlanner() {
-  const list = h("div", { class: "untimed-list" }, []);
-  for (const day of state.trip.days) {
-    const stops = day.stops.filter((stop) => !stop.accommodation && PLAN.minutesOf(stop.time) === null);
-    if (!stops.length) continue;
-    list.append(h("section", { class: "untimed-group drop-zone open", "data-day-id": day.id, "data-untimed": "1" }, [
-      h("h3", { text: day.label + (day.name ? " · " + day.name : "") + " · " + stops.length }, []),
-      ...stops.map((stop) => h("div", { class: "untimed-item order-row", "data-stop-id": stop.id, "data-search": (stop.title + " " + day.label).toLowerCase() }, [
-        dragHandle(day, stop),
-        h("div", { class: "untimed-text" }, [h("strong", { text: stop.title }, []), stop.note ? h("div", { class: "untimed-note", text: stop.note }, []) : null]),
-        h("button", { class: "detail-link", onclick: () => openTime(stop), "aria-label": "Set time for " + stop.title }, ["Set time"]),
-        h("button", { class: "detail-link", onclick: () => openMove(stop.id), "aria-label": "Move " + stop.title }, ["Move"]),
-      ])),
-    ]));
-  }
-  const empty = h("p", { class: "trip-edit-note", role: "status", text: "No matching untimed stops." }, []);
-  list.append(empty);
-  const applyFilter = () => {
-    const query = (state.untimedQuery || "").toLowerCase().trim();
-    for (const row of list.querySelectorAll(".untimed-item")) row.hidden = !row.dataset.search.includes(query);
-    for (const group of list.querySelectorAll(".untimed-group")) group.hidden = !group.querySelector(".untimed-item:not([hidden])");
-    empty.hidden = Boolean(list.querySelector(".untimed-item:not([hidden])"));
-  };
-  const filter = h("input", { type: "search", placeholder: "Find an untimed stop or day", "aria-label": "Find an untimed stop or day", value: state.untimedQuery || "", oninput: (event) => { state.untimedQuery = event.target.value; applyFilter(); } }, []);
-  applyFilter();
-  return h("div", { class: "untimed-planner" }, [
-    h("div", { class: "untimed-tools" }, [filter, h("p", { text: "Assigned to a day, ready to schedule. To be planned holds items without a day." }, [])]),
-    list,
   ]);
 }
 
@@ -5171,7 +5233,7 @@ function bandHeight(days) {
     const n = day.stops.filter((s) => !s.accommodation && PLAN.minutesOf(s.time) === null).length;
     if (n > most) most = n;
   }
-  return most ? 20 + most * 56 : 0;
+  return most ? 68 + most * 56 : 0;
 }
 
 function gridBar(from, total, page) {
@@ -5387,11 +5449,16 @@ function gridColumn(day, span, band, flip) {
   // most stops on a real trip have none (PLAN.md section 11), so they wait in
   // a band under the grid rather than being given a time nobody chose. Drag
   // one on to the hours and it gets the time it lands on.
+  if (day.stops.some((s) => !s.accommodation && PLAN.minutesOf(s.time) === null)) {
+    const button = smartPlanButton(day.id);
+    button.style.cssText = "position:absolute;top:" + (span.height + 18) + "px;left:5px;right:5px";
+    col.append(button);
+  }
   let row = 0;
   for (const stop of day.stops) {
     if (stop.accommodation) continue;
     if (PLAN.minutesOf(stop.time) !== null) continue;
-    col.append(gridCard(day, stop, { top: span.height + 20 + row * 56, height: 50 }, "untimed"));
+    col.append(gridCard(day, stop, { top: span.height + 68 + row * 56, height: 50 }, "untimed"));
     row++;
   }
 
@@ -5449,7 +5516,7 @@ function lodgingStrip(days) {
 
 /** A card's second line: the note if there is one, the derived line if not. */
 function gridSub(stop) {
-  return stop.note || stop.description || "";
+  return stop.note || displayDistance(stop.description) || "";
 }
 
 function gridCard(day, stop, box, kind) {
@@ -5545,6 +5612,26 @@ function gridPopover(stop) {
  * the sheet, and the same reason for the pause before it happens — a finger
  * crossing the edge on its way somewhere else must not disturb it.
  */
+let smartPlanBusy = false;
+
+function smartPlanButton(dayId) {
+  return h("button", { class: "smart-plan", disabled: smartPlanBusy, title: "Group nearby places with estimated visit and travel time; keep existing times", onclick: async (event) => {
+    event.stopPropagation();
+    if (smartPlanBusy) return;
+    smartPlanBusy = true;
+    const tripId = state.trip.trip.id;
+    render();
+    try {
+      const result = await post("/api/trips/" + tripId + "/smart-plan", { dayId });
+      if (state.trip && state.trip.trip.id === tripId) {
+        await refreshTrip();
+        state.error = result.placements.length + (result.placements.length === 1 ? " place scheduled" : " places scheduled") + " with estimated visit and travel time." + (result.remaining ? " " + result.remaining + " did not fit and remain unscheduled." : "");
+      }
+    } catch (error) { state.error = "Smart Plan could not finish: " + error.message; }
+    finally { smartPlanBusy = false; render(); }
+  } }, [icon("globe"), smartPlanBusy ? "Planning…" : "Smart Plan"]);
+}
+
 function trayDrawer(wide) {
   const all = state.trip.unplanned;
   const open = wide || state.trayOpen;
@@ -5565,6 +5652,7 @@ function trayDrawer(wide) {
             onclick: () => toggleTray(false),
           }, [icon("close")]),
     ]),
+    all.length ? smartPlanButton(null) : null,
     h("div", { class: "tray-side-list drop-zone open", "data-day-id": "unplanned" },
       all.length
         ? all.map((stop) => trayCard(stop, true))
@@ -5731,7 +5819,7 @@ function rangeLabel(a, b) {
     state.trips = data.trips;
     state.invite = data.invite;
     state.tripsLoading = false;
-    if (location.pathname.startsWith("/trips/")) await restoreRoute();
+    if (location.pathname.startsWith("/trips/") || location.pathname === "/settings") await restoreRoute();
     else render();
   } catch (error) {
     // A 401 has already put the sign-in screen up, in api(). Anything else is

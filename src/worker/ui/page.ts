@@ -18,6 +18,7 @@ import { COLOR as C, DAY_PALETTE, DAY_BLACK, FONTS_HREF } from "./tokens.ts";
 /** Each icon in the size and colour the artboard that uses it specifies. */
 function iconSet(): Record<string, string> {
   return {
+    globe: icons.globe({ size: 16 }),
     dayweave: icons.dayweave({ size: 40 }),
     search: icons.search({ size: 17, color: C.inkSoft }),
     searchLight: icons.search({ size: 14, color: C.paper }),

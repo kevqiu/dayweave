@@ -515,3 +515,50 @@ describe("search and drag transitions", () => {
     expect(gmap.fitBounds).toHaveBeenCalledOnce();
   });
 });
+
+
+describe("planner gesture regressions", () => {
+  it("expires synthetic-click suppression and never commits cancelled drags", () => {
+    vi.useFakeTimers();
+    try {
+      const handlers: Record<string, Function> = {};
+      const state: any = { trayOpen: false };
+      let down: Function = () => {};
+      const handle = { closest: () => null, addEventListener: (_: string, fn: Function) => { down = fn; } };
+      const commitDrag = vi.fn();
+      const context = { state, h: () => handle, ICONS: {}, window: { addEventListener: (name: string, fn: Function) => { handlers[name] = fn; }, removeEventListener: vi.fn() }, render: vi.fn(), endHover: vi.fn(), commitDrag, requestAnimationFrame: vi.fn(), cancelAnimationFrame: vi.fn(), setTimeout };
+      const api = new Function(...Object.keys(context), "let suppressTap=false;" + definition("dragHandle") + ";return {dragHandle, suppressed:()=>suppressTap};")(...Object.values(context));
+      api.dragHandle({ id: "a" }, { id: "s" });
+      down({ clientX: 50, clientY: 100, preventDefault() {}, stopPropagation() {} });
+      state.drag.moved = true;
+      handlers.pointerup!({ type: "pointerup" });
+      expect(commitDrag).toHaveBeenCalledOnce();
+      expect(api.suppressed()).toBe(true);
+      vi.runAllTimers();
+      expect(api.suppressed()).toBe(false);
+      down({ clientX: 50, clientY: 100, preventDefault() {}, stopPropagation() {} });
+      state.drag.moved = true;
+      handlers.pointercancel!({ type: "pointercancel" });
+      expect(commitDrag).toHaveBeenCalledOnce();
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("rejects drops over the clipped portion above the calendar", () => {
+    const state: any = { drag: {} };
+    const viewport = { getBoundingClientRect: () => ({ top: 100, bottom: 600, left: 0, right: 500 }) };
+    const wrap = { dataset: { dayId: "a", grid: "1" }, closest: (selector: string) => selector === ".grid-scroll" ? viewport : null, getBoundingClientRect: () => ({ top: -300, bottom: 1000, left: 0, right: 500 }) };
+    const resolveGridDrop = vi.fn();
+    const api = load(["resolveDropTarget"], { state, planning: () => false, document: { querySelectorAll: () => [wrap] }, reachForDrawer: vi.fn(), endHover: vi.fn(), resolveGridDrop });
+    api.resolveDropTarget(200, 60);
+    expect(state.drag.outside).toBe(true);
+    expect(resolveGridDrop).not.toHaveBeenCalled();
+    api.resolveDropTarget(200, 120);
+    expect(resolveGridDrop).toHaveBeenCalledOnce();
+  });
+
+  it("converts distance preferences without changing the source text", () => {
+    const api = load(["displayDistance", "unitPreferences"], { localStorage: { getItem: () => '{"distance":"mi"}' } });
+    expect(api.displayDistance("park · 7 km")).toBe("park · 4.3 mi");
+    expect(api.displayDistance("cafe · 500 m")).toBe("cafe · 0.3 mi");
+  });
+});

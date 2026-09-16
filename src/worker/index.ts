@@ -1,3 +1,5 @@
+import { smartPlan } from "../lib/smart-plan.ts";
+import { orderKeyAppend } from "../lib/order.ts";
 import { Hono, type Context } from "hono";
 import { fetchMyMap } from "../lib/kml.ts";
 import {
@@ -303,7 +305,7 @@ const NO_SUCH_TRIP = { error: "no such trip" } as const;
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
-app.on("GET", ["/", "/trips/:tripId", "/trips/:tripId/plan"], (c) => {
+app.on("GET", ["/", "/settings", "/trips/:tripId", "/trips/:tripId/plan"], (c) => {
   c.header("X-Deploy-Commit", c.env.DEPLOY_COMMIT);
   // The browser key is public by design; the Places key stays server-side.
   return c.html(page(c.env.GOOGLE_MAPS_BROWSER_KEY, localDevEnabled(c.env, new URL(c.req.url))));
@@ -583,6 +585,8 @@ app.get("/api/trips/:tripId/people", async (c) => {
         // A member from before sign-in existed has no name, and their two
         // derived letters are the only thing we know them by. Printing those
         // is honest; inventing a name for them would not be.
+        id,
+        canRemove: userId === trip.owner_id && !owner,
         name: p.name || p.initials,
         initials: p.initials,
         color: p.color,
@@ -595,6 +599,43 @@ app.get("/api/trips/:tripId/people", async (c) => {
     }),
     invite: inviteView(c, invite),
   });
+});
+
+app.post("/api/trips/:tripId/people/:personId/remove", async (c) => {
+  const tripId = c.req.param("tripId");
+  const trip = await tripForViewer(c.env.DB, tripId, c.get("viewer").id);
+  if (!trip) return c.json(NO_SUCH_TRIP, 404);
+  if (trip.owner_id !== c.get("viewer").id) return c.json({ error: "Only the trip organizer can remove people" }, 403);
+  if (c.req.param("personId") === trip.owner_id) return c.json({ error: "The organizer cannot be removed" }, 400);
+  await c.env.DB.prepare("DELETE FROM trip_members WHERE trip_id = ? AND user_id = ? AND user_id != ?")
+    .bind(tripId, c.req.param("personId"), trip.owner_id).run();
+  return c.json({ ok: true });
+});
+
+app.post("/api/trips/:tripId/smart-plan", async (c) => {
+  const tripId = c.req.param("tripId");
+  const trip = await tripForViewer(c.env.DB, tripId, c.get("viewer").id);
+  if (!trip) return c.json(NO_SUCH_TRIP, 404);
+  const body = await c.req.json<{ dayId?: string | null }>();
+  const dayId = body.dayId ?? null;
+  const [days, stops] = await Promise.all([listDays(c.env.DB, tripId), listStops(c.env.DB, tripId)]);
+  if (dayId !== null && !days.some((d) => d.id === dayId)) return c.json({ error: "That day is not on this trip" }, 400);
+  const result = smartPlan(days, stops, dayId);
+  const statements = [];
+  const planned = new Map(result.placements.map((p) => [p.id, p]));
+  for (const id of new Set(result.placements.map((p) => p.dayId))) {
+    const ordered = stops.filter((s) => (planned.get(s.id)?.dayId ?? s.day_id) === id)
+      .sort((a, b) => (planned.get(a.id)?.time ?? a.start_time ?? "99:99").localeCompare(planned.get(b.id)?.time ?? b.start_time ?? "99:99") || a.order_key.localeCompare(b.order_key));
+    let key: string | null = null;
+    for (const stop of ordered) {
+      key = orderKeyAppend(key ? [key] : []);
+      const placement = planned.get(stop.id);
+      statements.push(c.env.DB.prepare("UPDATE stops SET day_id = ?, start_time = ?, order_key = ?, updated_at = ? WHERE id = ? AND trip_id = ? AND deleted_at IS NULL")
+        .bind(id, placement?.time ?? stop.start_time, key, Date.now(), stop.id, tripId));
+    }
+  }
+  if (statements.length) await c.env.DB.batch(statements);
+  return c.json(result);
 });
 
 app.post("/api/trips/:tripId/invite", async (c) => {

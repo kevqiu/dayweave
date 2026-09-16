@@ -1018,29 +1018,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .stop-note > span { white-space: pre-wrap; overflow-wrap: anywhere; }
 .detail-close { margin-left: auto; background: none; border: 0; min-width: 44px; min-height: 44px; display: grid; place-items: center; }
 .field-error { color: ${C.ink}; font-size: 13px; line-height: 1.5; }
-.planner-modes { display: flex; flex-shrink: 0; gap: 8px; padding: 8px 12px; border-bottom: 1px solid ${C.border}; }
-.planner-modes button { min-height: 44px; padding: 8px 12px; border: 1px solid ${C.border}; border-radius: 9px; background: ${C.card}; color: ${C.ink}; font: inherit; font-size: 13px; }
-.planner-modes button[aria-pressed="true"] { background: ${C.brandButton}; font-weight: 600; }
-.untimed-planner { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.untimed-tools { padding: 8px 16px; }
-.untimed-tools input { width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid ${C.border}; border-radius: 9px; background: ${C.card}; font: inherit; }
-.untimed-tools p { font-size: 12px; color: ${C.inkSoft}; line-height: 1.5; margin: 8px 0 0; }
-.untimed-list { overflow-y: auto; min-height: 0; padding: 0 16px 24px; }
-.untimed-group h3 { font-size: 14px; margin: 16px 0 8px; }
-.untimed-item { display: flex; align-items: center; gap: 10px; padding: 12px; margin-bottom: 8px; border: 1px dashed ${C.border}; border-radius: 9px; background: ${C.card}; }
-.untimed-text { flex: 1; min-width: 0; font-size: 14px; overflow-wrap: anywhere; }
-.untimed-note { white-space: pre-wrap; font-size: 12px; line-height: 1.5; margin-top: 6px; color: ${C.inkSoft}; }
-.untimed-item .detail-link { min-height: 44px; flex-shrink: 0; margin: 0; }
-.untimed-item[hidden], .untimed-group[hidden] { display: none; }
 .rail-name, .stop-name { white-space: normal; overflow-wrap: anywhere; }
 .stop-row, .rail-stop-tap { height: auto; min-height: 46px; padding-top: 7px; padding-bottom: 7px; }
 .stop-name { font-size: 13.5px; }
 .gcard-sub { line-height: 14px; }
-@media (max-width: 779px) {
-  .untimed-item { flex-wrap: wrap; }
-  .untimed-text { flex-basis: calc(100% - 36px); }
-  .untimed-item .detail-link { margin-left: 26px; }
-}
 .detail-empty { font-size: 12.5px; color: ${C.faint}; }
 .detail-link {
   margin-top: 10px; background: none; border: 0; padding: 0;
@@ -1773,5 +1754,25 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .trail-block-solid i { opacity: .55; filter: none; }
   .trail-number { opacity: 1; transform: none; }
 }
+
+.desk .gcard, .desk .tray-card, .desk .lodging-card { cursor: pointer; }
+.smart-plan { display:flex; align-items:center; justify-content:center; gap:7px; min-height:44px; padding:8px; border:1px solid ${C.border}; border-radius:10px; background:${C.card}; color:${C.ink}; font-size:12px; font-weight:600; }
+.smart-plan:hover { background:${C.paper}; }
+.smart-plan:disabled { opacity:.55; cursor:wait; }
+.tray-side > .smart-plan { margin:0 12px 10px; flex-shrink:0; }
+.settings-content { padding:24px 20px; overflow:auto; }
+.settings-intro { color:${C.inkSoft}; font-size:14px; line-height:1.5; margin:12px 0 28px; }
+.setting-row { margin:0 0 24px; padding:16px; border:1px solid ${C.border}; border-radius:14px; background:${C.card}; }
+.setting-row legend { font-size:16px; font-weight:600; padding:0 6px; }
+.setting-row p { margin:0 0 16px; font-size:13px; line-height:1.5; color:${C.inkSoft}; }
+.unit-options { display:flex; gap:8px; flex-wrap:wrap; }
+.unit-options label { flex:1; min-width:120px; display:flex; align-items:center; gap:8px; min-height:48px; padding:10px; border:1px solid ${C.border}; border-radius:9px; cursor:pointer; font-size:13px; }
+.unit-options label:has(:checked) { background:${C.paper}; border-color:${C.inkSoft}; }
+.unit-options input { accent-color:${C.ink}; }
+.unit-options label:focus-within { outline:2px solid ${C.inkSoft}; outline-offset:2px; }
+.member-menu-button { min-width:44px; min-height:44px; margin-left:auto; }
+.member-menu { position:fixed; margin:0; width:144px; padding:4px; background:${C.card}; border:1px solid ${C.border}; border-radius:12px; box-shadow:0 6px 20px rgba(84,68,44,.2); }
+.member-menu .gpop-item { min-height:44px; }
+.screen.desk.narrow .grid-days { overflow:hidden; }
 `;
 }

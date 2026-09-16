@@ -56,7 +56,7 @@ export function describeStop(
 
   if (stop.location && previous?.location) {
     const metres = haversineMetres(previous.location, stop.location);
-    parts.push(`${metres < 1000 ? Math.round(metres / 10) * 10 + " m" : (metres / 1000).toFixed(1) + " km"} straight-line distance`);
+    parts.push(`${metres < 1000 ? Math.round(metres / 10) * 10 + " m" : Number((metres / 1000).toFixed(1)) + " km"}`);
   }
 
   return parts.join(" · ");

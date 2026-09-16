@@ -90,7 +90,7 @@ const isTravelDay = (day: CandidateDay) => /\bto\b/i.test(day.placeLabel ?? "");
 const CROWDED = 6;
 
 /**
- * The extra straight-line distance of slotting `point` between two stops, and
+ * The extra distance of slotting `point` between two stops, and
  * which two they are. Walking out to somewhere and back is what it measures,
  * so the cheapest insertion is the one that bends the day's path least.
  */
@@ -236,7 +236,7 @@ function evaluate(stop: MovingStop, day: CandidateDay, today: string): Candidate
   return {
     ...base,
     kind: "ok",
-    reason: `${dayShape(day)} · ${formatDistance(added)} extra straight-line distance`,
+    reason: `${dayShape(day)} · ${formatDistance(added)}`,
     after,
     before,
     addedMetres: added,
@@ -260,7 +260,7 @@ function withDetail(candidate: Candidate): Candidate {
   }
 
   if (candidate.addedMetres !== null) {
-    parts.push(`${formatDistance(candidate.addedMetres)} extra straight-line distance. Check transport and travel time.`);
+    parts.push(`${formatDistance(candidate.addedMetres)}`);
   }
 
   return { ...candidate, detail: parts.join(" ") };
