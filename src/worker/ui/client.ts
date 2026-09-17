@@ -146,6 +146,8 @@ function render() {
   // The Plan view is the grid at every width now — one column on a phone. The
   // frame only grows for the wide one; every other screen stays 375.
   const grid = planning() && wideNow();
+  const currentGrid = document.querySelector(".screen.desk:not(.narrow) .grid-scroll");
+  gridViewportHeight = currentGrid ? currentGrid.clientHeight : 0;
   const savedScroll = [...document.querySelectorAll(".rail-list, .sheet-scroll, .grid-scroll, .tray-list")].map((el) => ({ selector: "." + el.classList[0], top: el.scrollTop, key: el.dataset.scrollKey }));
 
   stopTrailWave();
@@ -5351,15 +5353,20 @@ function lodgingRow(days) {
 }
 
 let gridObserver = null;
+let gridViewportHeight = 0;
 
 function gridScroll(days, span, band, wide) {
   if (gridObserver) gridObserver.disconnect();
   const baseHeight = span.height;
+  if (wide && gridViewportHeight) {
+    span.height = Math.max(baseHeight, gridViewportHeight - (band ? band + 12 : 0) - 18);
+  }
   const scroll = h("div", { class: "grid-scroll", "data-scroll-key": state.trip.trip.id + ":" + days.map((day) => day.id).join(",") }, [gridContent(days, span, band)]);
   if (wide) {
     gridObserver = new ResizeObserver(() => {
       if (!scroll.isConnected || state.drag) return;
-      const height = Math.max(baseHeight, scroll.clientHeight - (band ? band + 12 : 0) - 18);
+      gridViewportHeight = scroll.clientHeight;
+      const height = Math.max(baseHeight, gridViewportHeight - (band ? band + 12 : 0) - 18);
       if (Math.abs(height - span.height) < 1) return;
       span.height = height;
       scroll.replaceChildren(gridContent(days, span, band));

@@ -562,3 +562,37 @@ describe("planner gesture regressions", () => {
     expect(api.displayDistance("cafe · 500 m")).toBe("cafe · 0.3 mi");
   });
 });
+
+
+describe("desktop planner sizing", () => {
+  it.each([0, 180])("keeps the stretched clock and card coordinates when picking up and releasing a card (band %s)", (band) => {
+    const state: any = { trip: { trip: { id: "trip" } }, drag: null };
+    let resize: () => void = () => {};
+    const h = (_tag: string, _props: unknown, children: any[]) => ({
+      children, isConnected: true, clientHeight: 1200,
+      replaceChildren(...next: any[]) { this.children = next; },
+    });
+    class ResizeObserver {
+      constructor(callback: () => void) { resize = callback; }
+      disconnect() {}
+      observe() {}
+    }
+    const gridContent = (_days: unknown, span: any) => ({ height: span.height, noonY: (720 - span.from) * span.height / (span.to - span.from) });
+    const swipeDays = vi.fn();
+    const api = load(["gridScroll"], { state, h, ResizeObserver, gridContent, swipeDays }, "let gridObserver=null; let gridViewportHeight=0;");
+    const span = () => ({ from: 480, to: 1380, height: 660 });
+    const before = api.gridScroll([{ id: "day" }], span(), band, true);
+    resize();
+    expect(before.children[0].height).toBeGreaterThan(660);
+    state.drag = { stopId: "stop" };
+    const during = api.gridScroll([{ id: "day" }], span(), band, true);
+    resize();
+    expect(during.children).toEqual(before.children);
+    state.drag = null;
+    const after = api.gridScroll([{ id: "day" }], span(), band, true);
+    expect(after.children).toEqual(before.children);
+    const mobile = api.gridScroll([{ id: "day" }], span(), band, false);
+    expect(mobile.children[0].height).toBe(660);
+    expect(swipeDays).toHaveBeenCalledWith(mobile);
+  });
+});

@@ -22,7 +22,8 @@ describe("map camera across UI updates", () => {
     const paint = vi.fn();
     const context = {
       state: { screen: "trip", view: "map" },
-      document: { title: "Dayweave", querySelectorAll: () => [] },
+      document: { title: "Dayweave", querySelectorAll: () => [], querySelector: () => null },
+      gridViewportHeight: 0,
       frame: { replaceChildren: vi.fn(), append: vi.fn() },
       planning: () => false, wideNow: () => true,
       positionEditors: vi.fn(), splashCleanup: null, stopTrailWave: vi.fn(),

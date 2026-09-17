@@ -1770,7 +1770,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .unit-options label:has(:checked) { background:${C.paper}; border-color:${C.inkSoft}; }
 .unit-options input { accent-color:${C.ink}; }
 .unit-options label:focus-within { outline:2px solid ${C.inkSoft}; outline-offset:2px; }
-.member-menu-button { min-width:44px; min-height:44px; margin-left:auto; }
+.member-menu-button { position:relative; flex-shrink:0; width:28px; height:28px; border-radius:7px; margin-left:auto; }
+.member-menu-button::before { content:""; position:absolute; inset:-8px; }
+.member-menu-button svg { width:13px; height:13px; }
 .member-menu { position:fixed; margin:0; width:144px; padding:4px; background:${C.card}; border:1px solid ${C.border}; border-radius:12px; box-shadow:0 6px 20px rgba(84,68,44,.2); }
 .member-menu .gpop-item { min-height:44px; }
 .screen.desk.narrow .grid-days { overflow:hidden; }
