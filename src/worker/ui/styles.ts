@@ -408,21 +408,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .sheet { transition: transform 180ms cubic-bezier(0.2, 0.8, 0.3, 1); }
 .sheet.dragging { transition: none; }
 
-/* The header the sheet grows into (design/SheetFull.dc.html). */
-/* SheetFull.dc.html's header row, without its "All stops" title — see the
-   note in client.ts. The pill keeps the row's own padding and sits where the
-   artboard puts it, at the right. */
-.all-stops {
-  display: flex; align-items: center; justify-content: flex-end;
-  gap: 10px; padding: 2px 14px 10px; flex-shrink: 0;
-}
-.filter-pill {
-  height: 28px; border-radius: 999px; border: 1px solid ${C.border}; background: ${C.card};
-  color: ${C.inkSoft}; font-size: 11.5px; font-weight: 600; padding: 0 11px; font-family: ${SANS};
-}
-.filter-pill[aria-pressed="true"] {
-  background: ${C.brandWash}; border-color: ${C.brandLight}; color: ${C.brandInk};
-}
 .sheet-scroll { flex-grow: 1; overflow-y: auto; padding: 0 0 16px; }
 
 /* The header is a row of three targets now — open the day, change the day,

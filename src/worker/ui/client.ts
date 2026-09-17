@@ -1759,7 +1759,6 @@ function deskRail() {
   }
 
   const list = h("div", { class: "rail-list" }, []);
-  list.append(h("button", { class: "filter-pill", "aria-pressed": String(state.hideVisited), onclick: () => { state.hideVisited = !state.hideVisited; render(); } }, [state.hideVisited ? "Show all stops" : "Hide visited"]));
   for (const day of trip.days) {
     const open = day.id === state.openDayId;
     const past = day.date < today;
@@ -1957,20 +1956,6 @@ function screenTrip() {
     h("div", { class: "sheet stops" + (full ? " full" : ""), id: "sheet" }, [
       grabber(),
       sheetTabs(),
-      // SheetFull.dc.html titles this row "All stops". The title is
-      // deliberately not here: the collapsed sheet has no header at all, so a
-      // heading that appears only on expanding reads as the sheet becoming a
-      // different screen. The control it sat beside is the useful half.
-      state.sheetTab === "stops"
-        ? h("div", { class: "all-stops" }, [
-            h("button", {
-              class: "filter-pill",
-              "aria-pressed": state.hideVisited ? "true" : "false",
-              onclick: () => { state.hideVisited = !state.hideVisited; render(); },
-            }, [state.hideVisited ? "Show all stops" : "Hide visited"]),
-            h("button", { class: "filter-pill", onclick: showPlan }, ["Planner"]),
-          ])
-        : null,
       h("div", { class: "sheet-scroll" },
         state.sheetTab === "stays" ? staysPanel() : sheetContents(hasStops)),
     ]),
@@ -3262,7 +3247,6 @@ function emptyDayBody() {
       h("button", { class: "primary", onclick: () => openSearch(state.openDayId) }, [
         icon("searchLight"), "Find a place",
       ]),
-      h("button", { class: "secondary" }, ["Bring in a My Map"]),
     ]),
   ]);
 }
