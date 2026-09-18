@@ -1,7 +1,9 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { createHash } from "node:crypto";
+import { calculateJwkThumbprint, exportJWK, generateKeyPair, SignJWT } from "jose";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { authFor } from "../auth.ts";
 import app from "../index.ts";
 
 class Statement {
@@ -58,9 +60,8 @@ beforeEach(() => {
     GOOGLE_CLIENT_ID: "client.apps.googleusercontent.com", GOOGLE_CLIENT_SECRET: "test-only",
     GOOGLE_PLACES_KEY: "test-only", BETTER_AUTH_SECRET: "a-long-random-test-secret-for-mcp-authorization",
   };
-  vi.stubGlobal("fetch", async (input: string | URL | Request, init?: RequestInit) => {
+  vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-    if (url === `${origin}/api/auth/jwks`) return app.request(url, {}, env as never);
     if (url === "https://places.googleapis.com/v1/places:searchText") return Response.json({ places: [{
       id: "tokyo-cafe", displayName: { text: "Tokyo Cafe" }, location: { latitude: 35.67, longitude: 139.7 },
       formattedAddress: "Tokyo, Japan", primaryType: "cafe", addressComponents: [],
@@ -74,7 +75,7 @@ beforeEach(() => {
       })}.signature` });
     }
     throw new Error(`Unexpected network request: ${url}`);
-  });
+  }));
 });
 
 afterEach(() => { vi.unstubAllGlobals(); sqlite.close(); });
@@ -150,6 +151,20 @@ async function rpc(accessToken?: string, name?: string, args: unknown = {}) {
 }
 
 describe("Dayweave MCP", () => {
+  it("initializes and calls tools without fetching its own public keys over HTTP", async () => {
+    const auth = await connect();
+    vi.mocked(fetch).mockClear();
+    const response = await app.request(`${origin}/mcp`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${auth.access_token}`, "content-type": "application/json", accept: "application/json, text/event-stream" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "test", version: "1" } } }),
+    }, env as never);
+    expect(response.status, await response.clone().text()).toBe(200);
+    expect((await rpc(auth.access_token)).response.status).toBe(200);
+    expect((await rpc(auth.access_token, "list_trips")).result.trips).toEqual([]);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it("advertises discovery and rejects anonymous callers", async () => {
     const { response } = await rpc();
     expect(response.status).toBe(401);
@@ -197,6 +212,47 @@ describe("Dayweave MCP", () => {
     const parts = auth.access_token.split(".");
     parts[1] = encode({ sub: "someone-else", aud: `${origin}/mcp`, scope: "trips:read trips:write" });
     expect((await rpc(parts.join("."))).response.status).toBe(401);
+  });
+
+  it("rejects signed tokens with an invalid issuer, audience, expiry, or read scope", async () => {
+    const auth = await connect();
+    const claims = JSON.parse(Buffer.from(auth.access_token.split(".")[1]!, "base64url").toString());
+    const issuer = authFor(env as never, new URL(origin));
+    for (const patch of [{ iss: "https://other.example/api/auth" }, { aud: `${origin}/other` }, { exp: 1 }, { nbf: Math.floor(Date.now() / 1000) + 600 }]) {
+      const signed = await issuer.api.signJWT({ body: { payload: { ...claims, ...patch } } });
+      expect((await rpc(signed.token)).response.status).toBe(401);
+    }
+    const signed = await issuer.api.signJWT({ body: { payload: { ...claims, scope: "trips:write" } } });
+    const result = await rpc(signed.token);
+    expect(result.response.status).toBe(403);
+    expect(result.response.headers.get("www-authenticate")).toContain('error="insufficient_scope"');
+    expect(result.response.headers.get("www-authenticate")).toContain('scope="trips:read"');
+    expect((await rpc("not-a-jwt")).response.status).toBe(401);
+  });
+
+  it("requires DPoP proof for bound tokens and rejects proof replay", async () => {
+    const auth = await connect();
+    const claims = JSON.parse(Buffer.from(auth.access_token.split(".")[1]!, "base64url").toString());
+    const key = await generateKeyPair("ES256");
+    const jwk = await exportJWK(key.publicKey);
+    const signed = await authFor(env as never, new URL(origin)).api.signJWT({ body: { payload: {
+      ...claims, cnf: { jkt: await calculateJwkThumbprint(jwk) },
+    } } });
+    expect((await rpc(signed.token)).response.status).toBe(401);
+    const proof = await new SignJWT({
+      jti: "proof-once", htm: "POST", htu: `${origin}/mcp`,
+      ath: createHash("sha256").update(signed.token).digest("base64url"),
+    }).setProtectedHeader({ alg: "ES256", typ: "dpop+jwt", jwk }).setIssuedAt().sign(key.privateKey);
+    const request = () => app.request(`${origin}/mcp`, {
+      method: "POST",
+      headers: { authorization: `DPoP ${signed.token}`, dpop: proof, "content-type": "application/json", accept: "application/json, text/event-stream" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }),
+    }, env as never);
+    const accepted = await request();
+    expect(accepted.status, await accepted.clone().text()).toBe(200);
+    const replayed = await request();
+    expect(replayed.status).toBe(401);
+    expect(replayed.headers.get("www-authenticate")).toContain("DPoP");
   });
 
   it("checks trip membership and rejects another trip's day and invalid dates", async () => {

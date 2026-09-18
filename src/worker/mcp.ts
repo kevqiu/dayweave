@@ -1,8 +1,8 @@
-import { requireMcpAuth } from "@better-auth/mcp";
 import { createMcpHandler, McpServer, type CallToolResult } from "@modelcontextprotocol/server";
 import { CfWorkerJsonSchemaValidator } from "@modelcontextprotocol/server/validators/cf-worker";
 import { z } from "zod";
 import { authFor, originFor } from "./auth.ts";
+import { requireTripMcpAuth } from "./mcp-auth.ts";
 import type { worker } from "../../alchemy.run.ts";
 
 type Env = typeof worker.Env;
@@ -129,7 +129,7 @@ export async function handleMcp(request: Request, env: Env, dispatch: Dispatch):
     "Vary": "Origin",
   } });
   const resource = `${origin}/mcp`;
-  const handler = requireMcpAuth(authFor(env, url), async (request, claims) => {
+  const handler = requireTripMcpAuth(authFor(env, url), async (request, claims) => {
     if (typeof claims.sub !== "string" || typeof claims.client_id !== "string") return new Response("Invalid account token", { status: 401 });
     const viewer = await env.DB.prepare('SELECT id, name, email, image FROM "user" WHERE id = ?').bind(claims.sub).first<McpViewer>();
     const consent = await env.DB.prepare('SELECT c.id, c.scopes FROM "oauthConsent" c JOIN "oauthClient" a ON a.clientId = c.clientId WHERE c.userId = ? AND c.clientId = ? AND COALESCE(a.disabled, 0) = 0')
@@ -147,7 +147,7 @@ export async function handleMcp(request: Request, env: Env, dispatch: Dispatch):
       return data;
     };
     return createMcpHandler(() => tripServer(api, origin, scopes), { legacy: "stateless" }).fetch(request);
-  }, { resource, requiredScopes: ["trips:read"], challengeScopes: ["trips:read", "trips:write", "offline_access"] });
+  }, resource);
   const response = await handler(request);
   const out = new Response(response.body, response);
   out.headers.set("Cache-Control", "no-store");
