@@ -64,8 +64,6 @@ import {
 } from "./store.ts";
 import { avatarColor, guestAvatarColor } from "./ui/tokens.ts";
 import { authFor, localDevEnabled } from "./auth.ts";
-import { handleMcp, type McpViewer } from "./mcp.ts";
-import { mcpAuthPage } from "./ui/mcp-auth.ts";
 import { page } from "./ui/page.ts";
 import type { worker } from "../../alchemy.run.ts";
 
@@ -80,30 +78,6 @@ interface Viewer {
 }
 
 const app = new Hono<{ Bindings: Env; Variables: { viewer: Viewer } }>();
-const internalViewers = new WeakMap<Request, McpViewer>();
-
-app.all("/.well-known/*", (c) => authFor(c.env, new URL(c.req.url)).handler(c.req.raw));
-app.get("/mcp/:screen", (c) => {
-  const screen = c.req.param("screen");
-  if (screen !== "login" && screen !== "consent" && screen !== "connections") return c.notFound();
-  c.header("Cache-Control", "no-store");
-  c.header("Referrer-Policy", "no-referrer");
-  c.header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
-  return c.html(mcpAuthPage(screen, localDevEnabled(c.env, new URL(c.req.url))));
-});
-app.all("/mcp", (c) => handleMcp(c.req.raw, c.env, async (viewer, path, body) => {
-  const request = new Request(new URL(path, c.req.url), {
-    method: body === undefined ? "GET" : "POST",
-    headers: { "Content-Type": "application/json" },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  });
-  internalViewers.set(request, viewer);
-  try {
-    return await app.fetch(request, c.env);
-  } finally {
-    internalViewers.delete(request);
-  }
-}));
 
 app.get("/health", (c) => c.json({ ok: true }));
 
@@ -184,12 +158,6 @@ app.use("/api/*", async (c, next) => {
   // The sign-in screen names the inviter and the trip, so the invite it is
   // showing has to be readable before there is anybody to read it for.
   if (c.req.path === "/api/invite/pending") return next();
-
-  const internalViewer = internalViewers.get(c.req.raw);
-  if (internalViewer) {
-    c.set("viewer", internalViewer);
-    return next();
-  }
 
   const auth = authFor(c.env, new URL(c.req.url));
   const session = await auth.api.getSession({ headers: c.req.raw.headers });

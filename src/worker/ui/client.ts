@@ -1353,7 +1353,6 @@ function screenSettings() {
       h("p", { class: "settings-intro", text: "Make Dayweave feel familiar. Your preferences are saved on this device." }, []),
       row("temperature", "Temperature unit", "Your preferred temperature scale.", [["C", "Celsius · °C"], ["F", "Fahrenheit · °F"]], "C"),
       row("distance", "Distance unit", "Used for distances throughout your trips.", [["km", "Kilometres · km"], ["mi", "Miles · mi"]], "km"),
-      h("a", { class: "btn-dark", href: "/mcp/connections", text: "Manage connected apps" }, []),
     ]), noticeToast(),
   ], { tall: true });
 }
