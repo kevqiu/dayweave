@@ -1,6 +1,8 @@
 import { betterAuth } from "better-auth";
 import { APIError, createAuthEndpoint } from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
+import { jwt } from "better-auth/plugins";
+import { mcp } from "@better-auth/mcp";
 import type { worker } from "../../alchemy.run.ts";
 
 type Env = typeof worker.Env;
@@ -119,7 +121,34 @@ function build(env: Env, origin: string) {
     baseURL: origin,
     basePath: "/api/auth",
     trustedOrigins: [...ORIGINS],
-    plugins: localDevEnabled(env, new URL(origin)) ? [localSignIn(origin)] : [],
+    disabledPaths: ["/token"],
+    plugins: [
+      jwt(),
+      mcp({
+        loginPage: "/mcp/login",
+        consentPage: "/mcp/consent",
+        resource: `${origin}/mcp`,
+        scopes: ["trips:read", "trips:write", "offline_access"],
+        grantTypes: ["authorization_code", "refresh_token"],
+        allowDynamicClientRegistration: true,
+        allowUnauthenticatedClientRegistration: true,
+        clientPrivileges: () => false,
+        resourcePrivileges: () => false,
+        accessTokenExpiresIn: 300,
+        refreshTokenExpiresIn: 60 * 60 * 24 * 30,
+        refreshTokenReuseInterval: 0,
+        extensions: [{
+          claims: {
+            accessToken: async ({ user, client }) => {
+              const consent = user ? await env.DB.prepare('SELECT id FROM "oauthConsent" WHERE userId = ? AND clientId = ?')
+                .bind(user.id, client.clientId).first<{ id: string }>() : null;
+              return { dayweave_consent: consent?.id ?? null };
+            },
+          },
+        }],
+      }),
+      ...(localDevEnabled(env, new URL(origin)) ? [localSignIn(origin)] : []),
+    ],
 
     socialProviders: {
       google: {
@@ -168,6 +197,7 @@ function build(env: Env, origin: string) {
       },
     },
     session: { storeSessionInDatabase: true },
+    verification: { storeInDatabase: true },
   });
 }
 

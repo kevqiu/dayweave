@@ -10,9 +10,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@better-auth/mcp": "^1.7.5",
+    "@modelcontextprotocol/server": "^2.0.0",
     "alchemy": "0.94.0",
-    "better-auth": "^1.7.4",
-    "hono": "^4.9.10"
+    "better-auth": "^1.7.5",
+    "hono": "^4.9.10",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250927.0",

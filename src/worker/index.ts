@@ -64,6 +64,8 @@ import {
 } from "./store.ts";
 import { avatarColor, guestAvatarColor } from "./ui/tokens.ts";
 import { authFor, localDevEnabled } from "./auth.ts";
+import { handleMcp, type McpViewer } from "./mcp.ts";
+import { mcpAuthPage } from "./ui/mcp-auth.ts";
 import { page } from "./ui/page.ts";
 import type { worker } from "../../alchemy.run.ts";
 
@@ -78,6 +80,30 @@ interface Viewer {
 }
 
 const app = new Hono<{ Bindings: Env; Variables: { viewer: Viewer } }>();
+const internalViewers = new WeakMap<Request, McpViewer>();
+
+app.all("/.well-known/*", (c) => authFor(c.env, new URL(c.req.url)).handler(c.req.raw));
+app.get("/mcp/:screen", (c) => {
+  const screen = c.req.param("screen");
+  if (screen !== "login" && screen !== "consent" && screen !== "connections") return c.notFound();
+  c.header("Cache-Control", "no-store");
+  c.header("Referrer-Policy", "no-referrer");
+  c.header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+  return c.html(mcpAuthPage(screen, localDevEnabled(c.env, new URL(c.req.url))));
+});
+app.all("/mcp", (c) => handleMcp(c.req.raw, c.env, async (viewer, path, body) => {
+  const request = new Request(new URL(path, c.req.url), {
+    method: body === undefined ? "GET" : "POST",
+    headers: { "Content-Type": "application/json" },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  internalViewers.set(request, viewer);
+  try {
+    return await app.fetch(request, c.env);
+  } finally {
+    internalViewers.delete(request);
+  }
+}));
 
 app.get("/health", (c) => c.json({ ok: true }));
 
@@ -158,6 +184,12 @@ app.use("/api/*", async (c, next) => {
   // The sign-in screen names the inviter and the trip, so the invite it is
   // showing has to be readable before there is anybody to read it for.
   if (c.req.path === "/api/invite/pending") return next();
+
+  const internalViewer = internalViewers.get(c.req.raw);
+  if (internalViewer) {
+    c.set("viewer", internalViewer);
+    return next();
+  }
 
   const auth = authFor(c.env, new URL(c.req.url));
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
@@ -413,7 +445,9 @@ app.post("/api/trips", async (c) => {
   // Section 4d: the name is required, and it is the only name the app shows.
   if (!name) return c.json({ error: "a trip needs a name" }, 400);
   if (!body.startDate || !body.endDate) return c.json({ error: "a trip needs dates" }, 400);
+  if (!isIsoDate(body.startDate) || !isIsoDate(body.endDate)) return c.json({ error: "those are not dates" }, 400);
   if (body.endDate < body.startDate) return c.json({ error: "the trip ends before it starts" }, 400);
+  if (daysBetween(body.startDate, body.endDate) > 365) return c.json({ error: "a trip can span at most 366 days" }, 400);
 
   const trip = await createTrip(c.env.DB, {
     name,
@@ -686,6 +720,7 @@ app.post("/api/trips/:tripId", async (c) => {
   if (!name) return c.json({ error: "a trip needs a name" }, 400);
   if (!isIsoDate(startDate) || !isIsoDate(endDate)) return c.json({ error: "those are not dates" }, 400);
   if (endDate < startDate) return c.json({ error: "the trip ends before it starts" }, 400);
+  if (daysBetween(startDate, endDate) > 365) return c.json({ error: "a trip can span at most 366 days" }, 400);
 
   const changed = await updateTrip(c.env.DB, trip, { name, startDate, endDate });
   return c.json({ ok: true, ...changed });
@@ -929,6 +964,9 @@ app.post("/api/trips/:tripId/stops", async (c) => {
     startTime?: string | null;
   }>();
   if (!body.placeId) return c.json({ error: "which place?" }, 400);
+  if (body.dayId != null && !(await dayOnTrip(c.env.DB, body.dayId, tripId))) {
+    return c.json({ error: "that day is not on this trip" }, 400);
+  }
   const startTime = cleanTime(body.startTime);
   if (startTime === false) return c.json({ error: "that is not a time" }, 400);
 
@@ -989,6 +1027,9 @@ app.post("/api/trips/:tripId/stops/note", async (c) => {
 
   const trip = await tripForViewer(c.env.DB, tripId, userId);
   if (!trip) return c.json({ error: "no such trip" }, 404);
+  if (body.dayId != null && !(await dayOnTrip(c.env.DB, body.dayId, tripId))) {
+    return c.json({ error: "that day is not on this trip" }, 400);
+  }
 
   const result = await addNoteAsStop(c.env.DB, {
     tripId,
@@ -1240,6 +1281,10 @@ function cleanTime(raw: string | null | undefined): string | null | false {
   if (raw === undefined || raw === null || raw.trim() === "") return null;
   const at = minutesOf(raw);
   return at === null ? false : formatClock(at);
+}
+
+async function dayOnTrip(db: D1Database, dayId: string, tripId: string) {
+  return Boolean(await db.prepare("SELECT id FROM days WHERE id = ? AND trip_id = ?").bind(dayId, tripId).first());
 }
 
 app.post("/api/stops/:stopId/delete", async (c) => {
