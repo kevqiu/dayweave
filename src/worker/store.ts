@@ -432,6 +432,7 @@ export function toDayGeo(days: readonly DayRow[], stops: readonly StopRow[]): Da
 export interface StopView {
   id: string;
   title: string;
+  manual: boolean;
   /** Derived, never typed. PLAN.md section 4c, `meta` in Main.dc.html. */
   description: string;
   /** Typed by a person, and absent until someone writes one. */
@@ -559,6 +560,7 @@ export function stopsForDay(
     return {
       id: stop.id,
       title: stop.place_name ?? stop.title,
+      manual: stop.place_id === null,
       description: isRoute
         ? describeStop({ category: stop.category, location }, previous)
         : [locality(stop.city, location), stop.category].filter(Boolean).join(" · "),

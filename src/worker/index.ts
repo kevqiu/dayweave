@@ -1198,6 +1198,19 @@ app.post("/api/stops/:stopId/note", async (c) => {
   return c.json({ ok: true });
 });
 
+app.post("/api/stops/:stopId/title", async (c) => {
+  const { id: userId } = c.get("viewer");
+  const body = await c.req.json<{ title?: string }>();
+  const title = typeof body.title === "string" ? body.title.trim() : "";
+  if (!title) return c.json({ error: "give it a name" }, 400);
+  const done = await c.env.DB.prepare(
+    `UPDATE stops SET title = ?, updated_at = ?
+      WHERE id = ? AND place_id IS NULL AND deleted_at IS NULL AND ${ON_A_TRIP_OF_MINE}`,
+  ).bind(title, Date.now(), c.req.param("stopId"), userId).run();
+  if (!done.meta.changes) return c.json({ error: "no such manual note" }, 404);
+  return c.json({ ok: true, title });
+});
+
 /**
  * The time on a stop.
  *

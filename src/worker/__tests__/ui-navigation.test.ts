@@ -277,6 +277,90 @@ describe("stay search", () => {
 });
 
 describe("search and drag transitions", () => {
+  it("edits a manual note inline instead of opening the supplementary-note sheet", () => {
+    const state: any = {};
+    const field = { focus: vi.fn(), select: vi.fn() };
+    const openLayer = vi.fn();
+    const api = load(["editNote"], { state, render: vi.fn(), $: () => field, openLayer });
+    api.editNote({ id: "manual", title: "Fly home", manual: true });
+    expect(state.manualNoteId).toBe("manual");
+    expect(openLayer).not.toHaveBeenCalled();
+    expect(field.focus).toHaveBeenCalledOnce();
+    expect(field.select).toHaveBeenCalledOnce();
+  });
+
+  it.each(["Enter", "Escape", "blur", "empty"])("handles inline manual note editing with %s", async (action) => {
+    const state: any = { manualNoteId: "manual" };
+    const stop = { id: "manual", manual: true, title: "Fly home", time: "15:00" };
+    const post = vi.fn().mockResolvedValue({ ok: true });
+    let rollback = () => {};
+    const api = load(["stopTitle"], {
+      state, post, render: vi.fn(),
+      h: (tag: string, attrs: any) => ({ tag, attrs, value: attrs.value }),
+      optimistic: (apply: () => () => void, send: () => void) => { rollback = apply(); send(); },
+    });
+    const field = api.stopTitle(stop, "gcard-title");
+    expect(field).toMatchObject({ tag: "input", value: "Fly home" });
+    field.value = action === "empty" ? "   " : "  Fly to Vancouver  ";
+    if (action === "blur") field.attrs.onblur();
+    else field.attrs.onkeydown({ key: action === "empty" ? "Enter" : action, preventDefault: vi.fn(), stopPropagation: vi.fn() });
+    field.attrs.onblur();
+    expect(state.manualNoteId).toBeNull();
+    expect(stop.time).toBe("15:00");
+    if (action === "Escape" || action === "empty") {
+      expect(post).not.toHaveBeenCalled();
+      expect(stop.title).toBe("Fly home");
+    } else {
+      expect(post).toHaveBeenCalledExactlyOnceWith("/api/stops/manual/title", { title: "Fly to Vancouver" });
+      expect(stop.title).toBe("Fly to Vancouver");
+      rollback();
+      expect(stop.title).toBe("Fly home");
+    }
+  });
+
+  it("opening search clears the selected event and focuses the new event search", () => {
+    const state: any = { selectedStopId: "stop" };
+    const field = { focus: vi.fn() };
+    const render = vi.fn();
+    const api = load(["openSearch"], { state, openLayer: vi.fn(), render, $: () => field });
+    api.openSearch("friday", "14:00");
+    expect(state).toMatchObject({ selectedStopId: null, search: { dayId: "friday", startTime: "14:00" } });
+    expect(render).toHaveBeenCalledOnce();
+    expect(field.focus).toHaveBeenCalledOnce();
+  });
+
+  it("opens an empty grid slot with one click while another event is selected", () => {
+    const state = { selectedStopId: "stop", search: null };
+    const openSearch = vi.fn();
+    const h = (_tag: string, attrs: any) => ({ attrs, append: vi.fn(), getBoundingClientRect: () => ({ top: 100 }) });
+    const api = load(["gridColumn"], {
+      state, h, todayIso: () => "2026-09-18", wideNow: () => true, openSearch,
+      PLAN: { gridTime: (_span: unknown, y: number) => y, formatClock: () => "14:00" },
+    }, "let suppressTap=false;");
+    const column = api.gridColumn({ id: "friday", date: "2026-10-09", stops: [] }, { height: 800 }, 0, false);
+    column.attrs.onclick({ clientY: 400, target: { closest: () => null } });
+    expect(openSearch).toHaveBeenCalledWith("friday", "14:00");
+  });
+
+  it("closes new-event search before selecting an existing grid event", () => {
+    const state: any = { selectedStopId: null, search: { dayId: "friday" } };
+    let afterClose = () => {};
+    const render = vi.fn();
+    const h = (_tag: string, attrs: any, children: any[]) => ({ attrs, children });
+    const api = load(["gridCard"], {
+      state, h, render, statusOf: () => "planned", gridSub: () => "", mutedHue: () => "gray", dragHandle: () => null, stopTitle: () => null,
+      closeThen: (_depth: number, callback: () => void) => { afterClose = callback; },
+    }, "let suppressTap=false;");
+    const card = api.gridCard({ hue: "blue" }, { id: "stop", title: "Owakudani" }, { top: 100, height: 44 }, null);
+    card.attrs.onclick();
+    expect(state.selectedStopId).toBeNull();
+    expect(render).not.toHaveBeenCalled();
+    state.search = null;
+    afterClose();
+    expect(state.selectedStopId).toBe("stop");
+    expect(render).toHaveBeenCalledOnce();
+  });
+
   it.each([false, true])("automatically starts map tilt with reduced motion %s without requesting permission", (reduced) => {
     const scene = { style: { setProperty: vi.fn() } };
     const stage = { isConnected: true, querySelector: () => scene, addEventListener: vi.fn(), removeEventListener: vi.fn(), getBoundingClientRect: () => ({ left: 0, top: 0, width: 400, height: 300 }) };

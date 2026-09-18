@@ -822,6 +822,21 @@ describe("membership is the permission", () => {
     return { mika, tripId, dayId: trip.days[0]!.id, stayId: lodging.id };
   }
 
+  it("renames manual notes without changing their time and rejects unauthorized or blank edits", async () => {
+    const { mika, tripId, dayId } = await plannerFixture();
+    const response = await mika.post(`/api/trips/${tripId}/stops/note`, { title: "15:00 — Fly home", dayId, startTime: "15:00" });
+    const { stopId } = await response.json() as { stopId: string };
+    const outsider = browser(env);
+    await signIn(outsider, JORDAN);
+    expect((await outsider.post(`/api/stops/${stopId}/title`, { title: "Changed" })).status).toBe(404);
+    expect((await mika.post(`/api/stops/${stopId}/title`, { title: " " })).status).toBe(400);
+    expect((await mika.post(`/api/stops/${stopId}/title`, { title: " Fly home " })).status).toBe(200);
+    const trip = await mika.json<{ days: { stops: { id: string; title: string; time: string; manual: boolean }[] }[] }>(`/api/trips/${tripId}`);
+    expect(trip.days.flatMap(day => day.stops).find(stop => stop.id === stopId)).toMatchObject({ title: "Fly home", time: "15:00", manual: true });
+    await mika.post(`/api/stops/${stopId}/delete`);
+    expect((await mika.post(`/api/stops/${stopId}/title`, { title: "Changed" })).status).toBe(404);
+  });
+
   it.each(["stranger", "signed out"])("blocks every planner write from a %s without changing data", async (identity) => {
     const { mika, tripId, dayId, stayId } = await plannerFixture();
     const outsider = browser(env);

@@ -106,6 +106,7 @@ const state = {
   drag: null,
   move: null,
   noteFor: null,
+  manualNoteId: null,
   preview: null,
 };
 
@@ -1875,7 +1876,7 @@ function deskDetail(stop) {
         h("span", { text: when }, []),
         h("button", { class: "detail-close", "aria-label": "Close details", onclick: () => { state.selectedStopId = null; render(); } }, [icon("close")]),
       ]),
-      h("div", { class: "detail-name", text: stop.title }, []),
+      stopTitle(stop, "detail-name"),
       stop.description ? h("div", { class: "detail-sub", text: displayDistance(stop.description) }, []) : null,
       h("div", { class: "detail-actions" }, [
         stop.navigateUrl
@@ -1895,11 +1896,11 @@ function deskDetail(stop) {
     ]),
     h("div", { class: "detail-block" }, [
       h("div", { class: "detail-label", text: "NOTES" }, []),
-      stop.note
+      stop.manual ? null : stop.note
         ? h("div", { class: "detail-note", text: stop.note }, [])
         : h("div", { class: "detail-empty", text: "Nothing written yet." }, []),
       h("button", { class: "detail-link", onclick: () => editNote(stop) }, [
-        stop.note ? "Edit note" : "Add a note",
+        stop.manual || stop.note ? "Edit note" : "Add a note",
       ]),
     ]),
     h("div", { class: "detail-block" }, [
@@ -3265,7 +3266,7 @@ function stopCard(day, stop, showTimes, number) {
   }, [
     h("div", { class: "stop-row" }, [
       dragHandle(day, stop),
-      h("button", {
+      h(state.manualNoteId === stop.id ? "div" : "button", {
         class: "stop-tap",
         onclick: () => {
           // A drag ends on this same element, so a click it produced is not a tap.
@@ -3296,7 +3297,7 @@ function stopCard(day, stop, showTimes, number) {
             }, [])
           : null,
         h("div", { class: "stop-text" }, [
-          h("span", { class: "stop-name", text: stop.title }, []),
+          stopTitle(stop, "stop-name"),
           h("span", { class: "stop-meta", text: displayDistance(stop.description) }, []),
         ]),
         h("span", {
@@ -3861,7 +3862,7 @@ function stopActions(stop, done, showTimes) {
       h("button", {
         class: "action",
         onclick: () => editNote(stop),
-      }, [icon("pencil"), stop.note ? "Edit note" : "Add note"]),
+      }, [icon("pencil"), stop.manual || stop.note ? "Edit note" : "Add note"]),
       h("button", { class: "action kebab", onclick: () => { state.menuOpen = !state.menuOpen; render(); } }, [
         h("span", { style: "display:flex", html: ICONS.kebab }, []),
       ]),
@@ -3896,12 +3897,53 @@ function stopActions(stop, done, showTimes) {
 }
 
 function editNote(stop) {
+  if (stop.manual) {
+    state.manualNoteId = stop.id;
+    render();
+    const field = $("manual-note-title");
+    if (field) { field.focus(); field.select(); }
+    return;
+  }
   // The note is typed by a person and nothing ever generates one (section 4c).
   openLayer(() => { state.noteFor = null; render(); });
   state.noteFor = { id: stop.id, name: stop.title, note: stop.note || "" };
   render();
   const field = $("note");
   if (field) { field.focus(); field.setSelectionRange(field.value.length, field.value.length); }
+}
+
+function stopTitle(stop, className) {
+  if (!stop.manual || state.manualNoteId !== stop.id) return h("span", { class: className, text: stop.title }, []);
+  const finish = (save) => {
+    if (state.manualNoteId !== stop.id) return;
+    const title = field.value.trim();
+    state.manualNoteId = null;
+    if (!save || !title || title === stop.title) { render(); return; }
+    optimistic(
+      () => {
+        const previous = stop.title;
+        stop.title = title;
+        return () => { stop.title = previous; };
+      },
+      () => post("/api/stops/" + stop.id + "/title", { title }),
+      "That note did not save",
+    );
+  };
+  const field = h("input", {
+    id: "manual-note-title", class: className + " manual-note-title", value: stop.title,
+    "aria-label": "Edit note", type: "text",
+    onclick: (event) => event.stopPropagation(),
+    onpointerdown: (event) => event.stopPropagation(),
+    onkeydown: (event) => {
+      event.stopPropagation();
+      if (event.key === "Enter" || event.key === "Escape") {
+        event.preventDefault();
+        finish(event.key === "Enter");
+      }
+    },
+    onblur: () => finish(true),
+  }, []);
+  return field;
 }
 
 /**
@@ -4466,6 +4508,7 @@ const DEBOUNCE_MS = 250;
 const MIN_CHARS = 3;
 
 function openSearch(dayId, atTime) {
+  state.selectedStopId = null;
   openLayer(() => { searchTicket++; clearTimeout(debounceTimer); state.search = null; clearLookMarker(); render(); });
   state.search = {
     dayId: dayId === "unplanned" ? null : dayId,
@@ -5405,7 +5448,6 @@ function gridColumn(day, span, band, flip) {
       // a card is the card's own.
       if (event.target.closest(".gcard")) return;
       if (suppressTap) { suppressTap = false; return; }
-      if (state.selectedStopId) { state.selectedStopId = null; render(); return; }
       const y = event.clientY - col.getBoundingClientRect().top;
       if (y > span.height) return;
       const open = () => openSearch(day.id, PLAN.formatClock(PLAN.gridTime(span, y)));
@@ -5524,14 +5566,17 @@ function gridCard(day, stop, box, kind) {
     style: "top:" + box.top + "px;min-height:" + Math.max(44, box.height) + "px;--day-color:" + day.hue + ";--visited-color:" + mutedHue(day.hue),
     onclick: () => {
       if (suppressTap) { suppressTap = false; return; }
-      state.selectedStopId = selected ? null : stop.id;
-      render();
+      const select = () => {
+        state.selectedStopId = selected ? null : stop.id;
+        render();
+      };
+      if (state.search) closeThen(1, select); else select();
     },
   }, [
     dragHandle(day, stop),
     h("div", { class: "gcard-text" }, [
       h("div", { class: "gcard-top" }, [
-        h("span", { class: "gcard-title", text: stop.title }, []),
+        stopTitle(stop, "gcard-title"),
         h("span", {
           class: "gcard-author",
           style: "background:" + stop.authorColor,
@@ -5551,7 +5596,7 @@ function gridCard(day, stop, box, kind) {
     ]),
   ]);
 
-  if (selected && !dragging) card.append(gridPopover(stop));
+  if (selected && !dragging && state.manualNoteId !== stop.id) card.append(gridPopover(stop));
   return card;
 }
 
@@ -5577,7 +5622,7 @@ function gridPopover(stop) {
     // "Edit" on the artboard, and the time is what there is to edit: the name
     // comes from the place and the note has its own item.
     item("calendar", stop.time ? "Edit time" : "Set a time", () => openTime(stop)),
-    item("pencil", stop.note ? "Edit note" : "Add note", () => editNote(stop)),
+    item("pencil", stop.manual || stop.note ? "Edit note" : "Add note", () => editNote(stop)),
     item("trash", "Delete", () => removeStop(stop), true),
   ]);
 }

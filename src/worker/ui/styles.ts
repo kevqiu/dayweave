@@ -1761,5 +1761,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .member-menu { position:fixed; margin:0; width:144px; padding:4px; background:${C.card}; border:1px solid ${C.border}; border-radius:12px; box-shadow:0 6px 20px rgba(84,68,44,.2); }
 .member-menu .gpop-item { min-height:44px; }
 .screen.desk.narrow .grid-days { overflow:hidden; }
+.manual-note-title { display:block; width:100%; min-width:0; box-sizing:border-box; font:inherit; color:inherit; background:${C.card}; border:1px solid ${C.border}; border-radius:4px; padding:2px 4px; }
+.manual-note-title:focus { outline:2px solid #1976D2; outline-offset:2px; }
 `;
 }
