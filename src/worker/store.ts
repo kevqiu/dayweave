@@ -453,33 +453,32 @@ export interface StopView {
    * selected.
    */
   accommodation: boolean;
-  /** Where Navigate goes. Built rather than stored — see navigateUrl. */
-  navigateUrl: string | null;
+  /** Where Open Maps goes. Built rather than stored — see mapsUrl. */
+  mapsUrl: string | null;
   location: LatLng | null;
 }
 
 /**
- * The link behind Navigate.
+ * The link behind Open Maps.
  *
- * Not `places.maps_url`: Google's own `googleMapsUri` opens a place page that
- * lands zoomed out, which is useless when you are standing on a street trying
- * to walk somewhere. This is the documented Maps URL for directions, which
- * opens the app on the destination with walking directions ready. The place id
- * rides along so Google resolves the exact place rather than the nearest thing
- * to a coordinate.
+ * This opens the place's Maps listing — the page for the place itself, where
+ * you can read its hours, photos and reviews and start directions from there
+ * if you want them. It is the documented Maps Search URL, with the place id
+ * riding along so Google resolves the exact place rather than the nearest
+ * thing to a coordinate, so the listing that opens is the one on the trip and
+ * not a namesake down the road.
  */
-export function navigateUrl(
+export function mapsUrl(
   location: LatLng | null,
   googlePlaceId: string | null,
 ): string | null {
   if (!location) return null;
   const params = new URLSearchParams({
     api: "1",
-    destination: `${location.lat},${location.lng}`,
-    travelmode: "walking",
+    query: `${location.lat},${location.lng}`,
   });
-  if (googlePlaceId) params.set("destination_place_id", googlePlaceId);
-  return `https://www.google.com/maps/dir/?${params}`;
+  if (googlePlaceId) params.set("query_place_id", googlePlaceId);
+  return `https://www.google.com/maps/search/?${params}`;
 }
 
 /**
@@ -571,7 +570,7 @@ export function stopsForDay(
       authorColor: author.color,
       city: locality(stop.city, location),
       accommodation: isAccommodation(stop.category),
-      navigateUrl: navigateUrl(location, stop.google_place_id),
+      mapsUrl: mapsUrl(location, stop.google_place_id),
       location,
     };
   });
@@ -838,7 +837,7 @@ export async function inviteByToken(db: D1Database, token: string): Promise<Invi
  * one. Now something can. It behaves as every other stop does: it sits on a
  * day, takes a time, drags between days and hours, and can be ticked off. What
  * it does not have is a place, so it has no pin on the map, no walk on its
- * second line and no Navigate.
+ * second line and no Open Maps.
  *
  * The title is the whole of it. A place's title comes from Google and its note
  * is the thing a person wrote; here the person wrote the title, and the note
