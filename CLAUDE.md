@@ -543,8 +543,10 @@ wheel as the palette's register allows.
   time, can be ticked off and noted.
 
   What it does not have is a place, so it has no pin on the map, no walk on
-  its second line, and **no Navigate button** — a stop with nowhere to go
-  cannot offer to take you there.
+  its second line, and **no Open Maps button** — a stop with no place has no
+  listing to open. The button opens the place's Maps listing (`mapsUrl` in
+  `src/worker/store.ts`), not directions: it lands on the place itself, where
+  its hours, photos and reviews are, and directions start from there.
 
 - **An invite is a link, not an email.** `Members.dc.html` draws an address
   field over a Send invite button, and there is no email service behind it —

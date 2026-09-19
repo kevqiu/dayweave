@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dateRangeLabel, dayLabel, initialsFor, navigateUrl, stopsForDay } from "../store.ts";
+import { dateRangeLabel, dayLabel, initialsFor, mapsUrl, stopsForDay } from "../store.ts";
 import { DAY_PALETTE, dayColor } from "../ui/tokens.ts";
 
 describe("dayLabel", () => {
@@ -65,23 +65,23 @@ describe("initialsFor", () => {
   });
 });
 
-describe("navigateUrl", () => {
+describe("mapsUrl", () => {
   const KUSHIDA = { lat: 33.5932, lng: 130.4106 };
 
-  it("opens walking directions to the exact place, not a place page", () => {
-    const url = navigateUrl(KUSHIDA, "ChIJV2pTquqRQTURpI1FhH5siaE");
-    expect(url).toContain("https://www.google.com/maps/dir/");
-    expect(url).toContain("destination=33.5932%2C130.4106");
-    expect(url).toContain("destination_place_id=ChIJV2pTquqRQTURpI1FhH5siaE");
-    expect(url).toContain("travelmode=walking");
+  it("opens the place's Maps listing at the exact place, not directions", () => {
+    const url = mapsUrl(KUSHIDA, "ChIJV2pTquqRQTURpI1FhH5siaE");
+    expect(url).toContain("https://www.google.com/maps/search/");
+    expect(url).toContain("query=33.5932%2C130.4106");
+    expect(url).toContain("query_place_id=ChIJV2pTquqRQTURpI1FhH5siaE");
+    expect(url).not.toContain("travelmode");
   });
 
   it("still works for a place with no Google id", () => {
-    expect(navigateUrl(KUSHIDA, null)).not.toContain("destination_place_id");
+    expect(mapsUrl(KUSHIDA, null)).not.toContain("query_place_id");
   });
 
   it("is null for a stop with no pin, so the button has nowhere wrong to go", () => {
-    expect(navigateUrl(null, "ChIJ...")).toBeNull();
+    expect(mapsUrl(null, "ChIJ...")).toBeNull();
   });
 });
 

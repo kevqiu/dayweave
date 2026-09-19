@@ -1879,10 +1879,10 @@ function deskDetail(stop) {
       stopTitle(stop, "detail-name"),
       stop.description ? h("div", { class: "detail-sub", text: displayDistance(stop.description) }, []) : null,
       h("div", { class: "detail-actions" }, [
-        stop.navigateUrl
+        stop.mapsUrl
           ? h("a", {
-              class: "detail-btn dark", href: stop.navigateUrl, target: "_blank", rel: "noreferrer",
-            }, [icon("navigateLight"), "Navigate"])
+              class: "detail-btn dark", href: stop.mapsUrl, target: "_blank", rel: "noreferrer",
+            }, [icon("navigateLight"), "Open Maps"])
           : null,
         h("button", {
           class: done ? "detail-btn on" : "detail-btn",
@@ -2942,12 +2942,12 @@ function selectStay(stay, anchor) {
 }
 
 function stayDetails(stay) {
-  const destination = Number.isFinite(stay.lat) && Number.isFinite(stay.lng) ? stay.lat + "," + stay.lng : stay.address || stay.name;
-  const url = "https://www.google.com/maps/dir/?api=1&destination=" + encodeURIComponent(destination) + (stay.google_place_id ? "&destination_place_id=" + encodeURIComponent(stay.google_place_id) : "");
+  const query = Number.isFinite(stay.lat) && Number.isFinite(stay.lng) ? stay.lat + "," + stay.lng : stay.address || stay.name;
+  const url = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(query) + (stay.google_place_id ? "&query_place_id=" + encodeURIComponent(stay.google_place_id) : "");
   return h("div", { class: "stop-actions stay-details" }, [
     !state.stayNote && stay.note ? h("div", { class: "stop-note" }, [h("i", {}, []), h("span", { text: stay.note }, [])]) : null,
     h("div", { class: "action-row stay-actions" }, [
-      h("a", { class: "action dark", href: url, target: "_blank", rel: "noreferrer" }, [icon("navigateLight"), "Navigate"]),
+      h("a", { class: "action dark", href: url, target: "_blank", rel: "noreferrer" }, [icon("navigateLight"), "Open Maps"]),
       h("button", { class: "action", onclick: () => { state.stayMenu = null; state.stayNote = { id: stay.id, text: stay.note || "" }; render(); } }, [icon("pencil"), stay.note ? "Edit note" : "Add note"]),
       h("div", { class: "stay-menu-anchor" }, [
         h("button", { id: "stay-options-" + stay.id, class: "action kebab", title: "Stay options", "aria-expanded": String(state.stayMenu === stay.id), onclick: () => { state.stayMenu = state.stayMenu === stay.id ? null : stay.id; render(); } }, [icon("kebab")]),
@@ -3845,15 +3845,15 @@ function stopActions(stop, done, showTimes) {
 
   wrap.append(
     h("div", { class: "action-row" }, [
-      // A stop with no place has nowhere to navigate to, and a button that
+      // A stop with no place has no listing to open, and a button that
       // goes nowhere is the placeholder this app does not do.
-      stop.navigateUrl
+      stop.mapsUrl
         ? h("a", {
             class: "action dark",
-            href: stop.navigateUrl,
+            href: stop.mapsUrl,
             target: "_blank",
             rel: "noreferrer",
-          }, [icon("navigateLight"), "Navigate"])
+          }, [icon("navigateLight"), "Open Maps"])
         : null,
       h("button", {
         class: done ? "action on" : "action",
@@ -4742,7 +4742,7 @@ function addPlace(row) {
         author: state.me ? state.me.initials : "",
         authorColor: state.me ? state.me.color : "#C4826A",
         city: null,
-        navigateUrl: null,
+        mapsUrl: null,
         location: row.location,
       };
       list.push(provisional);
