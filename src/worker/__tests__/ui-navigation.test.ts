@@ -645,6 +645,61 @@ describe("planner gesture regressions", () => {
     expect(api.displayDistance("park · 7 km")).toBe("park · 4.3 mi");
     expect(api.displayDistance("cafe · 500 m")).toBe("cafe · 0.3 mi");
   });
+
+  const clockApi = (clock?: string) => load(["clockParts", "displayTime", "displayHour", "unitPreferences"], {
+    localStorage: { getItem: () => (clock ? JSON.stringify({ clock }) : null) },
+  });
+
+  it("draws times on a 24-hour clock until the setting says otherwise", () => {
+    const api = clockApi();
+    expect(api.displayTime("14:05")).toBe("14:05");
+    expect(api.displayHour("08:00")).toBe("08:00");
+    expect(api.displayTime("")).toBe("");
+    expect(api.displayTime(null)).toBe("");
+  });
+
+  it("draws times on a 12-hour clock when chosen", () => {
+    const api = clockApi("12");
+    expect(api.displayTime("14:05")).toBe("2:05 PM");
+    expect(api.displayTime("00:30")).toBe("12:30 AM");
+    expect(api.displayTime("12:00")).toBe("12:00 PM");
+    expect(api.displayTime("09:15")).toBe("9:15 AM");
+    expect(api.clockParts("23:45")).toEqual({ clock: "11:45", meridiem: "PM" });
+    expect(api.displayHour("08:00")).toBe("8 AM");
+    expect(api.displayHour("00:00")).toBe("12 AM");
+    expect(api.displayHour("12:00")).toBe("12 PM");
+    expect(api.displayTime("")).toBe("");
+  });
+
+  it.each([
+    ["24", "14:05", ["14", "05"], "14:05"],
+    ["24", "", ["", "00"], ""],
+    ["12", "14:07", ["2", "07", "PM"], "14:07"],
+    ["12", "00:30", ["12", "30", "AM"], "00:30"],
+    ["12", "12:15", ["12", "15", "PM"], "12:15"],
+  ])("the %s-hour editor opens on %j and reads back 24-hour", (clock, time, shown, stored) => {
+    const h = (tag: string, attrs: any, children: any[]) => {
+      const el: any = { tag, attrs, children };
+      if (tag === "select") {
+        const options = children.filter(Boolean);
+        el.value = (options.find((o: any) => o.attrs.selected) || options[0]).attrs.value;
+      }
+      return el;
+    };
+    const plan = { minutesOf: (t: string) => (t ? Number(t.slice(0, 2)) * 60 + Number(t.slice(3)) : null) };
+    const api = load(["timeFields", "unitPreferences"], {
+      h, PLAN: plan, localStorage: { getItem: () => JSON.stringify({ clock }) },
+    });
+    const field = api.timeFields(time);
+    const selects = field.children.filter((c: any) => c && c.tag === "select");
+    expect(selects.map((s: any) => s.value)).toEqual(shown.map((v, i) => (i === 1 ? String(Number(v)) : v)));
+    expect(field.value).toBe(stored);
+    if (clock === "12") {
+      selects[0].value = "7";
+      selects[2].value = "PM";
+      expect(field.value).toBe("19:" + time.slice(3));
+    }
+  });
 });
 
 

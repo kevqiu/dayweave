@@ -547,6 +547,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   width: 100%; background: transparent; border: 1px solid transparent;
 }
 .stop-time { font-size: 11px; font-weight: 600; width: 36px; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+/* A 12-hour time in the 36px column: 2:05 fits, 2:05 PM does not, so the
+   meridiem takes a line of its own under it. */
+.stop-time .meridiem, .rail-time .meridiem { display: block; font-size: 8.5px; letter-spacing: 0.04em; line-height: 1.2; }
 .stop-text { display: flex; flex-direction: column; flex-grow: 1; min-width: 0; }
 .stop-name {
   font-size: 12.5px; font-weight: 500; color: ${C.ink};
@@ -1091,10 +1094,17 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 /* No artboard draws a time editor; this is the note editor's shape. */
 .time-editor { padding: 4px 16px 18px; }
 .time-field {
-  width: 100%; height: 44px; border: 0; border-bottom: 1.5px solid ${C.ink};
-  background: transparent; font-family: ${SANS}; font-size: 17px; color: ${C.ink};
-  padding: 0; outline: none;
+  display: flex; align-items: center; gap: 4px;
+  width: 100%; height: 44px; border-bottom: 1.5px solid ${C.ink};
+  font-family: ${SANS}; font-size: 17px; color: ${C.ink};
 }
+.time-part {
+  height: 36px; padding: 0 4px; border: 0; border-radius: 6px; background: transparent;
+  font: inherit; color: inherit; font-variant-numeric: tabular-nums; cursor: pointer;
+}
+.time-part.meridiem-part { margin-left: 8px; }
+.time-part:focus-visible { outline: 2px solid ${C.inkSoft}; outline-offset: 1px; }
+.time-colon { color: ${C.inkSoft}; }
 
 /* ---- The Planner at a desk (design/Planner.dc.html) ---- */
 /* The Planner used to be the one screen that grew, to 1440 x 900 and no

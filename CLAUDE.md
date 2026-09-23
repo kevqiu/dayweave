@@ -641,6 +641,16 @@ wheel as the palette's register allows.
   trip. The writes that never load a row say the same thing as a `WHERE`
   clause instead — see `ON_A_TRIP_OF_MINE` — so saving a note does not grow a
   round trip to check.
+- **The clock is a setting, and it only changes what is drawn.** Settings
+  offers 24-hour (the default, and what every artboard draws) or 12-hour,
+  saved on the device beside the units. Times are still stored and sent as
+  `14:05`; `displayTime`, `displayHour` and `stackedTime` in `client.ts` are
+  the only things that read the setting. The 36px time column has room for
+  `2:05` and not `2:05 PM`, so on a 12-hour clock the meridiem goes on a small
+  line under the time and the column keeps the artboard's width. The time
+  editor is hour, minute and AM/PM selects rather than `<input type="time">`,
+  because a native time input draws the browser locale's clock whatever the
+  setting says.
 - **Nothing is a placeholder.** Where the app does not know something, the
   artboards leave it out rather than filling it with a dash. Two consequences
   worth knowing: the map carries no place labels, because the artboards' own
