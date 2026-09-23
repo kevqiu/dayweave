@@ -13,6 +13,7 @@
 
 import type { Bias, LatLng } from "./geo.ts";
 import { locality } from "./locality.ts";
+import { weekFromPeriods, type GooglePeriod, type Week } from "./hours.ts";
 
 const BASE = "https://places.googleapis.com/v1";
 
@@ -28,6 +29,9 @@ const PLACE_FIELDS = [
   "primaryTypeDisplayName",
   "addressComponents",
   "googleMapsUri",
+  // Billed in the same tier as `rating`, which is already asked for, so the
+  // hours cost nothing a search was not already paying.
+  "regularOpeningHours",
 ];
 
 const DETAILS_FIELDS = PLACE_FIELDS.join(",");
@@ -73,6 +77,8 @@ export interface PlaceDetails {
   /** Google's star rating, which the search rows show. Null when unrated. */
   rating: number | null;
   mapsUrl: string | null;
+  /** Regular opening hours, cut at midnight (src/lib/hours.ts). Null when Google has none. */
+  hours: Week | null;
 }
 
 export class PlacesError extends Error {
@@ -213,14 +219,15 @@ export async function textSearch(
 export async function placeDetails(
   config: PlacesConfig,
   placeId: string,
-  sessionToken: string,
+  /** Omitted for a lookup that is not the end of a search, like refreshing hours. */
+  sessionToken?: string | null,
   languageCode?: string,
 ): Promise<PlaceDetails> {
   const url = new URL(`${BASE}/places/${encodeURIComponent(placeId)}`);
   // Details takes the token on the query string, Autocomplete in the body.
   // Same token, two spellings; sending the wrong one silently splits the
   // session into two billable ones.
-  url.searchParams.set("sessionToken", sessionToken);
+  if (sessionToken) url.searchParams.set("sessionToken", sessionToken);
   if (languageCode) url.searchParams.set("languageCode", languageCode);
 
   const response = await fetch(url, {
@@ -265,6 +272,7 @@ interface DetailsResponse {
   primaryTypeDisplayName?: { text?: string };
   addressComponents?: AddressComponent[];
   googleMapsUri?: string;
+  regularOpeningHours?: { periods?: GooglePeriod[] };
 }
 
 function toSuggestion(entry: NonNullable<AutocompleteResponse["suggestions"]>[number]): Suggestion | null {
@@ -303,6 +311,7 @@ function toDetails(place: DetailsResponse): PlaceDetails {
     category: shortCategory(place.primaryTypeDisplayName?.text, place.primaryType),
     rating: typeof place.rating === "number" ? place.rating : null,
     mapsUrl: place.googleMapsUri ?? null,
+    hours: weekFromPeriods(place.regularOpeningHours?.periods),
   };
 }
 

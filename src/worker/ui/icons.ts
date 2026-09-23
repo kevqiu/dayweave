@@ -120,6 +120,22 @@ export const pencil = (o: IconOptions = {}) =>
     'stroke-linecap="round" stroke-linejoin="round"',
   );
 
+/** A clock, for a place's opening hours. */
+export const clock = (o: IconOptions = {}) =>
+  svg(
+    `<circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5V12l3 2"></path>`,
+    { width: 2.1, ...o },
+    'stroke-linecap="round" stroke-linejoin="round"',
+  );
+
+/** The same clock struck through: a stop at a time its place is shut. */
+export const clockOff = (o: IconOptions = {}) =>
+  svg(
+    `<circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5V12l3 2"></path><path d="M4 4l16 16"></path>`,
+    { width: 2.1, ...o },
+    'stroke-linecap="round" stroke-linejoin="round"',
+  );
+
 export const kebab = ({ size = 15, color = "#6B645B" }: IconOptions = {}) =>
   `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="${color}"><circle cx="12" cy="5" r="1.5"></circle><circle cx="12" cy="12" r="1.5"></circle><circle cx="12" cy="19" r="1.5"></circle></svg>`;
 

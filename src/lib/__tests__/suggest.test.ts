@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { formatDistance, suggestDays, type CandidateDay, type MovingStop } from "../suggest.ts";
+import { weekFromPeriods } from "../hours.ts";
+import { RAMEN } from "./hours.fixtures.ts";
 
 const at = (lat: number, lng: number) => ({ lat, lng });
 
@@ -223,5 +225,48 @@ describe("formatDistance", () => {
     expect(formatDistance(412)).toBe("410 m");
     expect(formatDistance(1234)).toBe("1.2 km");
     expect(formatDistance(289_600)).toBe("290 km");
+  });
+});
+
+describe("suggestDays and opening hours", () => {
+  // Closed Mondays, 11:00 on weekdays, 10:00 at the weekend.
+  const ramen = { ...stop, hours: weekFromPeriods(RAMEN), time: "10:00", currentDayId: "fri" };
+  const near = [{ id: "a", name: "Canal City", location: CANAL }];
+  const far = [{ id: "b", name: "Kushida Shrine", location: at(33.62, 130.43) }];
+
+  it("passes over a closer day the place is shut, and says why", () => {
+    const { best, rest } = suggestDays(ramen, [
+      day({ id: "mon", date: "2026-10-05", label: "Mon Oct 5", stops: near }),
+      day({ id: "sat", date: "2026-10-03", label: "Sat Oct 3", stops: far }),
+    ], TODAY);
+
+    expect(best?.dayId).toBe("sat");
+    expect(best?.hours).toBe("open 10:00 – 22:00");
+    expect(best?.hoursWarn).toBe(false);
+    expect(best?.detail).toMatch(/^Open 10:00 – 22:00, so 10:00 still works\./);
+
+    const monday = rest.find((c) => c.dayId === "mon");
+    expect(monday).toMatchObject({ hours: "closed Mondays", hoursWarn: true });
+  });
+
+  it("prefers a day open at the stop's time over one it opens later", () => {
+    const { best, rest } = suggestDays(ramen, [
+      day({ id: "thu", date: "2026-10-01", label: "Thu Oct 1", stops: near }),
+      day({ id: "sun", date: "2026-10-04", label: "Sun Oct 4", stops: far }),
+    ], TODAY);
+
+    expect(best?.dayId).toBe("sun");
+    expect(rest.find((c) => c.dayId === "thu")).toMatchObject({ hours: "opens 11:00", hoursWarn: true });
+  });
+
+  it("says the hours on the day it is now, too", () => {
+    const { rest } = suggestDays(ramen, [day({ id: "fri", date: "2026-10-02", label: "Fri Oct 2" })], TODAY);
+    expect(rest.find((c) => c.dayId === "fri")).toMatchObject({ kind: "current", hours: "opens 11:00", hoursWarn: true });
+  });
+
+  it("leaves a place with no hours exactly as it was", () => {
+    const { best } = suggestDays(stop, [day({ id: "d1", date: "2026-10-03", stops: near })], TODAY);
+    expect(best).toMatchObject({ hours: null, hoursWarn: false });
+    expect(best?.detail).toMatch(/^Slots in/);
   });
 });

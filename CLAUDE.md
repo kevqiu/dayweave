@@ -237,6 +237,47 @@ wheel as the palette's register allows.
   not the answer — *already past*, *different city · 290 km away*, *travel day
   · 8 km detour*. The sentences are built on the server so nothing in the
   client reasons about distance.
+- **A stop at a time its place is shut says so.** No artboard draws opening
+  hours; this was designed on a canvas of three options and a mix of two was
+  chosen. Places gives `regularOpeningHours` in the same billing tier as the
+  `rating` already asked for, and `src/lib/hours.ts` cuts its periods at
+  midnight into seven lists of minutes — `places.opening_hours` — which ride
+  on every stop to the browser. The browser checks them itself
+  (`hours-client.ts`, held to `hours.ts` by a test), because the day and the
+  time both change optimistically under a drag and the answer has to follow.
+
+  - **The flag is words on the second line, not a badge**: a struck clock and
+    `opens 11:00`, `closed after 22:00` or `closed Mondays`, in `#A06B52`
+    (the ink *Remove* is written in) ahead of the derived line. Not a red:
+    the day palette starts on one, so red would read as day one. A Planner
+    card leads with the flag in place of its time, because a column is too
+    narrow for both. A stop with no time is only flagged on a day the place
+    is shut all day.
+  - **Opened, the day's hours are a bar**: six to midnight, open hours filled
+    in the "fine" green, shut hours hatched, the stop's time a tick. The day
+    shown is always the day the stop is on, so moving it changes the bar.
+    It sits above the actions on the phone, in an HOURS block between NOTES
+    and TIME on the desk panel, and in the Planner's popover.
+  - **When it is wrong, a notice under the bar carries the fix** in the warm
+    attention card: *Move to 11:00* — the next opening that day — or, on a day
+    it is shut, *Move to Sun Oct 4*: the nearest day of the trip, same city,
+    not past, open at the stop's time, else open at all with the time moved
+    to its opening (`nearestOpenDay`). *Pick a day* opens Move to day, where
+    every day's reason carries its hours and a day shut at the stop's time
+    is ranked down, not hidden: below the other days in the city when it
+    opens later, below a different city when it is shut all day.
+  - **Dragging a place with hours hatches the hours it is shut** in every
+    Planner column, labelled *OPENS 11:00*, *CLOSED 15:00 – 17:30*, *CLOSED
+    MONDAYS*, and the drop line turns `#A06B52` over a shut hour.
+
+  Hours are **regular hours only** — Google publishes a holiday's special
+  hours a week ahead, and a trip is usually further out. A place added before
+  hours existed has `hours_at` NULL; the trip read asks Google for up to 20 of
+  those behind the response (`waitUntil`, never in front of it), and again
+  for any older than thirty days, which is also what keeps them inside the
+  caching limit. They show up on the next read. A place Google has no hours
+  for draws nothing at all.
+
 - **The bottom sheet has two heights, and the handle is real.**
   `Main.dc.html` puts a click on the handle that toggles the sheet between 312
   and 617 of its 667, so the full state is everything below the 50px top bar.

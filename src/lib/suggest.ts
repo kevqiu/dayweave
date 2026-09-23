@@ -13,6 +13,7 @@
 import { haversineMetres, type LatLng } from "./geo.ts";
 import { walkMinutes } from "./derive.ts";
 import { locality, sameCity } from "./locality.ts";
+import { checkHours, type HoursCheck, type Week } from "./hours.ts";
 
 export interface CandidateStop {
   id: string;
@@ -41,6 +42,10 @@ export interface MovingStop {
   city: string | null;
   /** Where it is now, so the sheet can say "currently Fri Oct 2". */
   currentDayId: string | null;
+  /** The place's regular week, when Google gave one (src/lib/hours.ts). */
+  hours?: Week | null;
+  /** `10:00`, when the stop has a time. A day is judged open at it. */
+  time?: string | null;
 }
 
 /** Why a day is or is not a good home for the stop. */
@@ -66,6 +71,14 @@ export interface Candidate {
   reason: string;
   /** Only on the best fit: the full sentence in the green card. */
   detail: string | null;
+  /**
+   * What the place's hours are that day, beside the reason: `open 10:00 –
+   * 22:00`, or the trouble — `opens 11:00`, `closed Mondays`. Null when the
+   * place has no hours or the day is past.
+   */
+  hours: string | null;
+  /** The hours say the stop would be somewhere shut. Drawn as a warning. */
+  hoursWarn: boolean;
   /** The stop it would follow, and the one it would come before. */
   after: string | null;
   before: string | null;
@@ -85,6 +98,15 @@ export interface Suggestion {
 
 /** A day whose label names two places is a day spent getting between them. */
 const isTravelDay = (day: CandidateDay) => /\bto\b/i.test(day.placeLabel ?? "");
+
+/**
+ * What landing somewhere shut costs. A day the place is closed is behind even a
+ * different city, because moving there does not work at all; a day it opens
+ * later than the stop's time sits behind a travel day, because that one can be
+ * fixed by changing the time.
+ */
+const CLOSED_ALL_DAY = 2_000_000;
+const NOT_OPEN_AT_TIME = 300_000;
 
 /** Past this many stops a day is full enough that one more is a cost. */
 const CROWDED = 6;
@@ -136,7 +158,7 @@ export function formatDistance(metres: number): string {
 }
 
 export function suggestDays(stop: MovingStop, days: readonly CandidateDay[], today: string): Suggestion {
-  const candidates = days.map((day) => evaluate(stop, day, today));
+  const candidates = days.map((day) => withHours(stop, day, evaluate(stop, day, today)));
 
   // Section 8, rule 1: days in a different city are dropped from the running
   // unless nothing else scores at all.
@@ -153,7 +175,27 @@ export function suggestDays(stop: MovingStop, days: readonly CandidateDay[], tod
   const rest = candidates.filter((c) => c !== best);
   rest.push(unplannedCandidate());
 
-  return { best: best ? withDetail(best) : null, rest };
+  return { best: best ? withDetail(best, stop) : null, rest };
+}
+
+/** The place's hours on the day, said beside the reason and weighed into the rank. */
+function withHours(stop: MovingStop, day: CandidateDay, candidate: Candidate): Candidate {
+  if (candidate.kind === "past") return candidate;
+  const check = checkHours(stop.hours, day.date, stop.time);
+  if (!check) return candidate;
+
+  const penalty = check.ok ? 0 : check.closed ? CLOSED_ALL_DAY : NOT_OPEN_AT_TIME;
+  return {
+    ...candidate,
+    hours: check.ok ? openWords(check) : check.note,
+    hoursWarn: !check.ok,
+    score: candidate.score + penalty,
+  };
+}
+
+/** `open 10:00 – 22:00`, `open 24 hours`. */
+function openWords(check: HoursCheck): string {
+  return check.label === "Open 24 hours" ? "open 24 hours" : `open ${check.label}`;
 }
 
 function evaluate(stop: MovingStop, day: CandidateDay, today: string): Candidate {
@@ -171,6 +213,8 @@ function evaluate(stop: MovingStop, day: CandidateDay, today: string): Candidate
     shape: where ? `${where} · ${dayShape(day)}` : dayShape(day),
     reason: "",
     detail: null,
+    hours: null,
+    hoursWarn: false,
     after: null,
     before: null,
     addedMetres: null,
@@ -246,8 +290,16 @@ function evaluate(stop: MovingStop, day: CandidateDay, today: string): Candidate
 }
 
 /** The green card's sentence, which the artboard writes out in full. */
-function withDetail(candidate: Candidate): Candidate {
+function withDetail(candidate: Candidate, stop: MovingStop): Candidate {
   const parts: string[] = [];
+
+  // The hours come first when there are any: they are the reason a day is or
+  // is not a home for this stop before the route is.
+  if (candidate.hours) {
+    const words = candidate.hours.charAt(0).toUpperCase() + candidate.hours.slice(1);
+    if (candidate.hoursWarn) parts.push(stop.time ? `${words}, not at ${stop.time}.` : `${words}.`);
+    else parts.push(stop.time ? `${words}, so ${stop.time} still works.` : `${words}.`);
+  }
 
   if (candidate.after && candidate.before) {
     parts.push(`Slots in after ${candidate.after} and before ${candidate.before}.`);
@@ -298,6 +350,8 @@ function unplannedCandidate(): Candidate {
     shape: "",
     reason: "keep it on the map, no day",
     detail: null,
+    hours: null,
+    hoursWarn: false,
     after: null,
     before: null,
     addedMetres: null,
