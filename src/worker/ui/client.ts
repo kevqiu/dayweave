@@ -1848,7 +1848,7 @@ function railStop(day, stop) {
       stop.time ? h("span", { class: "rail-time", style: "color:" + day.hue, text: stop.time }, []) : null,
       h("div", { class: "stop-text" }, [
         h("span", { class: "rail-name", text: stop.title }, []),
-        h("span", { class: "rail-meta", text: stop.note || displayDistance(stop.description) }, []),
+        metaLine("rail-meta", hoursFor(day, stop), stop.note || displayDistance(stop.description)),
       ]),
     ]),
   ]);
@@ -1903,6 +1903,7 @@ function deskDetail(stop) {
         stop.manual || stop.note ? "Edit note" : "Add a note",
       ]),
     ]),
+    deskHours(day, stop),
     h("div", { class: "detail-block" }, [
       h("div", { class: "detail-label", text: "TIME" }, []),
       h("div", { class: "detail-note", text: stop.time || "No time yet." }, []),
@@ -3298,7 +3299,7 @@ function stopCard(day, stop, showTimes, number) {
           : null,
         h("div", { class: "stop-text" }, [
           stopTitle(stop, "stop-name"),
-          h("span", { class: "stop-meta", text: displayDistance(stop.description) }, []),
+          metaLine("stop-meta", hoursFor(day, stop), displayDistance(stop.description)),
         ]),
         h("span", {
           class: "stop-author",
@@ -3310,7 +3311,7 @@ function stopCard(day, stop, showTimes, number) {
     ]),
   ]);
 
-  if (selected && !dragging) card.append(stopActions(stop, done, showTimes));
+  if (selected && !dragging) card.append(stopActions(day, stop, done, showTimes));
   return card;
 }
 
@@ -3831,7 +3832,221 @@ function commitDrag(drag) {
   );
 }
 
-function stopActions(stop, done, showTimes) {
+/* -------------------------------------------------------- opening hours */
+
+/**
+ * A place's opening hours, against the day a stop sits on and its time.
+ *
+ * The rules are src/lib/hours.ts, run here as window.__HOURS__ (checked
+ * against that file by a test), because the answer has to follow the stop
+ * through every optimistic drag, move and time change without waiting on the
+ * server. Everything on screen that says a place is shut comes from hoursFor.
+ *
+ * A stop that is wrong says so on its second line — the struck clock and
+ * "opens 11:00" ahead of the derived words — rather than in a badge, so the
+ * row stays the shape it always was. Opened, it draws the day's hours as a bar
+ * and, when there is something wrong, a notice with the fix.
+ */
+const HOURS = window.__HOURS__;
+
+/** Null in To be planned, for a stop with no place, and for a place with no hours. */
+function hoursFor(day, stop) {
+  if (!day || !day.date || !stop || !stop.hours) return null;
+  return HOURS.checkHours(stop.hours, day.date, stop.time);
+}
+
+/** The struck clock and the trouble: "opens 11:00", "closed Mondays". */
+function hoursFlag(check) {
+  return h("span", { class: "hours-flag" }, [
+    h("span", { class: "hours-flag-icon", html: ICONS.clockOff }, []),
+    check.note,
+  ]);
+}
+
+/** A row's second line, with the flag in front of it when the hours say so. */
+function metaLine(className, check, text) {
+  if (!check || check.ok) return h("span", { class: className, text }, []);
+  return h("span", { class: className }, [hoursFlag(check), text ? " · " + text : null]);
+}
+
+/**
+ * The day's hours, drawn: a strip from six in the morning to midnight, the
+ * open hours filled, the shut ones hatched, and the stop's time a tick. The
+ * strip starts earlier when the place or the stop does.
+ */
+function hoursBar(check, time) {
+  const at = PLAN.minutesOf(time);
+  const starts = check.open.map((p) => p[0]).filter((m) => m > 0);
+  if (at !== null) starts.push(at);
+  const from = Math.floor(Math.min(360, ...starts) / 60) * 60;
+  const to = 1440;
+  const pct = (m) => (Math.max(from, Math.min(to, m)) - from) / (to - from) * 100;
+
+  const track = h("div", { class: "hours-track" }, []);
+  for (const [a, b] of check.open) {
+    if (b <= from) continue;
+    track.append(h("span", { class: "hours-open", style: "left:" + pct(a) + "%;width:" + (pct(b) - pct(a)) + "%" }, []));
+  }
+  if (at !== null) {
+    track.append(h("span", { class: "hours-tick" + (check.ok ? "" : " shut"), style: "left:" + pct(at) + "%" }, []));
+  }
+
+  const marks = [from];
+  for (let m = from + 1; m < to; m++) if (m % 360 === 0 && m - from >= 180) marks.push(m);
+  marks.push(to);
+  const scale = h("div", { class: "hours-scale" }, marks.map((m, i) =>
+    h("span", {
+      style: i === 0 ? "left:0" : i === marks.length - 1 ? "right:0" : "left:" + pct(m) + "%;transform:translateX(-50%)",
+      text: String(Math.floor(m / 60) % 24 === 0 && m > 0 ? 24 : Math.floor(m / 60)).padStart(2, "0"),
+    }, [])));
+
+  return h("div", { class: "hours" }, [
+    h("div", { class: "hours-head" }, [
+      h("span", { class: "hours-day", text: check.dayName.toUpperCase() }, []),
+      h("span", { class: "hours-label", text: check.label }, []),
+    ]),
+    track,
+    scale,
+  ]);
+}
+
+/**
+ * What would put it right, as a button: the next opening the same day, or —
+ * for a day it is shut — the nearest day of the trip it is open, in the same
+ * city, keeping the time when that day is open at it.
+ */
+function hoursFix(day, stop, check) {
+  if (!check.closed && check.fix) {
+    const fix = check.fix;
+    return { label: "Move to " + fix, run: () => setStopTime(stop, fix) };
+  }
+  const alt = nearestOpen(day, stop);
+  if (!alt) return null;
+  const target = dayById(alt.dayId);
+  return {
+    label: "Move to " + target.label + (alt.time ? " at " + alt.time : ""),
+    run: () => moveStopTo(stop, alt.dayId, alt.time),
+    alt,
+    target,
+  };
+}
+
+function nearestOpen(day, stop) {
+  const days = state.trip.days.map((d) => ({ id: d.id, date: d.date, city: d.city || null }));
+  return HOURS.nearestOpenDay(stop.hours, days, { dayId: day.id, city: stop.city || day.city || null }, stop.time, todayIso());
+}
+
+/** design B: the notice under the bar, when the stop is somewhere shut. */
+function hoursNotice(day, stop, check) {
+  if (check.ok) return null;
+  const fix = hoursFix(day, stop, check);
+  const title = check.closed
+    ? "Closed on " + check.dayName + "s"
+    : "Not open at " + stop.time + " on " + check.dayName;
+
+  let body = null;
+  if (check.closed) {
+    const city = stop.city || day.city;
+    if (fix && fix.alt) {
+      const hours = HOURS.checkHours(stop.hours, fix.target.date, fix.alt.time || stop.time);
+      body = "Open " + fix.target.label + ", " + hours.label + " — the nearest day"
+        + (city ? " in " + city : "") + " it is open" + (stop.time && !fix.alt.time ? " at " + stop.time : "") + ".";
+    } else {
+      body = "It is not open on any other day of this trip" + (city ? " in " + city : "") + ".";
+    }
+  }
+
+  return h("div", { class: "hours-notice" }, [
+    h("div", { class: "hours-notice-title" }, [
+      h("span", { style: "display:flex", html: ICONS.clockOffNotice }, []),
+      h("span", { text: title }, []),
+    ]),
+    body ? h("div", { class: "hours-notice-body", text: body }, []) : null,
+    h("div", { class: "hours-notice-actions" }, [
+      fix ? h("button", { class: "primary", onclick: (event) => { event.stopPropagation(); fix.run(); } }, [fix.label]) : null,
+      h("button", { onclick: (event) => { event.stopPropagation(); openMove(stop.id); } }, ["Pick a day"]),
+    ]),
+  ]);
+}
+
+/** The desk panel's HOURS block, between the notes and the time. */
+function deskHours(day, stop) {
+  const check = hoursFor(day, stop);
+  if (!check) return null;
+  return h("div", { class: "detail-block" }, [
+    h("div", { class: "detail-label", text: "HOURS" }, []),
+    hoursBar(check, stop.time),
+    hoursNotice(day, stop, check),
+  ]);
+}
+
+/**
+ * Moves a stop to the end of another day, and to a time there when one is
+ * given — the notice's "Move to Sun Oct 4 at 11:00". One op, as a drop is.
+ */
+function moveStopTo(stop, dayId, time) {
+  optimistic(
+    () => {
+      const at = locateStop(stop.id);
+      const day = dayById(dayId);
+      if (!at || !day) return () => {};
+      const was = at.stop.time;
+      at.list.splice(at.index, 1);
+      day.stops.push(at.stop);
+      if (time) at.stop.time = time;
+      state.openDayId = dayId;
+      state.planDayId = dayId;
+      state.selectedStopId = stop.id;
+      state.revealStopId = stop.id;
+      return () => {
+        const back = day.stops.indexOf(at.stop);
+        if (back !== -1) day.stops.splice(back, 1);
+        at.list.splice(at.index, 0, at.stop);
+        at.stop.time = was;
+      };
+    },
+    () => post("/api/stops/" + stop.id + "/move", time ? { dayId, startTime: time } : { dayId }),
+    "That did not move",
+  );
+}
+
+/**
+ * The hours a lifted place is shut on one column of the Planner, hatched.
+ * The first band before an opening says when it opens; the rest say what
+ * they are.
+ */
+function shutBands(stop, day, span) {
+  const check = HOURS.checkHours(stop.hours, day.date, null);
+  if (!check) return [];
+  const from = span.from;
+  const to = Math.min(span.to, 1440);
+  const bands = [];
+  let cursor = from;
+  const open = check.open.filter((p) => p[1] > from && p[0] < to);
+  const gaps = [];
+  for (const [a, b] of open) {
+    if (a > cursor) gaps.push([cursor, a]);
+    cursor = Math.max(cursor, b);
+  }
+  if (cursor < to) gaps.push([cursor, to]);
+
+  for (const [a, b] of gaps) {
+    const top = PLAN.gridY(span, a);
+    const height = PLAN.gridY(span, b) - top;
+    if (height <= 0) continue;
+    const words = check.closed && open.length === 0
+      ? "CLOSED " + check.dayName.toUpperCase() + "S"
+      : a === from && b < to ? "OPENS " + PLAN.formatClock(b)
+      : b === to ? "CLOSED FROM " + PLAN.formatClock(a)
+      : "CLOSED " + PLAN.formatClock(a) + " – " + PLAN.formatClock(b);
+    bands.push(h("div", { class: "gshut", style: "top:" + top + "px;height:" + height + "px" }, [
+      height >= 22 ? h("span", { text: words }, []) : null,
+    ]));
+  }
+  return bands;
+}
+
+function stopActions(day, stop, done, showTimes) {
   const wrap = h("div", {
     class: "stop-actions",
     style: showTimes ? "" : "padding-left:36px",
@@ -3841,6 +4056,13 @@ function stopActions(stop, done, showTimes) {
     wrap.append(
       h("div", { class: "stop-note" }, [h("i", {}, []), h("span", { text: stop.note }, [])]),
     );
+  }
+
+  const check = hoursFor(day, stop);
+  if (check) {
+    wrap.append(hoursBar(check, stop.time));
+    const notice = hoursNotice(day, stop, check);
+    if (notice) wrap.append(notice);
   }
 
   wrap.append(
@@ -4461,7 +4683,15 @@ function pickRow(candidate) {
     h("span", { class: "dot", style: "background:" + candidate.hue }, []),
     h("div", { class: "pick-text" }, [
       h("span", { class: "pick-name", text: candidate.label }, []),
-      h("span", { class: "pick-why", text: displayDistance(candidate.reason) }, []),
+      // The place's hours on that day ride after the reason, and read as the
+      // row flag does when the stop would land somewhere shut.
+      h("span", { class: "pick-why" }, [
+        displayDistance(candidate.reason),
+        candidate.hours ? " · " : null,
+        candidate.hours
+          ? candidate.hoursWarn ? h("span", { class: "hours-flag", text: candidate.hours }, []) : candidate.hours
+          : null,
+      ]),
     ]),
     choosable ? icon("chevronRight") : null,
   ]);
@@ -5078,6 +5308,21 @@ function openTime(stop) {
   render();
 }
 
+/** One stop's time, written the way every edit is: on screen first. */
+function setStopTime(stop, value) {
+  optimistic(
+    () => {
+      const at = locateStop(stop.id);
+      if (!at) return () => {};
+      const was = at.stop.time;
+      at.stop.time = value;
+      return () => { at.stop.time = was; };
+    },
+    () => post("/api/stops/" + stop.id + "/time", { time: value }),
+    "That time did not save",
+  );
+}
+
 function sheetTime() {
   const stop = state.timeFor;
   const close = closeLayer;
@@ -5085,17 +5330,7 @@ function sheetTime() {
 
   const save = (value) => {
     closeLayer();
-    optimistic(
-      () => {
-        const at = locateStop(stop.id);
-        if (!at) return () => {};
-        const was = at.stop.time;
-        at.stop.time = value;
-        return () => { at.stop.time = was; };
-      },
-      () => post("/api/stops/" + stop.id + "/time", { time: value }),
-      "That time did not save",
-    );
+    setStopTime(stop, value);
   };
 
   return [
@@ -5470,6 +5705,13 @@ function gridColumn(day, span, band, flip) {
     }
   }
 
+  // While a place with hours is in the air, the hours it is shut on each day
+  // are striped, so where it can go is visible before it is put down.
+  const lifted = state.drag ? findStop(state.drag.stopId) : null;
+  if (lifted && lifted.hours) {
+    for (const band of shutBands(lifted, day, span)) col.prepend(band);
+  }
+
   for (const stop of day.stops) {
     // A bed lives in the pinned strip above the hours, not in them.
     if (stop.accommodation) continue;
@@ -5557,12 +5799,14 @@ function gridCard(day, stop, box, kind) {
   const selected = stop.id === state.selectedStopId;
   const dragging = state.drag && state.drag.stopId === stop.id;
   const sub = gridSub(stop);
+  const check = hoursFor(day, stop);
+  const flagged = Boolean(check && !check.ok);
 
   const card = h("div", {
     class: "gcard order-row " + st + (kind ? " " + kind : "") + (selected ? " selected" : "")
       + (dragging ? " ghost" : ""),
     "data-stop-id": stop.id,
-    title: stop.title + (sub ? "\n" + sub : ""),
+    title: stop.title + (flagged ? "\n" + check.note : "") + (sub ? "\n" + sub : ""),
     style: "top:" + box.top + "px;min-height:" + Math.max(44, box.height) + "px;--day-color:" + day.hue + ";--visited-color:" + mutedHue(day.hue),
     onclick: () => {
       if (suppressTap) { suppressTap = false; return; }
@@ -5584,19 +5828,24 @@ function gridCard(day, stop, box, kind) {
           title: stop.author + " added this",
         }, []),
       ]),
-      sub || stop.time
+      sub || stop.time || flagged
         ? h("span", {
             class: "gcard-sub",
-          }, [
-            kind !== "untimed" && stop.time ? h("span", { class: "gcard-time", style: "color:" + day.hue, text: stop.time }, []) : null,
-            kind !== "untimed" && stop.time && sub ? " · " : null,
-            sub,
-          ])
+          }, flagged
+            // A card somewhere shut leads with why, in place of its time: the
+            // card's place on the grid already says the time, and a column is
+            // too narrow for both before the part that matters is cut off.
+            ? [hoursFlag(check), sub ? " · " + sub : null]
+            : [
+              kind !== "untimed" && stop.time ? h("span", { class: "gcard-time", style: "color:" + day.hue, text: stop.time }, []) : null,
+              kind !== "untimed" && stop.time && sub ? " · " : null,
+              sub,
+            ])
         : null,
     ]),
   ]);
 
-  if (selected && !dragging && state.manualNoteId !== stop.id) card.append(gridPopover(stop));
+  if (selected && !dragging && state.manualNoteId !== stop.id) card.append(gridPopover(day, stop));
   return card;
 }
 
@@ -5604,12 +5853,17 @@ function gridCard(day, stop, box, kind) {
  * design/PlannerStop.dc.html. At a desk there is nothing to navigate to and
  * nothing to tick off (PLAN.md section 4e), so the popover is the three edits.
  */
-function gridPopover(stop) {
+function gridPopover(day, stop) {
   const item = (iconName, label, onclick, danger) =>
     h("button", {
       class: "gpop-item" + (danger ? " danger" : ""),
       onclick: (event) => { event.stopPropagation(); onclick(); },
     }, [icon(iconName), h("span", { text: label }, [])]);
+
+  // The hours travel into the popover as the bar, and the notice's one-tap fix
+  // as the first item, in the notice's words and with its struck clock.
+  const check = hoursFor(day, stop);
+  const fix = check && !check.ok ? hoursFix(day, stop, check) : null;
 
   return h("div", {
     class: "gpop",
@@ -5618,7 +5872,10 @@ function gridPopover(stop) {
     h("div", { class: "gpop-head" }, [
       h("div", { class: "gpop-title", text: stop.title }, []),
       h("div", { class: "gpop-sub", text: stop.time || "no time yet" }, []),
+      check ? hoursBar(check, stop.time) : null,
+      check && !check.ok ? h("div", { class: "gpop-shut" }, [hoursFlag(check)]) : null,
     ]),
+    fix ? item("clockOffNotice", fix.label, fix.run) : null,
     // "Edit" on the artboard, and the time is what there is to edit: the name
     // comes from the place and the note has its own item.
     item("calendar", stop.time ? "Edit time" : "Set a time", () => openTime(stop)),
@@ -5793,8 +6050,14 @@ function paintGridDrop() {
   bar.style.left = rect.left - box.left + 5 + "px";
   bar.style.width = rect.width - 10 + "px";
   bar.style.top = rect.top - box.top + drag.gridY + "px";
+  // The line says so when it would land somewhere shut.
+  const lifted = findStop(drag.stopId);
+  const target = dayById(drag.targetDayId);
+  const check = lifted && target ? HOURS.checkHours(lifted.hours, target.date, drag.gridTime) : null;
+  const shut = Boolean(check && !check.ok);
+  bar.classList.toggle("shut", shut);
   const when = bar.querySelector("span");
-  if (when) when.textContent = drag.gridTime;
+  if (when) when.textContent = drag.gridTime + (shut ? " · " + check.note : "");
 
   // The card in the air is the width of the column it is over, not the width
   // of a phone, and it hangs below the line the way PlannerStop.dc.html draws

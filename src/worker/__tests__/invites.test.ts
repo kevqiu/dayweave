@@ -17,6 +17,8 @@ import { DatabaseSync } from "node:sqlite";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import app from "../index.ts";
 import { createTrip } from "../store.ts";
+import { weekFromPeriods } from "../../lib/hours.ts";
+import { RAMEN } from "../../lib/__tests__/hours.fixtures.ts";
 
 /**
  * Better Auth exchanges the code here, and this is the only network call a
@@ -890,7 +892,7 @@ describe("membership is the permission", () => {
     const { mika, stayId, tripId } = await plannerFixture();
     const place = { googlePlaceId: "new-hotel", name: "Central stay", nameLocal: null, lat: 37.5, lng: 127,
       address: "Central street", city: "Seoul", countryCode: "KR", category: "hotel", mapsUrl: "https://maps.google.com/", rating: 4.3 };
-    env.PLACES_CACHE = { list: async () => ({ keys: [{ name: "ts:v1:hotel" }] }), get: async () => [place] };
+    env.PLACES_CACHE = { list: async () => ({ keys: [{ name: "ts:v2:hotel" }] }), get: async () => [place] };
     expect((await mika.post(`/api/lodging/${stayId}`, { name: place.name, placeId: place.googlePlaceId })).status).toBe(200);
     const trip = await (await mika.get(`/api/trips/${tripId}`)).json() as { lodging: object[] };
     expect(trip.lodging[0]).toMatchObject({ lat: 37.5, lng: 127, city: "Seoul", google_place_id: "new-hotel", note: "Keep this note" });
@@ -942,3 +944,81 @@ describe("membership is the permission", () => {
     expect((await nobody.get("/api/trips")).status).toBe(401);
   });
 });
+
+describe("opening hours", () => {
+  const ramen = weekFromPeriods(RAMEN);
+  /** A search result as the cache holds it. `hours` absent is a result cached before hours were asked for. */
+  const place = (id: string, hours?: unknown) => ({
+    googlePlaceId: id, name: "Kanetora", nameLocal: null, lat: 33.59, lng: 130.4, address: "Hakata",
+    city: "Fukuoka", countryCode: "JP", category: "ramen", mapsUrl: null, rating: 4.3,
+    ...(hours === undefined ? {} : { hours }),
+  });
+
+  type Trip = { days: { id: string; city: string | null; stops: { id: string; hours: unknown }[] }[] };
+
+  // 2030-09-30 is a Monday, which is the day this ramen shop shuts.
+  async function tripInFukuoka() {
+    const mika = browser(env);
+    await signIn(mika, MIKA);
+    const made = (await (await mika.post("/api/trips", {
+      name: "Fukuoka", startDate: "2030-09-30", endDate: "2030-10-06",
+    })).json()) as { trip: { id: string } };
+    const trip = await mika.json<Trip>(`/api/trips/${made.trip.id}`);
+    return { mika, tripId: made.trip.id, days: trip.days };
+  }
+
+  it("keeps the hours a search came back with, and ranks the days by them", async () => {
+    const { mika, tripId, days } = await tripInFukuoka();
+    env.PLACES_CACHE = { list: async () => ({ keys: [{ name: "ts:v2:ramen" }] }), get: async () => [place("kanetora", ramen)] };
+
+    const added = await mika.post(`/api/trips/${tripId}/stops`, { placeId: "kanetora", dayId: days[0]!.id, startTime: "10:00" });
+    expect(added.status).toBe(201);
+    const { stopId } = (await added.json()) as { stopId: string };
+
+    const trip = await mika.json<Trip>(`/api/trips/${tripId}`);
+    expect(trip.days[0]!.stops[0]!.hours).toEqual(ramen);
+    expect(trip.days[0]!.city).toBe("Fukuoka");
+
+    const options = await mika.json<{
+      best: { dayId: string; hours: string; hoursWarn: boolean; detail: string };
+      rest: { dayId: string; kind: string; hours: string | null; hoursWarn: boolean }[];
+    }>(`/api/stops/${stopId}/move-options`);
+    expect(options.rest.find((c) => c.dayId === days[0]!.id)).toMatchObject({ kind: "current", hours: "closed Mondays", hoursWarn: true });
+    // Tuesday to Friday open at 11:00, so 10:00 needs the weekend.
+    expect(options.rest.find((c) => c.dayId === days[1]!.id)).toMatchObject({ hours: "opens 11:00", hoursWarn: true });
+    expect(options.best).toMatchObject({ dayId: days[5]!.id, hours: "open 10:00 – 22:00", hoursWarn: false });
+    expect(options.best.detail).toMatch(/^Open 10:00 – 22:00, so 10:00 still works\./);
+  });
+
+  it("asks Google once for a place added before there were hours", async () => {
+    const { mika, tripId, days } = await tripInFukuoka();
+    env.PLACES_CACHE = { list: async () => ({ keys: [{ name: "ts:v2:ramen" }] }), get: async () => [place("old")] };
+    expect((await mika.post(`/api/trips/${tripId}/stops`, { placeId: "old", dayId: days[4]!.id })).status).toBe(201);
+
+    env.GOOGLE_PLACES_KEY = "server-key";
+    const asked: string[] = [];
+    const before = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.startsWith("https://places.googleapis.com/v1/places/")) {
+        asked.push(url);
+        return Response.json({ id: "old", location: { latitude: 33.59, longitude: 130.4 }, regularOpeningHours: { periods: RAMEN } });
+      }
+      return before(input as never, init);
+    }) as typeof fetch;
+
+    try {
+      // The read does not wait on Google: this one has nothing yet...
+      let trip = await mika.json<Trip>(`/api/trips/${tripId}`);
+      expect(trip.days[4]!.stops[0]!.hours).toBeNull();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      // ...and the next one does, without asking again.
+      trip = await mika.json<Trip>(`/api/trips/${tripId}`);
+      expect(trip.days[4]!.stops[0]!.hours).toEqual(ramen);
+      expect(asked).toEqual(["https://places.googleapis.com/v1/places/old"]);
+    } finally {
+      globalThis.fetch = before;
+    }
+  });
+});
+

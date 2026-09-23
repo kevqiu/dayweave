@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { CLIENT } from "../ui/client.ts";
+import { HOURS_CLIENT } from "../ui/hours-client.ts";
+import { weekFromPeriods } from "../../lib/hours.ts";
+import { RAMEN } from "../../lib/__tests__/hours.fixtures.ts";
 
 function definition(name: string) {
   const start = CLIENT.search(new RegExp("\\n(?:async )?function " + name + "\\("));
@@ -349,6 +352,7 @@ describe("search and drag transitions", () => {
     const h = (_tag: string, attrs: any, children: any[]) => ({ attrs, children });
     const api = load(["gridCard"], {
       state, h, render, statusOf: () => "planned", gridSub: () => "", mutedHue: () => "gray", dragHandle: () => null, stopTitle: () => null,
+      hoursFor: () => null,
       closeThen: (_depth: number, callback: () => void) => { afterClose = callback; },
     }, "let suppressTap=false;");
     const card = api.gridCard({ hue: "blue" }, { id: "stop", title: "Owakudani" }, { top: 100, height: 44 }, null);
@@ -680,3 +684,69 @@ describe("desktop planner sizing", () => {
     expect(swipeDays).toHaveBeenCalledWith(mobile);
   });
 });
+
+describe("opening hours on a stop", () => {
+  const w: { __HOURS__?: unknown } = {};
+  new Function("window", HOURS_CLIENT)(w);
+  const HOURS = w.__HOURS__;
+  const hours = weekFromPeriods(RAMEN);
+
+  // 2026-10-02 is a Friday. The shop opens 11:00 on weekdays, 10:00 at the
+  // weekend, and not at all on Mondays.
+  const days = [
+    { id: "fri", date: "2026-10-02", label: "Fri Oct 2", city: "Fukuoka", stops: [] },
+    { id: "sat", date: "2026-10-03", label: "Sat Oct 3", city: "Fukuoka", stops: [] },
+    { id: "sun", date: "2026-10-04", label: "Sun Oct 4", city: "Fukuoka", stops: [] },
+    { id: "mon", date: "2026-10-05", label: "Mon Oct 5", city: "Fukuoka", stops: [] },
+    { id: "tue", date: "2026-10-06", label: "Tue Oct 6", city: "Kagoshima", stops: [] },
+  ];
+
+  function fixFor(dayId: string, time: string | null) {
+    const setStopTime = vi.fn();
+    const moveStopTo = vi.fn();
+    const api = load(["hoursFor", "hoursFix", "nearestOpen"], {
+      HOURS, state: { trip: { days } }, setStopTime, moveStopTo,
+      dayById: (id: string) => days.find((d) => d.id === id), todayIso: () => "2026-09-23",
+    });
+    const day = days.find((d) => d.id === dayId)!;
+    const stop = { id: "ramen", hours, time, city: "Fukuoka" };
+    const check = api.hoursFor(day, stop);
+    return { check, fix: check && !check.ok ? api.hoursFix(day, stop, check) : null, setStopTime, moveStopTo, stop };
+  }
+
+  it("moves the time to the opening on a day it opens later", () => {
+    const { check, fix, setStopTime, stop } = fixFor("fri", "10:00");
+    expect(check.note).toBe("opens 11:00");
+    expect(fix.label).toBe("Move to 11:00");
+    fix.run();
+    expect(setStopTime).toHaveBeenCalledWith(stop, "11:00");
+  });
+
+  it("moves it to the nearest day in the city it is open, keeping the time", () => {
+    const { check, fix, moveStopTo, stop } = fixFor("mon", "10:00");
+    expect(check.note).toBe("closed Mondays");
+    // Tuesday is as near, but in Kagoshima.
+    expect(fix.label).toBe("Move to Sun Oct 4");
+    fix.run();
+    expect(moveStopTo).toHaveBeenCalledWith(stop, "sun", null);
+  });
+
+  it("moves the time too when no day is open at it", () => {
+    const { fix, moveStopTo, stop } = fixFor("mon", "09:00");
+    expect(fix.label).toBe("Move to Sun Oct 4 at 10:00");
+    fix.run();
+    expect(moveStopTo).toHaveBeenCalledWith(stop, "sun", "10:00");
+  });
+
+  it("flags a day it is shut even without a time, and nothing it is open", () => {
+    expect(fixFor("mon", null).check).toMatchObject({ ok: false, note: "closed Mondays" });
+    expect(fixFor("sat", "10:00").check).toMatchObject({ ok: true });
+    expect(fixFor("fri", null).check).toMatchObject({ ok: true });
+  });
+
+  it("has nothing to say in To be planned", () => {
+    const api = load(["hoursFor"], { HOURS });
+    expect(api.hoursFor({ id: "unplanned", stops: [] }, { hours, time: "10:00" })).toBeNull();
+  });
+});
+

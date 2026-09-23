@@ -3,6 +3,7 @@ import * as icons from "./icons.ts";
 import { cardMap, mapBackground, signInMap } from "./map.ts";
 import { lookPinIcon, mapStyle, meIcon } from "./gmap.ts";
 import { PLAN_CLIENT } from "./plan-client.ts";
+import { HOURS_CLIENT } from "./hours-client.ts";
 import { styles } from "./styles.ts";
 import { COLOR as C, DAY_PALETTE, DAY_BLACK, FONTS_HREF } from "./tokens.ts";
 
@@ -43,6 +44,11 @@ function iconSet(): Record<string, string> {
     pencilInk: icons.pencil({ size: 15, color: C.inkSoft }),
     houseInk: icons.house({ size: 14, color: C.inkSoft }),
     kebab: icons.kebab({ size: 15 }),
+    // Opening hours: the struck clock on a row's second line and on the
+    // notice, and the plain clock in the Planner's popover.
+    clockOff: icons.clockOff({ size: 10, color: C.shut }),
+    clockOffNotice: icons.clockOff({ size: 13, color: C.shut }),
+    clock: icons.clock({ size: 11, color: C.grey }),
     grip: icons.grip(),
     gripDark: icons.grip({ color: C.inkSoft }),
     trash: icons.trash({ size: 15 }),
@@ -135,6 +141,8 @@ window.__DAY_SWATCHES__ = ${JSON.stringify([...DAY_PALETTE, DAY_BLACK])};
 </script>
 <!-- The Plan view's arithmetic, checked against src/lib/plan.ts by a test. -->
 <script>${PLAN_CLIENT}</script>
+<!-- Opening hours, checked against src/lib/hours.ts by a test. -->
+<script>${HOURS_CLIENT}</script>
 <script type="module">
 ${CLIENT}
 </script>

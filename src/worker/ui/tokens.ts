@@ -68,6 +68,14 @@ export const COLOR = {
   noticeBorder: "#DCC58A",
   noticeInk: "#97803F",
 
+  /**
+   * A stop at a time its place is shut. The ink the app already writes
+   * "Remove from list" in, rather than a red: the day palette goes all the way
+   * round the wheel and starts on one, so a red flag would read as day one.
+   * The struck-through clock beside it is what carries the meaning.
+   */
+  shut: "#A06B52",
+
   /** The bucket that is not a day. */
   unplanned: "#94897A",
 } as const;

@@ -46,10 +46,13 @@ import {
   liveInvite,
   moveStopToDay,
   peopleOfTrip,
+  parseHours,
   personOf,
   placeCounts,
+  placesNeedingHours,
   placesOnTrip,
   revokeInvites,
+  setPlaceHours,
   stopsForDay,
   toDayGeo,
   usersById,
@@ -520,12 +523,25 @@ app.get("/api/trips/:tripId", async (c) => {
   const trip = await tripForViewer(c.env.DB, tripId, viewer.id);
   if (!trip) return c.json({ error: "no such trip" }, 404);
 
-  const [days, stops, people, lodging] = await Promise.all([
+  const [days, stops, people, lodging, stale] = await Promise.all([
     listDays(c.env.DB, tripId),
     listStops(c.env.DB, tripId),
     peopleOfTrip(c.env.DB, tripId),
     listLodging(c.env.DB, tripId),
+    placesNeedingHours(c.env.DB, tripId, HOURS_PER_READ),
   ]);
+
+  // Hours for the places that have none yet, behind the response rather than
+  // in front of it: a trip read must not wait on Google, and the client reads
+  // the trip again after every write, so they turn up on the next one.
+  if (stale.length && c.env.GOOGLE_PLACES_KEY) {
+    const work = refreshHours(c.env, stale);
+    try {
+      c.executionCtx.waitUntil(work);
+    } catch {
+      // No execution context outside workerd (the tests): let it run.
+    }
+  }
 
   return c.json({
     trip,
@@ -545,12 +561,37 @@ app.get("/api/trips/:tripId", async (c) => {
       // schema — the column the first migration declared and nothing wrote.
       label: dayLabel(day.date),
       name: day.label,
+      // The day's city, so the browser can keep a "nearest day it is open"
+      // suggestion in the same city without reasoning about coordinates.
+      city: day.place_label ?? cityOfDay(day.id, stops),
       stops: stopsForDay(stops, day.id, people),
     })),
     lodging,
     unplanned: stopsForDay(stops, null, people),
   });
 });
+
+/** How many places one trip read may ask Google about. */
+const HOURS_PER_READ = 20;
+
+/**
+ * Asks Google for the hours of places that have none, and keeps what comes
+ * back. A place Google has no hours for is written as asked-and-none, so it is
+ * not asked again for thirty days; a place Google errors on is left to be
+ * asked on a later read.
+ */
+async function refreshHours(env: Env, places: readonly { id: string; google_place_id: string }[]): Promise<void> {
+  await Promise.all(
+    places.map(async (place) => {
+      try {
+        const details = await placeDetails(placesConfig(env), place.google_place_id);
+        await setPlaceHours(env.DB, place.id, details.hours);
+      } catch (error) {
+        console.warn("hours refresh failed", place.google_place_id, error);
+      }
+    }),
+  );
+}
 
 // --- people, and the link that adds one -------------------------------------
 
@@ -898,7 +939,9 @@ function biasFor(dayId: string | null, days: readonly DayRow[], stops: readonly 
  * one costs no further call to Google.
  */
 async function cachedSearch(env: Env, query: string, bias: Bias | null): Promise<PlaceDetails[]> {
-  const key = `ts:v1:${roundedCentre(bias)}:${query.toLowerCase()}`;
+  // v2 carries opening hours. A v1 entry would add a place with no word on its
+  // hours at all, so it is left to expire rather than read.
+  const key = `ts:v2:${roundedCentre(bias)}:${query.toLowerCase()}`;
   const cached = await env.PLACES_CACHE.get(key, "json");
   if (cached) return cached as PlaceDetails[];
 
@@ -909,7 +952,7 @@ async function cachedSearch(env: Env, query: string, bias: Bias | null): Promise
 
 /** The cache, read by place id, so a pick does not pay for a Details call. */
 async function placeFromCache(env: Env, placeId: string): Promise<PlaceDetails | null> {
-  const listed = await env.PLACES_CACHE.list({ prefix: "ts:v1:" });
+  const listed = await env.PLACES_CACHE.list({ prefix: "ts:v2:" });
   for (const key of listed.keys) {
     const places = (await env.PLACES_CACHE.get(key.name, "json")) as PlaceDetails[] | null;
     const hit = places?.find((p) => p.googlePlaceId === placeId);
@@ -1110,6 +1153,8 @@ app.get("/api/stops/:stopId/move-options", async (c) => {
       location: stop.lat !== null && stop.lng !== null ? { lat: stop.lat, lng: stop.lng } : null,
       city: stop.city,
       currentDayId: stop.day_id,
+      hours: parseHours(stop.opening_hours),
+      time: stop.start_time,
     },
     candidates,
     todayIso(),

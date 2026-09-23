@@ -103,6 +103,7 @@ describe("the To be planned bucket", () => {
     city,
     category,
     maps_url: null,
+    opening_hours: null,
   });
 
   it("says where a waiting place is, not how far it is from the last one", () => {

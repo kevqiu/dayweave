@@ -666,6 +666,51 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .action.dark { border: none; background: ${C.brandButton}; color: ${C.ink}; }
 .action.on { background: ${C.brandWash}; border-color: ${C.brandLight}; color: ${C.brandInk}; }
 .action.kebab { width: 34px; flex-grow: 0; flex-basis: auto; flex-shrink: 0; }
+
+/* ---- Opening hours (src/lib/hours.ts) ----
+   A stop somewhere shut says so on its second line, in the ink the app writes
+   Remove in, behind a struck clock. Opened, the day's hours are a bar: the
+   open hours filled in the green the app uses for "fine", the rest hatched,
+   the stop's time a tick. When something is wrong a notice in the warm
+   attention card sits under it, with the fix. */
+.hours-flag { color: ${C.shut}; font-weight: 600; }
+.hours-flag-icon { display: inline-block; vertical-align: -1px; margin-right: 3px; line-height: 0; }
+.hours-flag-icon > svg { display: block; }
+.hours { padding-bottom: 8px; display: flex; flex-direction: column; gap: 4px; }
+.hours-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.hours-day { font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em; color: ${C.greyer}; flex-shrink: 0; }
+.hours-label { font-size: 10.5px; color: ${C.inkSoft}; text-align: right; }
+.hours-track {
+  position: relative; height: 10px; border-radius: 5px;
+  background: repeating-linear-gradient(135deg, ${C.doneRing} 0 3px, ${C.highlight} 3px 6px);
+}
+.hours-open {
+  position: absolute; top: 0; bottom: 0; border-radius: 5px; box-sizing: border-box;
+  background: ${C.todayRing}; border: 1px solid #CBDCC6;
+}
+.hours-tick {
+  position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px;
+  border-radius: 1px; background: ${C.ink};
+}
+.hours-tick.shut { background: ${C.shut}; }
+.hours-scale { position: relative; height: 12px; font-size: 9px; color: ${C.greyer}; font-variant-numeric: tabular-nums; }
+.hours-scale > span { position: absolute; top: 0; }
+.hours-notice {
+  margin-bottom: 8px; border-radius: 8px; background: ${C.noticeBg};
+  border: 1px solid ${C.noticeBorder}; padding: 8px 10px;
+  display: flex; flex-direction: column; gap: 5px;
+}
+.hours-notice-title { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: ${C.shut}; }
+.hours-notice-body { font-size: 10.5px; color: ${C.inkSoft}; line-height: 1.45; }
+.hours-notice-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+.hours-notice-actions > button {
+  height: 30px; border-radius: 8px; border: 1px solid ${C.noticeBorder}; background: ${C.card};
+  color: ${C.ink}; font-family: ${SANS}; font-size: 11px; font-weight: 600; padding: 0 10px;
+}
+.hours-notice-actions > button.primary { border: none; background: ${C.brandButton}; }
+.detail-block .hours { padding-bottom: 0; }
+.detail-block .hours-label { font-size: 12px; }
+.detail-block .hours-notice { margin: 12px 0 0; }
 .add-stop {
   margin: 3px 9px 2px; width: calc(100% - 18px); height: 22px; border-radius: 8px;
   border: none; background: ${C.line}; display: flex; align-items: center;
@@ -1230,6 +1275,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .gpop-head { padding: 10px 13px 8px; border-bottom: 1px solid ${C.line}; }
 .gpop-title { font-size: 12.5px; font-weight: 700; }
 .gpop-sub { font-size: 10px; color: ${C.meta}; margin-top: 2px; }
+.gpop-head .hours { padding: 8px 0 0; }
+/* 194px holds a day's name or its hours on a line, not both. */
+.gpop-head .hours-head { flex-direction: column; align-items: flex-start; gap: 1px; }
+.gpop-head .hours-label { text-align: left; }
+.gpop-shut { font-size: 10px; margin-top: 2px; }
 .gpop-item {
   display: flex; align-items: center; gap: 9px; height: 42px; padding: 0 13px;
   width: 100%; background: none; border: 0; border-top: 1px solid ${C.line};
@@ -1254,6 +1304,17 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 
 /* The bar a dragged card would land on, and the hour it would land at. */
 .grid-drop { position: absolute; height: 3px; border-radius: 2px; background: ${C.today}; z-index: 61; }
+.grid-drop.shut { background: ${C.shut}; }
+.grid-drop.shut span { color: ${C.shut}; }
+/* The hours a place in the air is shut, on each column it could land in. */
+.gshut {
+  position: absolute; left: 0; right: 0; pointer-events: none;
+  background: repeating-linear-gradient(135deg, rgba(160,107,82,0.10) 0 4px, transparent 4px 9px);
+}
+.gshut > span {
+  position: absolute; left: 6px; top: 3px; font-size: 9px; font-weight: 700;
+  letter-spacing: 0.06em; color: ${C.greyer}; white-space: nowrap;
+}
 /*
  * Centred, not left-aligned.
  *

@@ -12,6 +12,7 @@ import { locality } from "../lib/locality.ts";
 import { inviteToken } from "../lib/invite.ts";
 import { describeStop, isAccommodation, tripCities } from "../lib/derive.ts";
 import type { PlaceDetails } from "../lib/places.ts";
+import type { Week } from "../lib/hours.ts";
 import type { DayGeo, LatLng } from "../lib/geo.ts";
 import { AVATAR_COLORS, avatarColor, dayColor } from "./ui/tokens.ts";
 
@@ -53,6 +54,8 @@ export interface StopRow {
   city: string | null;
   category: string | null;
   maps_url: string | null;
+  /** JSON, src/lib/hours.ts. Null when Google has none or nobody has asked. */
+  opening_hours: string | null;
 }
 
 const now = () => Date.now();
@@ -139,7 +142,7 @@ export async function getStop(db: D1Database, stopId: string): Promise<(StopRow 
       `SELECT s.id, s.trip_id, s.day_id, s.place_id, s.title, s.note, s.start_time,
               s.order_key, s.status, s.created_by,
               p.name AS place_name, p.google_place_id, p.lat, p.lng, p.city,
-              p.category, p.maps_url
+              p.category, p.maps_url, p.opening_hours
          FROM stops s
          LEFT JOIN places p ON p.id = s.place_id
         WHERE s.id = ? AND s.deleted_at IS NULL`,
@@ -224,7 +227,7 @@ export async function listStops(db: D1Database, tripId: string): Promise<StopRow
       `SELECT s.id, s.day_id, s.place_id, s.title, s.note, s.start_time,
               s.order_key, s.status, s.created_by,
               p.name AS place_name, p.google_place_id, p.lat, p.lng, p.city,
-              p.category, p.maps_url
+              p.category, p.maps_url, p.opening_hours
          FROM stops s
          LEFT JOIN places p ON p.id = s.place_id
         WHERE s.trip_id = ? AND s.deleted_at IS NULL
@@ -349,6 +352,7 @@ export async function addPlaceAsStop(
         placeId,
       )
       .run();
+    await saveHours(db, placeId, d);
   } else {
     await db
       .prepare(
@@ -373,6 +377,7 @@ export async function addPlaceAsStop(
         now(),
       )
       .run();
+    await saveHours(db, placeId, d);
   }
 
   const siblings = await db
@@ -456,6 +461,12 @@ export interface StopView {
   /** Where Open Maps goes. Built rather than stored — see mapsUrl. */
   mapsUrl: string | null;
   location: LatLng | null;
+  /**
+   * The place's regular week, cut at midnight (src/lib/hours.ts). The browser
+   * checks it against the day and the time itself, because both change
+   * optimistically under a drag and the answer has to change with them.
+   */
+  hours: Week | null;
 }
 
 /**
@@ -572,8 +583,63 @@ export function stopsForDay(
       accommodation: isAccommodation(stop.category),
       mapsUrl: mapsUrl(location, stop.google_place_id),
       location,
+      hours: parseHours(stop.opening_hours),
     };
   });
+}
+
+/** The stored week, or null for anything that is not one. */
+export function parseHours(raw: string | null | undefined): Week | null {
+  if (!raw) return null;
+  try {
+    const week = JSON.parse(raw) as unknown;
+    return Array.isArray(week) && week.length === 7 ? (week as Week) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Writes a place's hours, when the details it came with carried any word on
+ * them. A search cached before hours were asked for has no `hours` key at all,
+ * and that is "not asked", not "has none" — so it leaves `hours_at` alone for
+ * the trip read to fill in.
+ */
+async function saveHours(db: D1Database, placeId: string, details: Pick<PlaceDetails, "hours">): Promise<void> {
+  if (details.hours === undefined) return;
+  await db
+    .prepare(`UPDATE places SET opening_hours = ?, hours_at = ? WHERE id = ?`)
+    .bind(details.hours ? JSON.stringify(details.hours) : null, now(), placeId)
+    .run();
+}
+
+export async function setPlaceHours(db: D1Database, placeId: string, hours: Week | null): Promise<void> {
+  await saveHours(db, placeId, { hours });
+}
+
+/** Thirty days, the longest Google lets place content sit in a cache. */
+export const HOURS_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * Places on a trip whose hours were never asked for, or were asked for more
+ * than thirty days ago. Every place added before hours existed is one; so is
+ * any place that has sat on a trip for a month.
+ */
+export async function placesNeedingHours(
+  db: D1Database,
+  tripId: string,
+  limit: number,
+): Promise<{ id: string; google_place_id: string }[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT id, google_place_id FROM places
+        WHERE trip_id = ? AND google_place_id IS NOT NULL
+          AND (hours_at IS NULL OR hours_at < ?)
+        LIMIT ?`,
+    )
+    .bind(tripId, now() - HOURS_MAX_AGE_MS, limit)
+    .all<{ id: string; google_place_id: string }>();
+  return results ?? [];
 }
 
 /** The line under a trip name on a card: the cities, in day order. */
@@ -1056,6 +1122,7 @@ async function lodgingPlace(db: D1Database, tripId: string, details: PlaceDetail
           now(),
         )
         .run();
+      await saveHours(db, placeId, d);
     }
   }
 
