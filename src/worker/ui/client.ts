@@ -1332,31 +1332,13 @@ function displayDistance(text) {
 /**
  * A stored time as the person reads a clock. Times are kept and sent as
  * 24-hour 14:05 whatever the setting says; only what is drawn changes, to
- * 2:05 and PM. The two halves come apart because the 36px time column has
- * room for 2:05 and not for 2:05 PM, so it stacks them.
+ * 2:05. There is no AM or PM: on a trip nobody wonders whether lunch is at
+ * two in the morning, and the 36px time column has no room for it.
  */
-function clockParts(time) {
-  const match = /^(\d{1,2}):(\d{2})$/.exec(String(time || "").trim());
-  if (!match || unitPreferences().clock !== "12") return { clock: time || "", meridiem: "" };
-  const hours = Number(match[1]);
-  return { clock: (hours % 12 || 12) + ":" + match[2], meridiem: hours < 12 ? "AM" : "PM" };
-}
-
 function displayTime(time) {
-  const parts = clockParts(time);
-  return parts.meridiem ? parts.clock + " " + parts.meridiem : parts.clock;
-}
-
-/** The Planner's gutter: 08:00, or 8 AM, since every label is on the hour. */
-function displayHour(label) {
-  const parts = clockParts(label);
-  return parts.meridiem ? parts.clock.replace(/:00$/, "") + " " + parts.meridiem : parts.clock;
-}
-
-/** The time in a narrow column, with the meridiem on a line of its own. */
-function stackedTime(time) {
-  const parts = clockParts(time);
-  return [parts.clock, parts.meridiem ? h("small", { class: "meridiem", text: parts.meridiem }, []) : null];
+  const match = /^(\d{1,2}):(\d{2})$/.exec(String(time || "").trim());
+  if (!match || unitPreferences().clock !== "12") return time || "";
+  return (Number(match[1]) % 12 || 12) + ":" + match[2];
 }
 
 function screenSettings() {
@@ -1383,7 +1365,7 @@ function screenSettings() {
       h("p", { class: "settings-intro", text: "Make Dayweave feel familiar. Your preferences are saved on this device." }, []),
       row("temperature", "Temperature unit", "Your preferred temperature scale.", [["C", "Celsius · °C"], ["F", "Fahrenheit · °F"]], "C"),
       row("distance", "Distance unit", "Used for distances throughout your trips.", [["km", "Kilometres · km"], ["mi", "Miles · mi"]], "km"),
-      row("clock", "Clock", "How times are shown on your stops and in the Planner.", [["24", "24-hour · 21:00"], ["12", "12-hour · 9 PM"]], "24"),
+      row("clock", "Clock", "How times are shown on your stops and in the Planner.", [["24", "24-hour · 21:00"], ["12", "12-hour · 9:00"]], "24"),
     ]), noticeToast(),
   ], { tall: true });
 }
@@ -1876,7 +1858,7 @@ function railStop(day, stop) {
       },
     }, [
       day.id === "unplanned" ? null : h("span", { class: "stop-index", style: "color:" + day.hue + ";border-color:" + day.hue, text: String(routeNumbers(day)[stop.id] || day.stops.indexOf(stop) + 1) }, []),
-      stop.time ? h("span", { class: "rail-time", style: "color:" + day.hue }, stackedTime(stop.time)) : null,
+      stop.time ? h("span", { class: "rail-time", style: "color:" + day.hue, text: displayTime(stop.time) }, []) : null,
       h("div", { class: "stop-text" }, [
         h("span", { class: "rail-name", text: stop.title }, []),
         h("span", { class: "rail-meta", text: stop.note || displayDistance(stop.description) }, []),
@@ -3324,7 +3306,8 @@ function stopCard(day, stop, showTimes, number) {
           ? h("span", {
               class: "stop-time",
               style: "color:" + day.hue,
-            }, stackedTime(stop.time))
+              text: displayTime(stop.time),
+            }, [])
           : null,
         h("div", { class: "stop-text" }, [
           stopTitle(stop, "stop-name"),
@@ -5128,6 +5111,8 @@ function timeFields(time) {
     option("", "--", hour === null),
     ...hours.map((n) => option(n, twelve ? String(n) : two(n), hour !== null && (twelve ? hour % 12 === n % 12 : hour === n))),
   ]);
+  // AM or PM is left off every time that is drawn, but a time being set
+  // has to say which, or 2:00 could only ever be one of them.
   // Five-minute steps, plus the minute already set if it is off them, so
   // opening the editor never quietly moves a time.
   const minutes = Array.from({ length: 12 }, (_, i) => i * 5);
@@ -5486,7 +5471,7 @@ function gridContent(days, span, band) {
 
   const gutter = h("div", { class: "grid-gutter", style: "height:" + height + "px" },
     PLAN.hourLabels(span).map((h2) =>
-      h("span", { class: "hour-label", style: "top:" + (h2.at - 6) + "px", text: displayHour(h2.label) }, [])));
+      h("span", { class: "hour-label", style: "top:" + (h2.at - 6) + "px", text: displayTime(h2.label) }, [])));
   if (band) {
     gutter.append(h("span", {
       class: "band-label", style: "top:" + (span.height + 16) + "px", text: "NO TIME",

@@ -646,28 +646,25 @@ describe("planner gesture regressions", () => {
     expect(api.displayDistance("cafe · 500 m")).toBe("cafe · 0.3 mi");
   });
 
-  const clockApi = (clock?: string) => load(["clockParts", "displayTime", "displayHour", "unitPreferences"], {
+  const clockApi = (clock?: string) => load(["displayTime", "unitPreferences"], {
     localStorage: { getItem: () => (clock ? JSON.stringify({ clock }) : null) },
   });
 
   it("draws times on a 24-hour clock until the setting says otherwise", () => {
     const api = clockApi();
     expect(api.displayTime("14:05")).toBe("14:05");
-    expect(api.displayHour("08:00")).toBe("08:00");
+    expect(api.displayTime("08:00")).toBe("08:00");
     expect(api.displayTime("")).toBe("");
     expect(api.displayTime(null)).toBe("");
   });
 
-  it("draws times on a 12-hour clock when chosen", () => {
+  it("draws times on a 12-hour clock, without AM or PM, when chosen", () => {
     const api = clockApi("12");
-    expect(api.displayTime("14:05")).toBe("2:05 PM");
-    expect(api.displayTime("00:30")).toBe("12:30 AM");
-    expect(api.displayTime("12:00")).toBe("12:00 PM");
-    expect(api.displayTime("09:15")).toBe("9:15 AM");
-    expect(api.clockParts("23:45")).toEqual({ clock: "11:45", meridiem: "PM" });
-    expect(api.displayHour("08:00")).toBe("8 AM");
-    expect(api.displayHour("00:00")).toBe("12 AM");
-    expect(api.displayHour("12:00")).toBe("12 PM");
+    expect(api.displayTime("14:05")).toBe("2:05");
+    expect(api.displayTime("00:30")).toBe("12:30");
+    expect(api.displayTime("12:00")).toBe("12:00");
+    expect(api.displayTime("09:15")).toBe("9:15");
+    expect(api.displayTime("08:00")).toBe("8:00");
     expect(api.displayTime("")).toBe("");
   });
 

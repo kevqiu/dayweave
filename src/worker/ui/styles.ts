@@ -547,9 +547,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   width: 100%; background: transparent; border: 1px solid transparent;
 }
 .stop-time { font-size: 11px; font-weight: 600; width: 36px; flex-shrink: 0; font-variant-numeric: tabular-nums; }
-/* A 12-hour time in the 36px column: 2:05 fits, 2:05 PM does not, so the
-   meridiem takes a line of its own under it. */
-.stop-time .meridiem, .rail-time .meridiem { display: block; font-size: 8.5px; letter-spacing: 0.04em; line-height: 1.2; }
 .stop-text { display: flex; flex-direction: column; flex-grow: 1; min-width: 0; }
 .stop-name {
   font-size: 12.5px; font-weight: 500; color: ${C.ink};
