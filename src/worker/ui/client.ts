@@ -3949,7 +3949,7 @@ function hoursNotice(day, stop, check) {
     const city = stop.city || day.city;
     if (fix && fix.alt) {
       const hours = HOURS.checkHours(stop.hours, fix.target.date, fix.alt.time || stop.time);
-      body = "Open " + fix.target.label + ", " + hours.label + " — the nearest day"
+      body = "Open " + fix.target.label + ", " + hours.label + ". The nearest day"
         + (city ? " in " + city : "") + " it is open" + (stop.time && !fix.alt.time ? " at " + stop.time : "") + ".";
     } else {
       body = "It is not open on any other day of this trip" + (city ? " in " + city : "") + ".";
