@@ -1329,6 +1329,18 @@ function displayDistance(text) {
   });
 }
 
+/**
+ * A stored time as the person reads a clock. Times are kept and sent as
+ * 24-hour 14:05 whatever the setting says; only what is drawn changes, to
+ * 2:05. There is no AM or PM: on a trip nobody wonders whether lunch is at
+ * two in the morning, and the 36px time column has no room for it.
+ */
+function displayTime(time) {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(String(time || "").trim());
+  if (!match || unitPreferences().clock !== "12") return time || "";
+  return (Number(match[1]) % 12 || 12) + ":" + match[2];
+}
+
 function screenSettings() {
   const preferences = unitPreferences();
   const row = (key, title, detail, options, fallback) => h("fieldset", { class: "setting-row" }, [
@@ -1353,6 +1365,7 @@ function screenSettings() {
       h("p", { class: "settings-intro", text: "Make Dayweave feel familiar. Your preferences are saved on this device." }, []),
       row("temperature", "Temperature unit", "Your preferred temperature scale.", [["C", "Celsius · °C"], ["F", "Fahrenheit · °F"]], "C"),
       row("distance", "Distance unit", "Used for distances throughout your trips.", [["km", "Kilometres · km"], ["mi", "Miles · mi"]], "km"),
+      row("clock", "Clock", "How times are shown on your stops and in the Planner.", [["24", "24-hour · 21:00"], ["12", "12-hour · 9:00"]], "24"),
     ]), noticeToast(),
   ], { tall: true });
 }
@@ -1845,7 +1858,7 @@ function railStop(day, stop) {
       },
     }, [
       day.id === "unplanned" ? null : h("span", { class: "stop-index", style: "color:" + day.hue + ";border-color:" + day.hue, text: String(routeNumbers(day)[stop.id] || day.stops.indexOf(stop) + 1) }, []),
-      stop.time ? h("span", { class: "rail-time", style: "color:" + day.hue, text: stop.time }, []) : null,
+      stop.time ? h("span", { class: "rail-time", style: "color:" + day.hue, text: displayTime(stop.time) }, []) : null,
       h("div", { class: "stop-text" }, [
         h("span", { class: "rail-name", text: stop.title }, []),
         h("span", { class: "rail-meta", text: stop.note || displayDistance(stop.description) }, []),
@@ -1866,7 +1879,7 @@ function deskDetail(stop) {
   const st = day ? statusOf(day, stop) : "ahead";
   const done = st === "done";
   const when = day
-    ? (day.date === todayIso() ? "TODAY" : day.label.toUpperCase()) + (stop.time ? " · " + stop.time : "")
+    ? (day.date === todayIso() ? "TODAY" : day.label.toUpperCase()) + (stop.time ? " · " + displayTime(stop.time) : "")
     : "TO BE PLANNED";
 
   const panel = h("div", { class: "desk-detail" }, [
@@ -1905,7 +1918,7 @@ function deskDetail(stop) {
     ]),
     h("div", { class: "detail-block" }, [
       h("div", { class: "detail-label", text: "TIME" }, []),
-      h("div", { class: "detail-note", text: stop.time || "No time yet." }, []),
+      h("div", { class: "detail-note", text: displayTime(stop.time) || "No time yet." }, []),
       h("button", { class: "detail-link", onclick: () => openTime(stop) }, [
         stop.time ? "Edit time" : "Set a time",
       ]),
@@ -3293,7 +3306,7 @@ function stopCard(day, stop, showTimes, number) {
           ? h("span", {
               class: "stop-time",
               style: "color:" + day.hue,
-              text: stop.time,
+              text: displayTime(stop.time),
             }, [])
           : null,
         h("div", { class: "stop-text" }, [
@@ -4570,7 +4583,7 @@ function searchTarget() {
   const s = state.search;
   const day = s.dayId ? dayById(s.dayId) : null;
   const where = day ? day.label : "To be planned";
-  const when = s.startTime ? ", " + s.startTime : "";
+  const when = s.startTime ? ", " + displayTime(s.startTime) : "";
   return h("div", { class: "search-target" }, [
     icon(day ? "calendar" : "pinChip"),
     h("span", { text: "Adding to " + where + when }, []),
@@ -5078,10 +5091,60 @@ function openTime(stop) {
   render();
 }
 
+/**
+ * The time editor's fields. A native time input draws its clock in the
+ * browser's locale whatever the Settings screen says, so the hour, the
+ * minute and, on a 12-hour clock, AM or PM are picked separately. value
+ * reads back as 24-hour 14:05, or empty while no hour is picked, which is
+ * what the time route stores.
+ */
+function timeFields(time) {
+  const twelve = unitPreferences().clock === "12";
+  const at = PLAN.minutesOf(time);
+  const hour = at === null ? null : Math.floor(at / 60);
+  const minute = at === null ? 0 : at % 60;
+  const two = (n) => String(n).padStart(2, "0");
+  const option = (value, label, chosen) => h("option", { value: String(value), selected: chosen }, [label]);
+
+  const hours = twelve ? [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] : Array.from({ length: 24 }, (_, i) => i);
+  const hourField = h("select", { class: "time-part", "aria-label": "Hour" }, [
+    option("", "--", hour === null),
+    ...hours.map((n) => option(n, twelve ? String(n) : two(n), hour !== null && (twelve ? hour % 12 === n % 12 : hour === n))),
+  ]);
+  // AM or PM is left off every time that is drawn, but a time being set
+  // has to say which, or 2:00 could only ever be one of them.
+  // Five-minute steps, plus the minute already set if it is off them, so
+  // opening the editor never quietly moves a time.
+  const minutes = Array.from({ length: 12 }, (_, i) => i * 5);
+  if (!minutes.includes(minute)) {
+    minutes.push(minute);
+    minutes.sort((a, b) => a - b);
+  }
+  const minuteField = h("select", { class: "time-part", "aria-label": "Minute" },
+    minutes.map((n) => option(n, two(n), n === minute)));
+  const meridiemField = twelve
+    ? h("select", { class: "time-part meridiem-part", "aria-label": "AM or PM" }, [
+        option("AM", "AM", hour !== null && hour < 12),
+        option("PM", "PM", hour !== null && hour >= 12),
+      ])
+    : null;
+
+  const wrap = h("div", { class: "time-field" }, [hourField, h("span", { class: "time-colon", text: ":" }, []), minuteField, meridiemField]);
+  Object.defineProperty(wrap, "value", {
+    get() {
+      if (hourField.value === "") return "";
+      let hours24 = Number(hourField.value);
+      if (twelve) hours24 = hours24 % 12 + (meridiemField.value === "PM" ? 12 : 0);
+      return two(hours24) + ":" + two(Number(minuteField.value));
+    },
+  });
+  return wrap;
+}
+
 function sheetTime() {
   const stop = state.timeFor;
   const close = closeLayer;
-  const field = h("input", { type: "time", class: "time-field", value: stop.time || "" }, []);
+  const field = timeFields(stop.time);
 
   const save = (value) => {
     closeLayer();
@@ -5408,7 +5471,7 @@ function gridContent(days, span, band) {
 
   const gutter = h("div", { class: "grid-gutter", style: "height:" + height + "px" },
     PLAN.hourLabels(span).map((h2) =>
-      h("span", { class: "hour-label", style: "top:" + (h2.at - 6) + "px", text: h2.label }, [])));
+      h("span", { class: "hour-label", style: "top:" + (h2.at - 6) + "px", text: displayTime(h2.label) }, [])));
   if (band) {
     gutter.append(h("span", {
       class: "band-label", style: "top:" + (span.height + 16) + "px", text: "NO TIME",
@@ -5457,7 +5520,7 @@ function gridColumn(day, span, band, flip) {
 
   if (wideNow() && state.search && state.search.dayId === day.id && state.search.startTime) {
     const top = PLAN.gridY(span, PLAN.minutesOf(state.search.startTime));
-    col.append(h("div", { class: "grid-add-ghost", style: "top:" + top + "px;border-color:" + day.hue, "aria-label": "Adding a place at " + state.search.startTime }, [icon("plus")]));
+    col.append(h("div", { class: "grid-add-ghost", style: "top:" + top + "px;border-color:" + day.hue, "aria-label": "Adding a place at " + displayTime(state.search.startTime) }, [icon("plus")]));
   }
 
   if (isToday) {
@@ -5588,7 +5651,7 @@ function gridCard(day, stop, box, kind) {
         ? h("span", {
             class: "gcard-sub",
           }, [
-            kind !== "untimed" && stop.time ? h("span", { class: "gcard-time", style: "color:" + day.hue, text: stop.time }, []) : null,
+            kind !== "untimed" && stop.time ? h("span", { class: "gcard-time", style: "color:" + day.hue, text: displayTime(stop.time) }, []) : null,
             kind !== "untimed" && stop.time && sub ? " · " : null,
             sub,
           ])
@@ -5617,7 +5680,7 @@ function gridPopover(stop) {
   }, [
     h("div", { class: "gpop-head" }, [
       h("div", { class: "gpop-title", text: stop.title }, []),
-      h("div", { class: "gpop-sub", text: stop.time || "no time yet" }, []),
+      h("div", { class: "gpop-sub", text: displayTime(stop.time) || "no time yet" }, []),
     ]),
     // "Edit" on the artboard, and the time is what there is to edit: the name
     // comes from the place and the note has its own item.
@@ -5794,7 +5857,7 @@ function paintGridDrop() {
   bar.style.width = rect.width - 10 + "px";
   bar.style.top = rect.top - box.top + drag.gridY + "px";
   const when = bar.querySelector("span");
-  if (when) when.textContent = drag.gridTime;
+  if (when) when.textContent = displayTime(drag.gridTime);
 
   // The card in the air is the width of the column it is over, not the width
   // of a phone, and it hangs below the line the way PlannerStop.dc.html draws
