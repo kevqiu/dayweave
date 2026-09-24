@@ -1,0 +1,358 @@
+<title>Weather Badge Options</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+  /* Page chrome. The phones below are drawn in the app's own tokens
+     (src/worker/ui/tokens.ts) and stay light in both themes, because they
+     depict the app, which has no dark mode. */
+  :root {
+    --ground: #F3EDE2;
+    --panel: #FBF6EE;
+    --ink: #33302B;
+    --soft: #6B645B;
+    --faint: #9A9184;
+    --rule: #E4D9C5;
+    --tag: #F5DE91;
+    --tag-ink: #514936;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ground: #22201C; --panel: #2B2823; --ink: #F1EADF; --soft: #C9C0B3;
+      --faint: #9A9184; --rule: #3E3A33; --tag: #5A4D22; --tag-ink: #F5DE91;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --ground: #22201C; --panel: #2B2823; --ink: #F1EADF; --soft: #C9C0B3;
+    --faint: #9A9184; --rule: #3E3A33; --tag: #5A4D22; --tag-ink: #F5DE91;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font-family: Figtree, "Helvetica Neue", Arial, sans-serif; -webkit-font-smoothing: antialiased;
+    padding: 36px 16px 64px;
+  }
+  .wrap { max-width: 1240px; margin: 0 auto; display: flex; flex-direction: column; gap: 36px; }
+  header.intro { display: flex; flex-direction: column; gap: 10px; max-width: 68ch; }
+  h1 { font-family: Newsreader, Georgia, serif; font-weight: 500; font-size: 34px; letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+  h2 { font-family: Newsreader, Georgia, serif; font-weight: 500; font-size: 22px; margin: 0; text-wrap: balance; }
+  h3 { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); margin: 0; font-weight: 700; }
+  p { margin: 0; line-height: 1.55; color: var(--soft); font-size: 14.5px; }
+  .spec { display: flex; flex-wrap: wrap; gap: 8px; }
+  .spec span { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: var(--tag); color: var(--tag-ink); }
+
+  .options { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 28px; align-items: start; }
+  .opt { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .opt-head { display: flex; flex-direction: column; gap: 5px; }
+  .opt-letter { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: var(--faint); }
+  .opt-head p { font-size: 13.5px; }
+
+  .zoom { background: var(--panel); border: 1px solid var(--rule); border-radius: 14px; padding: 14px 0 10px; display: flex; flex-direction: column; gap: 8px; }
+  .zoom h3 { padding: 0 14px; }
+  .zoom .rows { background: #FBF6EE; border-top: 1px solid #F1E9DA; border-bottom: 1px solid #F1E9DA; }
+  .zoom .cap { font-size: 11.5px; color: var(--faint); padding: 0 14px; line-height: 1.45; }
+  ul.tradeoffs { margin: 0; padding: 0 0 0 18px; display: flex; flex-direction: column; gap: 6px; }
+  ul.tradeoffs li { font-size: 13px; line-height: 1.45; color: var(--soft); }
+  ul.tradeoffs b { color: var(--ink); font-weight: 600; }
+
+  .shared { background: var(--panel); border: 1px solid var(--rule); border-radius: 16px; padding: 22px; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 22px; }
+  .shared > div { display: flex; flex-direction: column; gap: 8px; }
+  .shared p { font-size: 13.5px; }
+  .shared .q { color: var(--ink); font-weight: 600; }
+
+  /* ================= The phone, in the app's tokens ================= */
+  .phone {
+    position: relative; width: 100%; max-width: 375px; height: 667px; overflow: hidden;
+    background: #FBF6EE; color: #33302B; border-radius: 22px;
+    box-shadow: 0 0 0 1px #E4D9C5, 0 18px 40px rgba(70,58,40,0.16);
+  }
+  .bar { position: absolute; top: 0; left: 0; right: 0; height: 50px; z-index: 3; display: flex; align-items: center; gap: 9px; padding: 0 12px; background: #FBF6EE; border-bottom: 1px solid #E9DFCE; }
+  .bar-title { display: flex; flex-direction: column; gap: 1px; flex-grow: 1; min-width: 0; }
+  .bar-name { font-family: Newsreader, Georgia, serif; font-size: 17px; font-weight: 500; letter-spacing: -0.01em; display: flex; align-items: center; gap: 5px; }
+  .bar-sub { font-size: 10.5px; color: #8C8479; }
+  .avs { display: flex; }
+  .av { width: 24px; height: 24px; border-radius: 50%; color: #FFF9F0; font-size: 10.5px; font-weight: 600; display: flex; align-items: center; justify-content: center; border: 2px solid #FBF6EE; }
+  .av + .av { margin-left: -8px; }
+
+  .map { position: absolute; top: 50px; left: 0; right: 0; bottom: 0; background: #EFE8DB; }
+  .map svg.ground { display: block; width: 100%; height: 330px; }
+  .pin { position: absolute; transform: translate(-50%, -50%); border-radius: 50%; box-shadow: 0 2px 6px rgba(70,58,40,0.22); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; }
+  .ctl { position: absolute; right: 10px; top: 10px; display: flex; flex-direction: column; gap: 7px; }
+  .ctl span { width: 34px; height: 34px; border-radius: 10px; border: 1px solid #E4D9C5; background: #FFFCF6; box-shadow: 0 1px 3px rgba(80,66,44,0.10); display: flex; align-items: center; justify-content: center; }
+
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; height: 312px; background: #FBF6EE; border-radius: 20px 20px 0 0; box-shadow: 0 -6px 24px rgba(84,68,44,0.16); border-top: 1px solid #EFE6D6; display: flex; flex-direction: column; z-index: 2; }
+  .handle { padding: 7px 0 4px; display: flex; justify-content: center; flex-shrink: 0; }
+  .handle i { width: 38px; height: 4px; border-radius: 3px; background: #DCD1BD; }
+  .tabs { display: flex; gap: 6px; padding: 2px 12px 8px; border-bottom: 1px solid #F1E9DA; flex-shrink: 0; }
+  .tab { flex: 1 1 0; height: 30px; border-radius: 999px; border: 1px solid #E9DFCE; font-size: 11.5px; font-weight: 600; color: #6B645B; display: flex; align-items: center; justify-content: center; gap: 7px; }
+  .tab.on { background: #F5DE91; border-color: #514936; color: #33302B; }
+  .scroll { flex-grow: 1; overflow: hidden; }
+
+  /* Day header: copied from .day-head in styles.ts */
+  .day { border-bottom: 1px solid #F1E9DA; }
+  .dh { display: flex; align-items: center; padding: 0 10px 0 14px; height: 44px; gap: 0; }
+  .dh.open { background: #F6EFE2; }
+  .dh-tap { display: flex; align-items: center; gap: 10px; flex-grow: 1; min-width: 0; height: 44px; }
+  .hue { width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0; border: 2.5px solid #FFFCF6; box-shadow: 0 1px 3px rgba(70,58,40,0.22); }
+  .dh-text { display: flex; flex-direction: column; flex-grow: 1; min-width: 0; }
+  .dh-top { display: flex; align-items: center; gap: 7px; min-width: 0; }
+  .lbl { font-size: 12.5px; font-weight: 500; color: #6B645B; white-space: nowrap; }
+  .dh.open .lbl { font-weight: 700; color: #33302B; }
+  .today { font-size: 9.5px; font-weight: 700; letter-spacing: 0.07em; color: #4E7A4B; background: #E4EEE1; border-radius: 4px; padding: 2px 5px; }
+  .place { font-size: 10px; color: #A8A093; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .prog { font-size: 10px; color: #A8A093; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+  .pencil, .chev { width: 30px; height: 40px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .pencil { opacity: 0.7; }
+
+  .stop { margin: 0 9px 3px; border-radius: 10px; display: flex; align-items: center; gap: 8px; height: 42px; padding: 0 10px 0 6px; }
+  .stop .t { font-size: 11px; font-weight: 600; width: 36px; flex-shrink: 0; font-variant-numeric: tabular-nums; color: #6B645B; }
+  .stop .nm { display: flex; flex-direction: column; flex-grow: 1; min-width: 0; }
+  .stop .nm b { font-size: 12.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stop .nm span { font-size: 9.5px; color: #A0978A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stop .no { width: 17px; height: 17px; border-radius: 50%; border: 1.5px solid; font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .stop.done b { color: #A8A093; text-decoration: line-through; }
+  .add { margin: 3px 9px 8px; height: 22px; border-radius: 8px; background: #F1E9DA; display: flex; align-items: center; justify-content: center; }
+
+  /* ================= The three badges ================= */
+  /* Shared: the precipitation ink. A blue, because rain is water and the
+     avatar blue (#6E8CA8) is already in the palette; darkened for 10px text. */
+  .wx-p { color: #4F7392; font-variant-numeric: tabular-nums; }
+  .wx-t { font-variant-numeric: tabular-nums; }
+
+  /* A: a tag beside the date, the size and shape of TODAY */
+  .wa {
+    display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0;
+    font-size: 10px; font-weight: 600; color: #6B645B;
+    background: #F1E9DA; border-radius: 4px; padding: 1px 5px 1px 4px; height: 17px;
+  }
+  .dh.open .wa { background: #FFFCF6; }
+  .wa .wx-p { font-weight: 700; }
+  .wa .sep { width: 2px; height: 2px; border-radius: 50%; background: #B9AFA0; }
+
+  /* B: a chip on the right, before the count */
+  .wb {
+    display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; margin-right: 8px;
+    height: 22px; border-radius: 999px; border: 1px solid #E9DFCE; background: #FFFCF6;
+    padding: 0 8px 0 6px; font-size: 11px; font-weight: 600; color: #33302B;
+  }
+  .wb .wx-p { font-size: 10.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 2px; }
+  .wb .div { width: 1px; height: 11px; background: #E9DFCE; margin: 0 1px; }
+
+  /* C: a tinted tile, one fixed width, so the days stack into a forecast */
+  .wc {
+    width: 42px; height: 32px; border-radius: 8px; flex-shrink: 0; margin-right: 8px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0;
+  }
+  .wc .r1 { display: flex; align-items: center; gap: 2px; font-size: 11.5px; font-weight: 700; color: #33302B; line-height: 1.1; }
+  .wc .wx-p { font-size: 9px; font-weight: 700; line-height: 1.1; }
+  .wc-none { width: 42px; margin-right: 8px; flex-shrink: 0; }
+  .tint-sun { background: #FBF1CF; }
+  .tint-part { background: #F6F0E0; }
+  .tint-cloud { background: #F0E9DC; }
+  .tint-rain { background: #E6EDF1; }
+  .tint-storm { background: #E9E6F0; }
+  .tint-snow { background: #EEF2F5; }
+</style>
+
+<div class="wrap">
+  <header class="intro">
+    <h3>Dayweave · map view · the sheet's day headers</h3>
+    <h1>The day's weather, in a badge beside the day</h1>
+    <p>Three ways to put the forecast on each day header in the sheet under the map. Each badge holds the same three things, in the order you asked for. The phones show the same trip on the same morning: <i>Japan, autumn</i>, day 3 of 11, with Fri Oct 2 open.</p>
+    <div class="spec"><span>Condition icon</span><span>Chance of rain, only when above 0%</span><span>Day's high, in the °C / °F you pick in Settings</span></div>
+  </header>
+
+  <section class="options" id="options"></section>
+
+  <section class="shared">
+    <div>
+      <h3>The same in all three</h3>
+      <p><b style="color:var(--ink)">No badge is better than a made-up badge.</b> A day with no forecast yet (further out than the forecast reaches, about 10 to 16 days) or with no located stop to take a forecast for shows nothing. That follows the <i>nothing is a placeholder</i> rule.</p>
+      <p>The forecast is taken at the day's centroid, the same point the trip card's map strip already computes. The temperature is the day's high.</p>
+    </div>
+    <div>
+      <h3>Other screens</h3>
+      <p>Whichever you pick, the same badge goes on the desktop itinerary rail's day headers. On the Planner I'd put it in the column header after the city and the count.</p>
+      <p>The pin colours on the map don't change. Weather stays in the list.</p>
+    </div>
+    <div>
+      <h3>Questions for you</h3>
+      <p class="q">Past days: show what the weather was, or nothing?</p>
+      <p>The mockups show it for Sep 30 and Oct 1. It's useful as a trip record, but it takes space on rows you no longer act on.</p>
+      <p class="q">Data source: Open-Meteo or Google Weather?</p>
+      <p>Open-Meteo needs no key and forecasts 16 days ahead. Google's Weather API uses the Maps key you already have, forecasts 10 days ahead, and is billed per call.</p>
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+  // ---- icons: 24-unit viewBox, round caps, stroke 2, like icons.ts ----
+  var SUN = "#C48F12", CLOUD = "#8C8479", RAIN = "#4F7392", BOLT = "#B78B26";
+  function svg(size, body) {
+    return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;display:block">' + body + '</svg>';
+  }
+  var cloudPath = '<path d="M17.5 19H8a5 5 0 1 1 1.2-9.86A6 6 0 0 1 20.9 11 4 4 0 0 1 17.5 19z"/>';
+  var cloudHigh = '<path d="M17.5 15H8a4.5 4.5 0 1 1 1.1-8.86A5.5 5.5 0 0 1 20.2 8 3.6 3.6 0 0 1 17.5 15z"/>';
+  var ICON = {
+    sun: function (s) { return svg(s, '<g stroke="' + SUN + '"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></g>'); },
+    part: function (s) { return svg(s, '<g stroke="' + SUN + '"><path d="M8 3v1.5M3.2 5.2l1 1M1.8 10h1.5M5 11.7a3.6 3.6 0 0 1 6.3-4"/></g><path stroke="' + CLOUD + '" d="M17.5 20H9.5a4 4 0 1 1 .9-7.9A5 5 0 0 1 20 13.3 3.4 3.4 0 0 1 17.5 20z"/>'); },
+    cloud: function (s) { return svg(s, '<g stroke="' + CLOUD + '">' + cloudPath + '</g>'); },
+    rain: function (s) { return svg(s, '<g stroke="' + CLOUD + '">' + cloudHigh + '</g><path stroke="' + RAIN + '" d="M8 18l-1 3M12.5 18l-1 3M17 18l-1 3"/>'); },
+    storm: function (s) { return svg(s, '<g stroke="' + CLOUD + '">' + cloudHigh + '</g><path stroke="' + BOLT + '" d="M13 15.5l-2.5 3.5h3l-2 3.5"/>'); },
+    snow: function (s) { return svg(s, '<g stroke="' + CLOUD + '">' + cloudHigh + '</g><g stroke="' + RAIN + '"><path d="M8 18.5v.01M12 20.5v.01M16 18.5v.01M10 22v.01M14 22v.01" stroke-width="2.6"/></g>'); },
+  };
+  var DROP = function (s) { return '<svg width="' + s + '" height="' + s + '" viewBox="0 0 24 24" style="flex-shrink:0;display:block"><path d="M12 3s6 6.4 6 11a6 6 0 0 1-12 0c0-4.6 6-11 6-11z" fill="' + RAIN + '"/></svg>'; };
+  var PENCIL = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B645B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
+  var CHEV = function (deg) { return '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#A59C90" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(' + deg + 'deg)"><polyline points="6 9 12 15 18 9"/></svg>'; };
+  var NAMES = { sun: "Clear", part: "Partly cloudy", cloud: "Cloudy", rain: "Rain", storm: "Thunderstorms", snow: "Snow" };
+
+  // ---- the three badges ----
+  function deg(t) { return (t < 0 ? "\u2212" + (-t) : t) + "°"; }
+  function title(w) { return NAMES[w.k] + (w.p > 0 ? ", " + w.p + "% chance of rain" : "") + ", high " + deg(w.t); }
+  var BADGE = {
+    A: function (w) {
+      if (!w) return "";
+      return '<span class="wa" title="' + title(w) + '">' + ICON[w.k](11) +
+        (w.p > 0 ? '<span class="wx-p">' + w.p + '%</span><span class="sep"></span>' : "") +
+        '<span class="wx-t">' + deg(w.t) + '</span></span>';
+    },
+    B: function (w) {
+      if (!w) return "";
+      return '<span class="wb" title="' + title(w) + '">' + ICON[w.k](13) +
+        (w.p > 0 ? '<span class="wx-p">' + DROP(8) + w.p + '%</span><span class="div"></span>' : "") +
+        '<span class="wx-t">' + deg(w.t) + '</span></span>';
+    },
+    C: function (w) {
+      if (!w) return '<span class="wc-none"></span>';
+      return '<span class="wc tint-' + w.k + '" title="' + title(w) + '"><span class="r1">' + ICON[w.k](12) +
+        '<span class="wx-t">' + deg(w.t) + '</span></span>' +
+        (w.p > 0 ? '<span class="wx-p">' + w.p + '%</span>' : "") + '</span>';
+    },
+  };
+
+  // ---- the trip ----
+  var DAYS = [
+    { label: "Wed Sep 30", place: "Fukuoka", hue: "#E53935", prog: "4/4", wx: { k: "sun", p: 0, t: 26 } },
+    { label: "Thu Oct 1", place: "Fukuoka", hue: "#EF6C00", prog: "5/5", wx: { k: "part", p: 10, t: 24 } },
+    { label: "Fri Oct 2", today: true, place: "Market day · Fukuoka", hue: "#D4A000", prog: "1/3", open: true, wx: { k: "rain", p: 70, t: 21 },
+      stops: [
+        { t: "09:30", n: "Ohori Park", m: "park", done: true },
+        { t: "12:00", n: "Ichiran Tenjin", m: "ramen · 14 min walk" },
+        { t: "19:30", n: "Nakasu yatai row", m: "food stall · 9 min walk" },
+      ] },
+    { label: "Sat Oct 3", place: "Kagoshima", hue: "#239447", prog: "0/4", wx: { k: "cloud", p: 0, t: 23 } },
+    { label: "Sun Oct 4", place: "Onsen day · Kagoshima", hue: "#1976D2", prog: "0/2", wx: { k: "storm", p: 80, t: 25 } },
+  ];
+
+  function header(v, d) {
+    var inTitle = v === "A";
+    return '<div class="dh' + (d.open ? " open" : "") + '">' +
+      '<div class="dh-tap"><span class="hue" style="background:' + d.hue + '"></span>' +
+        '<div class="dh-text"><div class="dh-top"><span class="lbl">' + d.label + '</span>' +
+          (d.today ? '<span class="today">TODAY</span>' : "") +
+          (inTitle ? BADGE.A(d.wx) : "") +
+        '</div>' + (d.place ? '<span class="place">' + d.place + '</span>' : "") + '</div>' +
+        (inTitle ? "" : BADGE[v](d.wx)) +
+        '<span class="prog">' + d.prog + '</span>' +
+      '</div>' +
+      '<span class="pencil">' + PENCIL + '</span><span class="chev">' + CHEV(d.open ? 0 : -90) + '</span>' +
+    '</div>';
+  }
+
+  function dayBlock(v, d) {
+    var body = "";
+    if (d.open) {
+      d.stops.forEach(function (s, i) {
+        body += '<div class="stop' + (s.done ? " done" : "") + '"><span class="t">' + s.t + '</span>' +
+          '<span class="nm"><b>' + s.n + '</b><span>' + s.m + '</span></span>' +
+          '<span class="no" style="border-color:' + d.hue + ';color:' + d.hue + ';opacity:' + (s.done ? 0.5 : 1) + '">' + (i + 1) + '</span></div>';
+      });
+      body += '<div class="add"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9A9184" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>';
+    }
+    return '<div class="day">' + header(v, d) + body + '</div>';
+  }
+
+  function mapLayer() {
+    var ground =
+      '<svg class="ground" viewBox="0 0 390 340" preserveAspectRatio="xMidYMid slice">' +
+      '<rect width="390" height="340" fill="#F0E9DC"/>' +
+      '<path d="M0 250 C 70 232, 128 268, 196 258 C 268 246, 318 280, 390 262 L390 340 L0 340 Z" fill="#D9E4E3"/>' +
+      '<path d="M244 34 C 296 30, 336 60, 340 100 C 344 144, 300 164, 258 156 C 216 148, 204 98, 244 34 Z" fill="#E2E9D7"/>' +
+      '<g stroke="#FCF9F2" stroke-linecap="round" fill="none">' +
+        '<path d="M-10 110 C 90 102, 150 160, 240 154 C 316 149, 350 186, 400 180" stroke-width="9"/>' +
+        '<path d="M108 -10 C 116 76, 92 160, 120 222 C 146 280, 128 320, 140 350" stroke-width="9"/>' +
+        '<path d="M272 -10 C 268 80, 292 150, 272 214 C 254 262, 270 290, 262 340" stroke-width="7"/>' +
+        '<path d="M40 40 C 120 60, 180 44, 236 70" stroke-width="3.5"/>' +
+      '</g>' +
+      '<path d="M118 190 C 160 166, 214 178, 252 150 C 288 124, 296 208, 236 226" fill="none" stroke="#D4A000" stroke-width="2" stroke-dasharray="1 6" stroke-linecap="round" opacity="0.6"/>' +
+      '</svg>';
+    function pin(x, y, size, fill, label, op) {
+      return '<span class="pin" style="left:' + x + '%;top:' + y + 'px;width:' + size + 'px;height:' + size + 'px;background:' + fill + ';border:2.5px solid #FFFCF6;opacity:' + op + ';font-size:10.5px">' + (label || "") + '</span>';
+    }
+    return '<div class="map">' + ground +
+      pin(18, 60, 11, "#BDB4A7", "", 0.5) + pin(12, 128, 11, "#BDB4A7", "", 0.5) + pin(24, 92, 11, "#BDB4A7", "", 0.5) +
+      pin(80, 212, 11, "#239447", "", 1) + pin(88, 236, 11, "#239447", "", 1) + pin(58, 34, 11, "#1976D2", "", 1) +
+      pin(30, 178, 24, "#D4A000", "1", 0.5) + pin(64, 142, 24, "#D4A000", "2", 1) + pin(61, 214, 24, "#D4A000", "3", 1) +
+      '<div class="ctl"><span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6B645B" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></span>' +
+      '<span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6B645B" stroke-width="1.9"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2" fill="#6B645B" stroke="none"/><path d="M12 1v3M12 20v3M1 12h3M20 12h3" stroke-linecap="round"/></svg></span></div>' +
+    '</div>';
+  }
+
+  function phone(v) {
+    var days = DAYS.map(function (d) { return dayBlock(v, d); }).join("");
+    return '<div class="phone">' +
+      '<div class="bar"><div class="bar-title"><div class="bar-name">Japan, autumn ' + CHEV(0) + '</div><div class="bar-sub">Sep 30 – Oct 10 · day 3 of 11</div></div>' +
+        '<div class="avs"><span class="av" style="background:#C4826A">KQ</span><span class="av" style="background:#6E8CA8">MT</span></div></div>' +
+      mapLayer() +
+      '<div class="sheet"><div class="handle"><i></i></div>' +
+        '<div class="tabs"><span class="tab on">Destinations</span><span class="tab">Accommodations</span></div>' +
+        '<div class="scroll">' + days + '</div></div>' +
+    '</div>';
+  }
+
+  // The close-up: every state a badge can be in, on closed headers.
+  var STATES = [
+    { label: "Mon Oct 5", place: "Kirishima", hue: "#4936B5", prog: "0/3", wx: { k: "sun", p: 0, t: 27 } },
+    { label: "Tue Oct 6", place: "Kirishima", hue: "#963DB8", prog: "0/2", wx: { k: "rain", p: 40, t: 19 } },
+    { label: "Wed Oct 7", place: "Hakone", hue: "#202124", prog: "0/1", wx: { k: "snow", p: 100, t: -2 } },
+    { label: "Sat Oct 10", place: "Hakone", hue: "#2E8C8C", prog: "0/2", wx: null },
+  ];
+  function closeUp(v) {
+    return STATES.map(function (d) { return '<div class="day">' + header(v, d) + '</div>'; }).join("");
+  }
+
+  var OPTS = [
+    { v: "A", name: "Beside the date",
+      say: "A small tag on the date line, shaped like the TODAY tag. The weather reads as part of the date, and the right edge stays as it is.",
+      pros: ["<b>Quietest of the three.</b> Nothing new on the right edge, so the count, pencil and chevron don't move.",
+             "<b>Reads with the date</b> as one phrase: Fri Oct 2, rain, 70%, 21°."],
+      cons: ["<b>Doesn't line up down the list.</b> Each tag starts where its date ends, so comparing days means reading each one.",
+             "On a long date plus TODAY it gets close to the count on a 375px phone."] },
+    { v: "B", name: "Chip on the right",
+      say: "A bordered chip before the done count. A droplet marks the percentage, so 10% under a sun icon still reads as rain.",
+      pros: ["<b>Chips line up on their right edge</b>, so the temperatures form a column you can scan.",
+             "<b>The droplet</b> makes the percentage unambiguous without a label."],
+      cons: ["<b>The busiest right edge</b>: chip, count, pencil and chevron in 150px.",
+             "A bordered chip on every row adds weight to a list that's mostly quiet."] },
+    { v: "C", name: "Forecast tiles",
+      say: "A fixed-width tile tinted by the sky: temperature on top, chance of rain under it. Down the sheet the tiles read as a forecast strip.",
+      pros: ["<b>Scans like a weather app.</b> Fixed width and tint show the wet days before you read a number.",
+             "<b>Each part gets its own line</b>, so a 100% and a −2° never crowd each other."],
+      cons: ["<b>The most colour</b> of the three. The tints are muted to stay below the day's own colour dot.",
+             "A day with no forecast keeps an empty 42px slot so the column stays aligned."] },
+  ];
+
+  document.getElementById("options").innerHTML = OPTS.map(function (o) {
+    return '<article class="opt">' +
+      '<div class="opt-head"><span class="opt-letter">OPTION ' + o.v + '</span><h2>' + o.name + '</h2><p>' + o.say + '</p></div>' +
+      phone(o.v) +
+      '<div class="zoom"><h3>Every state</h3><div class="rows">' + closeUp(o.v) + '</div>' +
+        '<p class="cap">Clear with 0% shows no percentage. Sat Oct 10 is past the forecast range, so it gets no badge.</p></div>' +
+      '<ul class="tradeoffs">' + o.pros.map(function (x) { return "<li>" + x + "</li>"; }).join("") +
+        o.cons.map(function (x) { return "<li>" + x + "</li>"; }).join("") + '</ul>' +
+    '</article>';
+  }).join("");
+})();
+</script>
