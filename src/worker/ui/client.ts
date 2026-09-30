@@ -66,6 +66,8 @@ const state = {
   signingInLocally: false,
   /* Inside a trip: the map and its sheet, or the Plan view (PLAN.md 4f). */
   view: "map",
+  /* The forecast for each day, keyed by day id, and what it was asked for. */
+  weather: { key: null, tripId: null, days: {} },
   trips: [],
   tripsLoading: true,
   trip: null,
@@ -159,6 +161,7 @@ function render() {
   else if (state.screen === "settings") frame.append(screenSettings());
   else if (state.screen === "newTrip") frame.append(screenNewTrip());
   else if (state.screen === "trip") {
+    syncWeather();
     // Three screens, one payload: the Planner, and the trip itself at the two
     // widths design/Desktop.dc.html and design/Main.dc.html each draw.
     frame.append(planning() ? screenGrid() : wideNow() ? screenTripDesk() : screenTrip());
@@ -1800,6 +1803,7 @@ function deskRail() {
           text: day.label + (day.name ? " · " + day.name : day.place_label ? " · " + day.place_label : ""),
         }, []),
         h("span", { class: "drop-here", text: "DROP HERE", hidden: true }, []),
+        weatherChip(day),
         day.date === today
           ? h("span", { class: "today-tag", text: "TODAY" }, [])
           : h("span", {
@@ -2755,6 +2759,71 @@ function sheetTabs() {
   ]);
 }
 
+/*
+ * The day's weather: design/weather-options.html, option B. A chip before the
+ * done count holding the sky, the chance of rain when there is one, and the
+ * day's high. src/lib/weather.ts on the Worker decides what is asked of
+ * Open-Meteo; all this does is ask for it and draw it.
+ *
+ * It is asked for behind the trip, never in front of it, and asked again only
+ * when something it depends on changes: which days there are, where their
+ * stops and stays are (to the tenth of a degree the Worker rounds to), and the
+ * date, since the forecast's reach moves with it.
+ */
+function weatherKey(trip) {
+  const at = (p) => p && Number.isFinite(p.lat) && Number.isFinite(p.lng)
+    ? Math.round(p.lat * 10) / 10 + "," + Math.round(p.lng * 10) / 10
+    : "";
+  return [
+    trip.trip.id,
+    todayIso(),
+    trip.days.map((d) => d.date + ":" + d.stops.map((s) => at(s.location)).filter(Boolean).join(";")).join("|"),
+    (trip.lodging || []).map((l) => at(l) + ":" + l.check_in + ":" + l.check_out).join("|"),
+  ].join("#");
+}
+
+function syncWeather() {
+  const trip = state.trip;
+  if (!trip) return;
+  const key = weatherKey(trip);
+  if (state.weather.key === key) return;
+  // A new trip starts with no chips; the same trip keeps the ones it has
+  // while it asks again, so a stop added does not blink them all out.
+  const days = state.weather.tripId === trip.trip.id ? state.weather.days : {};
+  state.weather = { key, tripId: trip.trip.id, days };
+  api("/api/trips/" + trip.trip.id + "/weather").then((data) => {
+    if (state.weather.key !== key) return;
+    state.weather.days = (data && data.days) || {};
+    // Never under a finger: a render mid-drag replaces the card in the air,
+    // and one while typing takes the field away. The chips turn up on the
+    // next render instead.
+    const typing = document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+    if (!state.drag && !typing && state.screen === "trip") render();
+  }).catch(() => {
+    // No forecast is no chip, which is what a day with no forecast draws.
+  });
+}
+
+const SKY_WORDS = { sun: "Clear", part: "Partly cloudy", cloud: "Cloudy", rain: "Rain", snow: "Snow", storm: "Thunderstorms" };
+
+/** The chip for a day, or null for a day the forecast has nothing on. */
+function weatherChip(day) {
+  const w = state.weather.days[day.id];
+  if (!w || !ICONS["wx_" + w.sky]) return null;
+  // Kept in Celsius on the wire; Settings' temperature unit is only drawing.
+  const fahrenheit = unitPreferences().temperature === "F";
+  const high = Math.round(fahrenheit ? w.high * 9 / 5 + 32 : w.high);
+  const degrees = (high < 0 ? "\u2212" + (-high) : String(high)) + "\u00B0";
+  const rain = w.rain > 0 ? w.rain : 0;
+  const words = SKY_WORDS[w.sky] + (rain ? ", " + rain + "% chance of rain" : "") + ", high " + degrees + (fahrenheit ? "F" : "C");
+  return h("span", { class: "wx-chip", title: words, "aria-label": words, role: "img" }, [
+    h("span", { class: "wx-sky", html: ICONS["wx_" + w.sky] }, []),
+    rain ? h("span", { class: "wx-rain" }, [h("span", { class: "wx-drop", html: ICONS.drop }, []), rain + "%"]) : null,
+    rain ? h("span", { class: "wx-div" }, []) : null,
+    h("span", { class: "wx-high", text: degrees }, []),
+  ]);
+}
+
 function sheetContents(hasStops) {
   const trip = state.trip;
   const out = [];
@@ -2798,6 +2867,7 @@ function sheetContents(hasStops) {
             second ? h("span", { class: "day-place", text: second }, []) : null,
           ]),
           h("span", { class: "drop-here", text: "DROP HERE TO MOVE", hidden: true }, []),
+          weatherChip(day),
           h("span", { class: "day-progress", text: done + "/" + day.stops.length }, []),
         ]),
         // To the right of the count, as the one thing on the row that changes

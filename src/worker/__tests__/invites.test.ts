@@ -1022,3 +1022,97 @@ describe("opening hours", () => {
   });
 });
 
+
+describe("the day's weather", () => {
+  const iso = (n: number) => {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+  };
+  const ramen = {
+    googlePlaceId: "kanetora", name: "Kanetora", nameLocal: null, lat: 33.59, lng: 130.4, address: "Hakata",
+    city: "Fukuoka", countryCode: "JP", category: "ramen", mapsUrl: null, rating: 4.3, hours: null,
+  };
+
+  /** The places cache as a real KV: the search hit it already holds, and room for a forecast. */
+  function cache() {
+    const store = new Map<string, string>([["ts:v2:ramen", JSON.stringify([ramen])]]);
+    return {
+      store,
+      list: async ({ prefix }: { prefix: string }) => ({ keys: [...store.keys()].filter((k) => k.startsWith(prefix)).map((name) => ({ name })) }),
+      get: async (key: string, type?: string) => {
+        const value = store.get(key) ?? null;
+        return value !== null && type === "json" ? JSON.parse(value) : value;
+      },
+      put: async (key: string, value: string) => void store.set(key, value),
+    };
+  }
+
+  /** Open-Meteo, stood in for: one location, rain on the first day. */
+  function openMeteo(status = 200) {
+    const asked: string[] = [];
+    const before = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (!url.startsWith("https://api.open-meteo.com/")) return before(input as never, init);
+      asked.push(url);
+      if (status !== 200) return new Response("down", { status });
+      return Response.json({
+        daily: {
+          time: [iso(1)],
+          weather_code: [61],
+          temperature_2m_max: [21.04],
+          precipitation_probability_max: [70],
+        },
+      });
+    }) as typeof fetch;
+    return { asked, restore: () => { globalThis.fetch = before; } };
+  }
+
+  async function tripWithRamen() {
+    const mika = browser(env);
+    await signIn(mika, MIKA);
+    const made = (await (await mika.post("/api/trips", { name: "Fukuoka", startDate: iso(1), endDate: iso(3) })).json()) as { trip: { id: string } };
+    const trip = await mika.json<{ days: { id: string }[] }>(`/api/trips/${made.trip.id}`);
+    env.PLACES_CACHE = cache();
+    expect((await mika.post(`/api/trips/${made.trip.id}/stops`, { placeId: "kanetora", dayId: trip.days[0]!.id })).status).toBe(201);
+    return { mika, tripId: made.trip.id, days: trip.days };
+  }
+
+  it("forecasts the days that have a place on them, and asks once for the three hours it keeps", async () => {
+    const { mika, tripId, days } = await tripWithRamen();
+    const stub = openMeteo();
+    try {
+      const first = await mika.json<{ days: Record<string, unknown> }>(`/api/trips/${tripId}/weather`);
+      expect(first.days).toEqual({ [days[0]!.id]: { sky: "rain", rain: 70, high: 21 } });
+      const url = new URL(stub.asked[0]!);
+      expect(url.searchParams.get("latitude")).toBe("33.6");
+      expect(url.searchParams.get("start_date")).toBe(iso(1));
+
+      const again = await mika.json<{ days: Record<string, unknown> }>(`/api/trips/${tripId}/weather`);
+      expect(again).toEqual(first);
+      expect(stub.asked).toHaveLength(1);
+    } finally {
+      stub.restore();
+    }
+  });
+
+  it("draws nothing, rather than failing, when Open-Meteo is down", async () => {
+    const { mika, tripId } = await tripWithRamen();
+    const stub = openMeteo(503);
+    try {
+      const response = await mika.get(`/api/trips/${tripId}/weather`);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ days: {} });
+    } finally {
+      stub.restore();
+    }
+  });
+
+  it("is not readable by someone who is not on the trip", async () => {
+    const { tripId } = await tripWithRamen();
+    const jordan = browser(env);
+    await signIn(jordan, JORDAN);
+    expect((await jordan.get(`/api/trips/${tripId}/weather`)).status).toBe(404);
+  });
+});

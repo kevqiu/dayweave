@@ -26,7 +26,7 @@ describe("map camera across UI updates", () => {
       gridViewportHeight: 0,
       frame: { replaceChildren: vi.fn(), append: vi.fn() },
       planning: () => false, wideNow: () => true,
-      positionEditors: vi.fn(), splashCleanup: null, stopTrailWave: vi.fn(),
+      positionEditors: vi.fn(), splashCleanup: null, stopTrailWave: vi.fn(), syncWeather: vi.fn(),
       screenTripDesk: () => replacement,
       $: () => replacement, gmap: { getDiv: () => mapHost }, paintMap: paint,
     };

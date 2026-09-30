@@ -36,6 +36,7 @@ That is the map of what exists:
 | `Offline.dc.html`, `Import.dc.html` | The other states (§4g) | no |
 | `Desktop.dc.html` | The wide layout: bar, itinerary rail, map, detail panel | yes, less the sources block |
 | `DirectionA/B/C.dc.html` | Rejected directions. Reference only — do not build these | n/a |
+| `weather-options.html` | Three drafts of the weather chip on a day header. **Option B is the one built**; A and C are reference only | yes (B) |
 
 **Several artboards are Main.dc.html with one state changed**, and diffing them
 against it is the fastest way to see what they actually specify:
@@ -158,6 +159,28 @@ wheel as the palette's register allows.
   is closed. `Main.dc.html` draws a 9px dot at 45% opacity, from a time when
   the colour was one step of a ramp and carried almost nothing. It is now the
   thing that says which day a pin belongs to, so it is drawn like one.
+
+- **A day header carries the day's weather, in a chip before its count.**
+  No `.dc.html` draws it; `design/weather-options.html` drew three ways and
+  option B was chosen. The chip holds the sky as a two-tone icon, then the
+  chance of rain behind a droplet (only when above 0%), a hairline, and the
+  day's high. It is on the sheet's day headers and the desk rail's, not the
+  Planner.
+
+  It comes from **Open-Meteo**, which needs no key: one request per trip,
+  from `GET /api/trips/:id/weather`, cached three hours in `PLACES_CACHE`
+  under `wx:v1:`. `src/lib/weather.ts` decides what is asked and what the
+  answer means. A day's point is the centroid of its own located stops, else
+  where you sleep that night, rounded to 0.1° so a city is one location.
+  Highs travel in °C and `weatherChip` converts for Settings' temperature
+  unit, which is the first thing to read that setting.
+
+  **No badge is better than a made-up one**: a day with no point, or outside
+  the forecast's reach (92 days back, 16 ahead), draws no chip, and so does
+  every day when Open-Meteo is down — the route answers `{ days: {} }` rather
+  than an error. It is its own route, asked for behind the trip read, because
+  the trip must never wait on a third party; and its reply never renders
+  under a drag or a focused field.
 
 - **The sheet has two tabs: Destinations and Accommodations.** Everything else
   in the app is a place you go on a day. Where you sleep is not: it is one
