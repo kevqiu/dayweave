@@ -279,3 +279,29 @@ export const dayweave = ({ size = 32, color = C.brand }: IconOptions = {}) =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 32 32" fill="none"><path d="M7 13a9 9 0 0 1 18 0" fill="${C.brandLight}"/><path d="M5 16H22C27 16 27 22 21 22H12C7 22 7 28 12 28H20" stroke="${color}" stroke-width="4" stroke-linecap="round"/><circle cx="25" cy="28" r="2" fill="${color}"/></svg>`;
 
 export const globe = (o: IconOptions = {}) => svg(`<circle cx="12" cy="12" r="9"></circle><ellipse cx="12" cy="12" rx="4" ry="9"></ellipse><path d="M3 12h18"></path>`, o);
+
+/**
+ * The weather chip's skies, `design/weather-options.html`. Two-tone, so the
+ * colours are fixed here rather than passed: a sun in the sun's colour, a
+ * cloud in grey, rain and snow in the rain blue.
+ */
+const wx = (size: number, body: string) =>
+  `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+const cloudLow = `<path stroke="${C.wxCloud}" d="M17.5 19H8a5 5 0 1 1 1.2-9.86A6 6 0 0 1 20.9 11 4 4 0 0 1 17.5 19z"></path>`;
+const cloudHigh = `<path stroke="${C.wxCloud}" d="M17.5 15H8a4.5 4.5 0 1 1 1.1-8.86A5.5 5.5 0 0 1 20.2 8 3.6 3.6 0 0 1 17.5 15z"></path>`;
+
+export const wxSun = ({ size = 13 }: { size?: number } = {}) =>
+  wx(size, `<g stroke="${C.wxSun}"><circle cx="12" cy="12" r="4.2"></circle><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"></path></g>`);
+export const wxPart = ({ size = 13 }: { size?: number } = {}) =>
+  wx(size, `<path stroke="${C.wxSun}" d="M8 3v1.5M3.2 5.2l1 1M1.8 10h1.5M5 11.7a3.6 3.6 0 0 1 6.3-4"></path><path stroke="${C.wxCloud}" d="M17.5 20H9.5a4 4 0 1 1 .9-7.9A5 5 0 0 1 20 13.3 3.4 3.4 0 0 1 17.5 20z"></path>`);
+export const wxCloud = ({ size = 13 }: { size?: number } = {}) => wx(size, cloudLow);
+export const wxRain = ({ size = 13 }: { size?: number } = {}) =>
+  wx(size, `${cloudHigh}<path stroke="${C.wxRain}" d="M8 18l-1 3M12.5 18l-1 3M17 18l-1 3"></path>`);
+export const wxStorm = ({ size = 13 }: { size?: number } = {}) =>
+  wx(size, `${cloudHigh}<path stroke="${C.wxBolt}" d="M13 15.5l-2.5 3.5h3l-2 3.5"></path>`);
+export const wxSnow = ({ size = 13 }: { size?: number } = {}) =>
+  wx(size, `${cloudHigh}<path stroke="${C.wxRain}" stroke-width="2.6" d="M8 18.5v.01M12 20.5v.01M16 18.5v.01M10 22v.01M14 22v.01"></path>`);
+
+/** The droplet ahead of the chance of rain, so 10% under a sun still reads as rain. */
+export const drop = ({ size = 8 }: { size?: number } = {}) =>
+  `<svg width="${size}" height="${size}" viewBox="0 0 24 24"><path d="M12 3s6 6.4 6 11a6 6 0 0 1-12 0c0-4.6 6-11 6-11z" fill="${C.wxRain}"></path></svg>`;

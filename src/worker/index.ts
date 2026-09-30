@@ -18,6 +18,7 @@ import {
   monthLabel,
 } from "../lib/invite.ts";
 import { previewNodes } from "../lib/preview.ts";
+import { dayPoint, readForecast, weatherQuery, type WeatherQuery } from "../lib/weather.ts";
 import { suggestDays, type CandidateDay } from "../lib/suggest.ts";
 import { formatClock, minutesOf } from "../lib/plan.ts";
 import {
@@ -591,6 +592,69 @@ async function refreshHours(env: Env, places: readonly { id: string; google_plac
       }
     }),
   );
+}
+
+// --- the day's weather ------------------------------------------------------
+
+/**
+ * The forecast for each day of a trip, for the chip on its header
+ * (`design/weather-options.html`, option B). `src/lib/weather.ts` decides what
+ * to ask Open-Meteo and what its answer means.
+ *
+ * A route of its own rather than a field on the trip read: the trip must never
+ * wait on a third party, and the browser asks for this behind it. When
+ * Open-Meteo is slow or down the answer is simply no days, so the headers draw
+ * no chip rather than an error.
+ */
+app.get("/api/trips/:tripId/weather", async (c) => {
+  const viewer = c.get("viewer");
+  const tripId = c.req.param("tripId");
+  const trip = await tripForViewer(c.env.DB, tripId, viewer.id);
+  if (!trip) return c.json({ error: "no such trip" }, 404);
+
+  const [days, stops, lodging] = await Promise.all([
+    listDays(c.env.DB, tripId),
+    listStops(c.env.DB, tripId),
+    listLodging(c.env.DB, tripId),
+  ]);
+  const query = weatherQuery(
+    toDayGeo(days, stops).map((day) => ({ id: day.id, date: day.date, point: dayPoint(day.date, day.stops, lodging) })),
+    todayIso(),
+  );
+  if (!query) return c.json({ days: {} });
+
+  const body = await cachedForecast(c.env, query);
+  return c.json({ days: body === null ? {} : readForecast(query, body) });
+});
+
+/**
+ * Three hours: Open-Meteo refreshes its models about that often, and the
+ * browser asks again every time a trip is opened.
+ */
+const WEATHER_TTL_SECONDS = 3 * 60 * 60;
+
+/**
+ * Open-Meteo's reply for one request, from the cache when it is there. Kept in
+ * the places cache under its own prefix (the one KV namespace for replies from
+ * elsewhere), keyed by a hash of the URL because a trip across many cities
+ * makes a URL longer than a KV key may be.
+ */
+async function cachedForecast(env: Env, query: WeatherQuery): Promise<unknown | null> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(query.url));
+  const key = "wx:v1:" + [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  const cached = await env.PLACES_CACHE.get(key, "json");
+  if (cached !== null) return cached;
+
+  try {
+    const response = await fetch(query.url, { signal: AbortSignal.timeout(5000) });
+    if (!response.ok) throw new Error(`open-meteo ${response.status}`);
+    const body = await response.json();
+    await env.PLACES_CACHE.put(key, JSON.stringify(body), { expirationTtl: WEATHER_TTL_SECONDS });
+    return body;
+  } catch (error) {
+    console.warn("weather fetch failed", error);
+    return null;
+  }
 }
 
 // --- people, and the link that adds one -------------------------------------

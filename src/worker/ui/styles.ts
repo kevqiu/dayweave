@@ -439,6 +439,22 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .day-progress { font-size: 10px; color: ${C.greyer}; font-variant-numeric: tabular-nums; }
+
+/* The day's weather, design/weather-options.html option B: a chip before the
+   count. The sky, then the chance of rain behind a droplet when there is one,
+   a hairline, and the day's high. The chips share a right edge down the list,
+   so the highs read as a column. A day the forecast does not reach has none. */
+.wx-chip {
+  display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0;
+  height: 22px; border-radius: 999px; border: 1px solid ${C.border}; background: ${C.card};
+  padding: 0 8px 0 6px; font-family: ${SANS}; font-size: 11px; font-weight: 600; color: ${C.ink};
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.wx-sky, .wx-drop { display: flex; }
+.wx-rain { display: inline-flex; align-items: center; gap: 2px; font-size: 10.5px; color: ${C.wxRain}; }
+.wx-div { width: 1px; height: 11px; background: ${C.border}; margin: 0 1px; }
+/* DROP HERE TO MOVE takes the row while a stop is held over it. */
+.day-head.droppable .wx-chip, .rail-day.droppable .wx-chip { display: none; }
 .day-pencil, .day-chevron {
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
   width: 30px; height: 40px; background: none; border: 0; padding: 0;
@@ -979,6 +995,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 .rail-day.open .rail-label { font-weight: 700; color: ${C.ink}; }
 .rail-count { font-size: 11px; color: ${C.greyer}; font-variant-numeric: tabular-nums; }
+.rail-day .wx-chip { margin-left: 2px; }
 .rail-day .drop-here {
   font-size: 9px; font-weight: 700; letter-spacing: 0.1em; color: #96752F;
 }

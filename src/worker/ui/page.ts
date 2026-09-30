@@ -85,6 +85,14 @@ function iconSet(): Record<string, string> {
     // The same tick on the white swatch, where cream on cream is invisible.
     checkSwatchInk: icons.check({ size: 12, color: C.ink, width: 3 }),
     trashSmall: icons.trash({ size: 13 }),
+    // The weather chip on a day header, one per sky, and its droplet.
+    wx_sun: icons.wxSun({ size: 13 }),
+    wx_part: icons.wxPart({ size: 13 }),
+    wx_cloud: icons.wxCloud({ size: 13 }),
+    wx_rain: icons.wxRain({ size: 13 }),
+    wx_snow: icons.wxSnow({ size: 13 }),
+    wx_storm: icons.wxStorm({ size: 13 }),
+    drop: icons.drop({ size: 8 }),
   };
 }
 

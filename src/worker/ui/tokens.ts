@@ -78,6 +78,18 @@ export const COLOR = {
 
   /** The bucket that is not a day. */
   unplanned: "#94897A",
+
+  /**
+   * The weather chip on a day header, `design/weather-options.html` option B.
+   * The rain ink is the avatar blue (#6E8CA8) taken darker so a 10.5px
+   * percentage reads; blue because rain is water, and it sits nowhere near
+   * the day palette's own blue at chip size. The sun is the ahead yellow
+   * taken warmer, and the bolt is the brand gold.
+   */
+  wxRain: "#4F7392",
+  wxSun: "#C48F12",
+  wxCloud: "#8C8479",
+  wxBolt: "#B78B26",
 } as const;
 
 /** The day palette follows red, orange, yellow, green, blue, indigo, violet. */
