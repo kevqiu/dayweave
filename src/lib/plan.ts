@@ -149,6 +149,25 @@ export function gridTime(span: GridSpan, y: number): number {
   return Math.min(span.to, Math.max(span.from, snapped));
 }
 
+/**
+ * A time for a stop put down between two stops that have one, in a list with
+ * no clock to read a time off — the map view's day. About halfway: on a
+ * quarter hour when one falls strictly between them, else on five minutes,
+ * else the plain middle. Without it the stop would keep no time, and the
+ * Planner would drop it into the band under the hours, nowhere near the two
+ * it was put between.
+ */
+export function timeBetween(a: number, b: number): number {
+  const low = Math.min(a, b);
+  const high = Math.max(a, b);
+  const middle = (low + high) / 2;
+  for (const step of [15, 5]) {
+    const t = Math.round(middle / step) * step;
+    if (t > low && t < high) return t;
+  }
+  return Math.floor(middle);
+}
+
 export interface CardBox {
   top: number;
   height: number;

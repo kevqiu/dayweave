@@ -30,9 +30,29 @@ describe("the browser copy of the plan arithmetic", () => {
     for (const name of [
       "minutesOf", "formatClock", "formatFree", "planRows",
       "gridSpan", "gridY", "gridTime", "cardBox", "hourLines", "hourLabels",
-      "lodgingBars", "staysOn",
+      "lodgingBars", "staysOn", "timeBetween",
     ]) {
       expect(typeof (browser as unknown as Record<string, unknown>)[name]).toBe("function");
+    }
+  });
+
+  it("puts a stop dropped between two times about halfway, the same way", () => {
+    const table: [number, number, number][] = [
+      [540, 660, 600],   // 09:00 and 11:00: 10:00
+      [540, 600, 570],   // 09:00 and 10:00: 09:30
+      [600, 630, 615],   // 10:00 and 10:30: 10:15
+      [600, 620, 615],   // 10:00 and 10:20: the quarter between them
+      [605, 625, 615],   // 10:05 and 10:25: 10:15
+      [610, 620, 615],   // 10:10 and 10:20: 10:15
+      [616, 628, 620],   // no quarter strictly between: five minutes
+      [600, 610, 605],   // 10:00 and 10:10: 10:05
+      [600, 604, 602],   // nothing on five minutes between: the middle
+      [720, 720, 720],   // the same time twice: that time
+      [660, 540, 600],   // either way round
+    ];
+    for (const [a, b, want] of table) {
+      expect(plan.timeBetween(a, b)).toBe(want);
+      expect(browser.timeBetween(a, b)).toBe(want);
     }
   });
 

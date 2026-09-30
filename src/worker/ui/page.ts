@@ -35,6 +35,8 @@ function iconSet(): Record<string, string> {
     calendar: icons.calendar({ size: 15, color: C.inkSoft }),
     invite: icons.invite({ size: 15, color: C.inkSoft }),
     navigateLight: icons.navigate({ size: 12, color: C.paper }),
+    // View in Maps, in the Planner's popover, at the size of its neighbours.
+    navigateInk: icons.navigate({ size: 15, color: C.inkSoft }),
     check: icons.check({ size: 12, color: C.inkSoft }),
     checkOn: icons.check({ size: 12, color: C.todayInk }),
     pencil: icons.pencil({ size: 12, color: C.inkSoft }),
@@ -60,7 +62,6 @@ function iconSet(): Record<string, string> {
     pinDot: icons.pinDot({ size: 17, color: C.yellowStroke }),
     pinChip: icons.pin({ size: 12, color: "#8C8479" }),
     pinFaint: icons.pin({ size: 12, color: "#A59C90" }),
-    linkGrey: icons.link({ size: 16, color: "#8C8479" }),
     star: icons.star({ size: 15 }),
     chevronRight: icons.chevronRight({ size: 14 }),
     grid: icons.grid({ size: 16, color: C.inkSoft }),

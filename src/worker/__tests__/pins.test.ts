@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CLIENT } from "../ui/client.ts";
+import { PLAN_CLIENT } from "../ui/plan-client.ts";
 
 /**
  * The rules for what a dot on the map looks like, checked rather than looked
@@ -43,13 +44,16 @@ function lift(names: readonly string[]) {
   const body =
     "const state = arguments[0];\n" +
     "const todayIso = () => \"2026-09-13\";\n" +
+    "const PLAN = arguments[1];\n" +
     sources.join("\n") +
-    "\nreturn { pinLook, pinUrl, routeNumbers, PIN, STATUS_FILL, state };";
+    "\nreturn { pinLook, pinUrl, mapOrder, routeNumbers, PIN, STATUS_FILL, state };";
 
-  return { api: new Function(body)(state) as any, state };
+  const w: { __PLAN__?: unknown } = {};
+  new Function("window", PLAN_CLIENT)(w);
+  return { api: new Function(body)(state, w.__PLAN__) as any, state };
 }
 
-const { api, state } = lift(["STATUS_FILL", "PIN", "statusOf", "routeNumbers", "mutedHue", "pinLook", "pinUrl"]);
+const { api, state } = lift(["STATUS_FILL", "PIN", "statusOf", "mapOrder", "routeNumbers", "mutedHue", "pinLook", "pinUrl"]);
 
 const bed = { id: "bed", status: "planned", accommodation: true };
 const stop = (id: string, extra = {}) => ({ id, status: "planned", accommodation: false, ...extra });
@@ -63,6 +67,18 @@ describe("routeNumbers", () => {
     // A hotel is not a stop on the route, so it does not take a number and
     // does not push the first real stop to 2.
     expect(api.routeNumbers(today)).toEqual({ a: 1, b: 2 });
+  });
+
+  it("numbers only the timed stops, by the clock, once anything has a time", () => {
+    // The Planner parks a stop with no time under the hours; the list and the
+    // map say the same by giving it no number.
+    const day = { date: "2026-09-13", hue: "#57794C", stops: [
+      stop("late", { time: "15:00" }), bed, stop("loose"), stop("early", { time: "09:30" }), stop("loose2", { time: "" }),
+    ] };
+    expect(api.routeNumbers(day)).toEqual({ early: 1, late: 2 });
+    const order = api.mapOrder(day);
+    expect(order.listed.map((s: { id: string }) => s.id)).toEqual(["early", "bed", "late"]);
+    expect(order.untimed.map((s: { id: string }) => s.id)).toEqual(["loose", "loose2"]);
   });
 });
 

@@ -990,6 +990,42 @@ describe("opening hours", () => {
     expect(options.best.detail).toMatch(/^Open 10:00 – 22:00, so 10:00 still works\./);
   });
 
+  it("finds the place a Google Maps link names when one is typed into search", async () => {
+    const { mika, tripId, days } = await tripInFukuoka();
+    env.PLACES_CACHE = { list: async () => ({ keys: [] }), get: async () => null, put: async () => {} };
+    env.GOOGLE_PLACES_KEY = "server-key";
+    const asked: unknown[] = [];
+    const before = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url === "https://places.googleapis.com/v1/places:searchText") {
+        asked.push(JSON.parse(String(init?.body)));
+        return Response.json({ places: [{
+          id: "ichiran", displayName: { text: "Ichiran Tenjin" }, location: { latitude: 33.59, longitude: 130.4 },
+          primaryType: "ramen_restaurant", formattedAddress: "Tenjin, Fukuoka",
+        }] });
+      }
+      return before(input as never, init);
+    }) as typeof fetch;
+
+    try {
+      const link = "https://www.google.com/maps/place/Ichiran+Tenjin/@33.59,130.40,17z";
+      const found = await mika.json<{ results: { placeId: string; name: string }[] }>(
+        `/api/trips/${tripId}/place-search?` + new URLSearchParams({ q: link, dayId: days[0]!.id }),
+      );
+      expect(found.results.map((r) => r.placeId)).toEqual(["ichiran"]);
+      expect(asked).toEqual([{ textQuery: "Ichiran Tenjin", maxResultCount: 1 }]);
+
+      // A link to a bare map view names nothing, and says so rather than
+      // searching for the URL.
+      const bare = await mika.get(`/api/trips/${tripId}/place-search?` + new URLSearchParams({ q: "https://www.google.com/maps/@33.59,130.40,15z" }));
+      expect(bare.status).toBe(400);
+      expect(asked).toHaveLength(1);
+    } finally {
+      globalThis.fetch = before;
+    }
+  });
+
   it("asks Google once for a place added before there were hours", async () => {
     const { mika, tripId, days } = await tripInFukuoka();
     env.PLACES_CACHE = { list: async () => ({ keys: [{ name: "ts:v2:ramen" }] }), get: async () => [place("old")] };

@@ -154,6 +154,18 @@ export const PLAN_CLIENT = String.raw`
     return out;
   }
 
+  function timeBetween(a, b) {
+    var low = Math.min(a, b);
+    var high = Math.max(a, b);
+    var middle = (low + high) / 2;
+    var steps = [15, 5];
+    for (var i = 0; i < steps.length; i++) {
+      var t = Math.round(middle / steps[i]) * steps[i];
+      if (t > low && t < high) return t;
+    }
+    return Math.floor(middle);
+  }
+
   function staysOn(date, stays) {
     return stays.filter(function (s) {
       return s.checkIn <= date && date <= s.checkOut;
@@ -178,6 +190,7 @@ export const PLAN_CLIENT = String.raw`
     hourLabels: hourLabels,
     lodgingBars: lodgingBars,
     staysOn: staysOn,
+    timeBetween: timeBetween,
   };
 })(window);
 `;

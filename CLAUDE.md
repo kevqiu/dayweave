@@ -240,6 +240,14 @@ wheel as the palette's register allows.
   `locationRestriction` precisely so a Hakone teahouse stays findable from
   Fukuoka, and a UI that refuses to add one has reimposed the restriction the
   API call was chosen to avoid.
+- **A Google Maps link is a search.** The artboard's *Paste a Google Maps
+  link* row opened a second field for the link, a step that only existed
+  because the first field did not know a link when it saw one. Now a query
+  that is a Maps link (`isMapsLink`, `src/lib/maps-link.ts`, held to its
+  browser copy by a test) is followed on the server, the place it names is
+  looked up, and it comes back as one ordinary result row, added by the same
+  plus. The row is gone, and so is the *Add as a note* row while a link is in
+  the field.
 - **There is no "Search anywhere", and there should not be.** The artboard
   draws one and §4b describes it, but measured against the deployed Worker it
   does the opposite of its name. Dropping `locationBias` does not search
@@ -467,13 +475,27 @@ wheel as the palette's register allows.
     file forbids, so they sit in a `NO TIME` band at the foot of their column,
     dashed, and drag up on to the hours to get the time they land on. Dragging
     one back down clears it.
+
+    **Smart Plan puts a place only where it is open.** It fits each visit
+    inside one of that weekday's opening sessions (`openStart` in
+    `src/lib/smart-plan.ts`), starting at the opening when that is later than
+    the slot, and leaves a place in the band on a day it is shut rather than
+    give it a time the Planner would then flag. A place with no hours is open
+    whenever the day is.
   - **A time is set on the time.** PLAN.md §4e puts editing a time on the time
     itself rather than in a menu, so the clock gutter is the control on a
     phone — a faint plus where a stop has no time yet — and the Planner's
     popover carries it as *Set a time* / *Edit time*, which is what the
     artboard's *Edit* can actually do: the name comes from the place and the
     note has its own item. No artboard draws the editor itself; it is the note
-    editor's sheet with a time field.
+    editor's sheet with a time field. The popover also carries *View in Maps*
+    for a stop with a place, and every icon in it is drawn at 15px in a 16px
+    box, whatever size it is registered at elsewhere.
+  - **A card in To be planned opens the same popover**, less the time: a time
+    on something with no day is not a plan, and Smart Plan passes over
+    anything that already has one. It hangs under the card rather than beside
+    it, because the list scrolls. The card keeps its plus, which puts it on
+    the day.
   - **The lodging row is one bar per stay, not one cell per day, and it sits
     above the hours rather than under them.** `Planner.dc.html` rules it at
     the foot of the grid, where it is below the fold on any column that has
@@ -566,6 +588,17 @@ wheel as the palette's register allows.
     thing you just tapped would be an odd way to point at it;
   - the number on a pin is repeated in the row as a small outlined circle, so
     a dot and a line can be matched without counting.
+  - **once anything on a day has a time, only the timed stops are numbered.**
+    They are listed first, by the clock — the order the Planner draws them in
+    — and the rest follow under a `NO TIME` divider, the band's own words,
+    with an empty circle in the day's colour and no number. Their pins stay on
+    the map, unnumbered, and the day's trail runs through the numbered stops
+    only. A day with no times at all is not split: the order somebody dragged
+    it into is the only route it has. `mapOrder` in `client.ts` is the rule.
+  - **a stop dropped between two timed stops in the list gets a time about
+    halfway** (`timeBetween` in `src/lib/plan.ts`), unless its own already
+    falls between them, so it lands in the Planner where it was put rather
+    than in the band. Dropped among the untimed, a time it had is cleared.
 
   The legend was rewritten to match, because *today / ahead / done* now
   describes a scheme the map does not use. It reads *this day · other days ·
@@ -599,7 +632,7 @@ wheel as the palette's register allows.
   knows about. Half of what is on a day is not that: picking up the rental
   car, getting ready, the two hours before a concert.
 
-  The search sheet's last row makes one, under the Paste-a-link row, and it
+  The search sheet's last row makes one, and it
   reads back whatever is in the field so it is obvious what it will make. It
   takes the day and the time the sheet was opened with, exactly as a place
   does, so tapping 14:00 in the Planner and then this puts the thing at 14:00.
@@ -800,6 +833,11 @@ When a write fails the screen goes **back to what it said before** and a notice
 in the palette says why. No artboard draws that notice — §4g settles on
 last-writer-wins and never shows a conflict — but a write that failed outright
 still has to be admitted rather than silently dropped.
+
+**The notice goes by itself after five seconds**, and at a desk it is a card in
+the bottom-right corner as wide as its words, not a bar across the window. A
+notice that reports something that worked — Smart Plan's count — is drawn in
+ink rather than the rust of a failure (`inform` in `client.ts`).
 
 ## Checks
 

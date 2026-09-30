@@ -57,7 +57,7 @@ export const bowl = (o: IconOptions = {}) =>
     'stroke-linecap="round"',
   );
 
-/** A link, for "Paste a Google Maps link". */
+/** A link: the chain beside "Anyone with this link" in Members. */
 /** Members: the chain beside "Anyone with this link". 1.9, as drawn. */
 export const link = (o: IconOptions = {}) =>
   svg(

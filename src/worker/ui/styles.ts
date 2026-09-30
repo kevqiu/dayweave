@@ -555,6 +555,16 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .day-wrap { border-bottom: 1px solid ${C.line}; }
 .day-wrap.open { border-bottom-color: ${C.sheetEdge}; }
 .day-body { padding: 0 0 8px; }
+/* Between a day's timed stops and the ones with no time yet: the Planner's
+   NO TIME band, said in the list in the band's own words and ink. */
+.untimed-divider {
+  display: flex; align-items: center; gap: 8px; margin: 6px 18px 5px;
+  font-size: 8.5px; font-weight: 700; letter-spacing: 0.07em; color: ${C.faint};
+}
+.untimed-divider::before, .untimed-divider::after { content: ""; height: 1px; background: ${C.sheetEdge}; }
+.untimed-divider::before { width: 10px; }
+.untimed-divider::after { flex-grow: 1; }
+.rail-stops .untimed-divider { margin: 6px 8px 5px; }
 
 .stop { margin: 0 9px 3px; border-radius: 10px; background: transparent; border: 1px solid transparent; }
 .stop.selected { background: ${C.card}; border-color: ${C.borderWarm}; }
@@ -958,6 +968,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   background: none; border: 0; padding: 0; font-family: ${SANS};
   font-size: 11.5px; font-weight: 700; color: ${C.link};
 }
+.toast.info { border-color: ${C.borderWarm}; }
+.toast.info span { color: ${C.ink}; }
+/* At a desk the notice is a card in the corner, as wide as its words, rather
+   than a bar across a window that may be 1440 wide. */
+@media (min-width: 780px) and (min-height: 560px) {
+  .toast { left: auto; right: 16px; bottom: 16px; width: max-content; max-width: min(420px, calc(100% - 32px)); z-index: 130; }
+}
 
 
 /* ---- The trip at a desk (design/Desktop.dc.html) ---- */
@@ -1149,6 +1166,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   overflow: hidden; text-overflow: ellipsis; display: block;
 }
 .tray-put { background: none; border: 0; padding: 0 2px; display: flex; }
+.tray-tap {
+  flex-grow: 1; min-width: 0; background: none; border: 0; padding: 0; text-align: left;
+  font-family: ${SANS}; color: inherit; cursor: pointer;
+}
+.tray-card.selected { border-color: ${C.ink}; }
+.tray-card-wrap { display: flex; flex-direction: column; gap: 5px; flex-shrink: 0; }
+.gpop.tray-pop { position: static; width: auto; box-shadow: 0 6px 18px rgba(84,68,44,0.16); }
 
 /* No artboard draws a time editor; this is the note editor's shape. */
 .time-editor { padding: 4px 16px 18px; }
@@ -1309,7 +1333,14 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   width: 100%; background: none; border: 0; border-top: 1px solid ${C.line};
   font-family: ${SANS}; font-size: 13px; font-weight: 500; color: ${C.ink};
 }
-.gpop-item:first-of-type { border-top: 0; }
+.gpop-head + .gpop-item, .gpop > .gpop-item:first-child { border-top: 0; }
+a.gpop-item { text-decoration: none; box-sizing: border-box; }
+/* Every icon in the menu drawn in the same 16px box at 15px, whatever size it
+   was registered at, so the labels start on one line and the marks read as a
+   set. The pencil is 12px elsewhere and looked a size smaller beside the
+   calendar and the bin. */
+.gpop-icon { width: 16px; height: 16px; flex-shrink: 0; align-items: center; justify-content: center; }
+.gpop-icon svg { width: 15px; height: 15px; }
 .gpop-item.danger { color: #A06B52; }
 .gcol.flip .gpop { left: auto; right: calc(100% + 7px); }
 
@@ -1711,7 +1742,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   #frame > .sheet .grabber { display: none; }
   #frame > .sheet .modal-head { padding-top: 20px; }
   #search-sheet.sheet { min-height: 0; }
-  #search-sheet.sheet .search-head { padding-top: 24px; }
+  #search-sheet.sheet .search-head { padding-top: 14px; }
   .desk-rail { width: 340px; }
   .tray-side { width: 300px; }
   .tray-side-foot:has(.inline-search) { padding: 0; }
@@ -1733,10 +1764,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .desk-name > span:first-child { overflow: hidden; text-overflow: ellipsis; }
 .desk-name > span:last-child { flex-shrink: 0; }
 #search-sheet .search-head { padding-bottom: 8px; }
-#search-sheet.sheet .search-close { top: 17px; }
-#search-sheet .search-target { min-height: 32px; padding-right: 32px; margin-bottom: 4px; }
+#search-sheet.sheet .search-close { top: 21px; }
+/* The label is a 32px row, the height of the X, with its words centred in it,
+   so the two share a middle wherever the X is pinned to the head's top. */
+#search-sheet .search-target { min-height: 32px; padding: 0 32px 0 4px; margin-bottom: 6px; }
 .grid-add-ghost { position: absolute; left: 5px; right: 5px; height: 40px; border: 2px dashed; border-radius: 9px; display: grid; place-items: center; background: ${C.card}; pointer-events: none; }
-@media (min-width: 780px) { #search-sheet.sheet .search-close { top: 24px; } }
+@media (min-width: 780px) and (min-height: 560px) { #search-sheet.sheet .search-close { top: 14px; right: 10px; } }
 @media (prefers-reduced-motion: reduce) {
   .tray-side.drawer, .tray-side.drawer:not(.open), .tray-scrim { transition: none; }
   .stay-skeleton, .search-skeleton-row > i, .search-skeleton-row span { animation: none; }
