@@ -105,6 +105,8 @@ const state = {
   picker: null,
   hideVisited: false,
   error: null,
+  /* The notice showing, when it reports something that worked. */
+  info: null,
   drag: null,
   move: null,
   noteFor: null,
@@ -686,11 +688,38 @@ function avatars(people, small, max) {
  */
 function noticeToast() {
   if (!state.error) return null;
-  return h("div", { class: "toast" }, [
+  // A notice goes by itself after five seconds, so a message that needed no
+  // answer does not sit over the screen waiting for one. Dismiss is for
+  // whoever has read it sooner. Re-rendering the same message does not
+  // restart the clock; a new message does.
+  if (toastShown !== state.error) {
+    toastShown = state.error;
+    clearTimeout(toastTimer);
+    const showing = state.error;
+    toastTimer = setTimeout(() => {
+      if (state.error !== showing) return;
+      state.error = null;
+      toastShown = null;
+      if (state.drag) {
+        const el = document.querySelector(".toast");
+        if (el) el.remove();
+      } else render();
+    }, 5000);
+  }
+  return h("div", { class: "toast" + (state.error === state.info ? " info" : ""), role: "status" }, [
     h("span", { text: state.error }, []),
     h("button", { onclick: () => { state.error = null; render(); } }, ["Dismiss"]),
   ]);
 }
+
+/** A notice that is news rather than trouble, drawn in ink rather than rust. */
+function inform(text) {
+  state.error = text;
+  state.info = text;
+}
+
+let toastTimer = null;
+let toastShown = null;
 
 function screenTrips() {
   const now = todayIso();
@@ -1549,15 +1578,52 @@ const PIN = {
   bed: "#202124",
 };
 
-/** Where a stop sits in the day's route. Beds are not on the route. */
+/**
+ * A day's stops in the order the map view lists them, split in two.
+ *
+ * Once anything on a day has a time, the day has a shape, and a stop with no
+ * time is not yet part of it — the Planner parks it in the NO TIME band under
+ * the hours. So the list says the same: the timed stops first, by the clock,
+ * which is the order the Planner draws them in; then a divider; then the
+ * untimed in the order they were put. A bed keeps its place among the first
+ * lot, since it has no time to be sorted by and is never waiting for one.
+ *
+ * A day where nothing has a time is not split: there is nothing for the rest
+ * to sit under, and the order somebody dragged them into is the only route
+ * the day has.
+ */
+function mapOrder(day) {
+  const untimedStop = (stop) => !stop.accommodation && PLAN.minutesOf(stop.time) === null;
+  const stops = day.stops || [];
+  if (!stops.some((stop) => !stop.accommodation && !untimedStop(stop))) return { listed: stops.slice(), untimed: [] };
+
+  const listed = stops.filter((stop) => !untimedStop(stop));
+  const byClock = listed.filter((stop) => !stop.accommodation)
+    .sort((a, b) => PLAN.minutesOf(a.time) - PLAN.minutesOf(b.time));
+  let next = 0;
+  return {
+    listed: listed.map((stop) => (stop.accommodation ? stop : byClock[next++])),
+    untimed: stops.filter(untimedStop),
+  };
+}
+
+/**
+ * Where a stop sits in the day's route. Beds are not on the route, and nor is
+ * a stop waiting under the divider for a time: its circle is drawn empty.
+ */
 function routeNumbers(day) {
   const numbers = {};
   let n = 0;
-  for (const stop of day.stops) {
+  for (const stop of mapOrder(day).listed) {
     if (stop.accommodation) continue;
     numbers[stop.id] = ++n;
   }
   return numbers;
+}
+
+/** The divider between a day's timed stops and the ones with no time yet. */
+function untimedDivider() {
+  return h("div", { class: "untimed-divider", role: "separator" }, [h("span", { text: "NO TIME" }, [])]);
 }
 
 /**
@@ -1691,12 +1757,7 @@ function screenTripDesk() {
       // screen holding an empty column open in case you tap something.
       selected ? deskDetail(selected) : null,
     ]),
-    state.error
-      ? h("div", { class: "toast" }, [
-          h("span", { text: state.error }, []),
-          h("button", { onclick: () => { state.error = null; render(); } }, ["Dismiss"]),
-        ])
-      : null,
+    noticeToast(),
     ...dragLayer(),
   ]);
 }
@@ -1818,7 +1879,15 @@ function deskRail() {
     const stays = dayStays(day);
     if (open && stays.length) wrap.append(dayStayBar(day, stays[0], "start"));
     if (open) {
-      const body = h("div", { class: "rail-stops" }, day.stops.filter((stop) => !state.hideVisited || statusOf(day, stop) !== "done").map((stop) => railStop(day, stop)));
+      const visible = (stop) => !state.hideVisited || statusOf(day, stop) !== "done";
+      const order = mapOrder(day);
+      const listed = order.listed.filter(visible);
+      const untimed = order.untimed.filter(visible);
+      const body = h("div", { class: "rail-stops" }, [
+        ...listed.map((stop) => railStop(day, stop)),
+        listed.length && untimed.length ? untimedDivider() : null,
+        ...untimed.map((stop) => railStop(day, stop)),
+      ]);
       for (const stay of stays.slice(1)) body.append(dayStayBar(day, stay, "end"));
       body.append(
         state.search && state.search.dayId === day.id ? sheetSearch(true) : h("button", { class: "add-place", onclick: () => openSearch(day.id) }, [
@@ -1870,7 +1939,12 @@ function railStop(day, stop) {
         render();
       },
     }, [
-      day.id === "unplanned" ? null : h("span", { class: "stop-index", style: "color:" + day.hue + ";border-color:" + day.hue, text: String(routeNumbers(day)[stop.id] || day.stops.indexOf(stop) + 1) }, []),
+      day.id === "unplanned" ? null : h("span", {
+        class: stop.accommodation ? "stop-index bed" : "stop-index",
+        style: "color:" + (stop.accommodation ? PIN.bed : day.hue) + ";border-color:" + (stop.accommodation ? PIN.bed : day.hue),
+        html: stop.accommodation ? ICONS.houseHue : null,
+        text: stop.accommodation ? null : String(routeNumbers(day)[stop.id] || ""),
+      }, []),
       stop.time ? h("span", { class: "rail-time", style: "color:" + day.hue, text: displayTime(stop.time) }, []) : null,
       h("div", { class: "stop-text" }, [
         h("span", { class: "rail-name", text: stop.title }, []),
@@ -2399,7 +2473,11 @@ function dayRoutePoints(day, lodging) {
   const stays = lodging.filter((stay) => Number.isFinite(stay.lat) && Number.isFinite(stay.lng) && stay.check_in <= day.date && stay.check_out >= day.date)
     .sort((a, b) => a.check_in.localeCompare(b.check_in) || a.check_out.localeCompare(b.check_out) || a.id.localeCompare(b.id));
   const points = stays.length ? [{ lat: stays[0].lat, lng: stays[0].lng }] : [];
-  for (const stop of day.stops) {
+  // The trail follows the numbers, so a stop still waiting for a time is on
+  // the map but not on the route.
+  const numbered = routeNumbers(day);
+  for (const stop of mapOrder(day).listed) {
+    if (!numbered[stop.id]) continue;
     if (stop.accommodation || !stop.location || !Number.isFinite(stop.location.lat) || !Number.isFinite(stop.location.lng)) continue;
     points.push({ lat: stop.location.lat, lng: stop.location.lng });
   }
@@ -2901,8 +2979,14 @@ function sheetContents(hasStops) {
         // Numbered over the whole day, not over what is shown: hiding the
         // visited ones must not renumber the rest out from under the map.
         const numbers = routeNumbers(day);
-        const body = h("div", { class: "day-body" },
-          shown.map((stop) => stopCard(day, stop, showTimes, numbers[stop.id])));
+        const order = mapOrder(day);
+        const listed = order.listed.filter((stop) => shown.includes(stop));
+        const untimed = order.untimed.filter((stop) => shown.includes(stop));
+        const body = h("div", { class: "day-body" }, [
+          ...listed.map((stop) => stopCard(day, stop, showTimes, numbers[stop.id])),
+          listed.length && untimed.length ? untimedDivider() : null,
+          ...untimed.map((stop) => stopCard(day, stop, showTimes, numbers[stop.id])),
+        ]);
         for (const stay of stays.slice(1)) body.append(dayStayBar(day, stay, "end"));
         body.append(
           h("button", { class: "add-stop", "aria-label": "Add a place", onclick: () => openSearch(day.id) }, [icon("plusGrey")]),
@@ -3380,7 +3464,9 @@ function stopCard(day, stop, showTimes, number) {
           style: "color:" + (stop.accommodation ? PIN.bed : day.hue) +
             ";border-color:" + (stop.accommodation ? PIN.bed : day.hue),
           html: stop.accommodation ? ICONS.houseHue : null,
-          text: stop.accommodation ? null : String(number),
+          // Empty for a stop under the divider, which has no place in the
+          // route until it has a time.
+          text: stop.accommodation ? null : String(number || ""),
         }, []),
         showTimes
           ? h("span", {
@@ -3877,6 +3963,41 @@ function dragLayer() {
   ];
 }
 
+/**
+ * The time a drop into a day's list gives the stop, or undefined to leave its
+ * time alone.
+ *
+ * The map view's list has no clock to read a time off, and a stop put down
+ * between two stops that both have one used to keep none — so the Planner
+ * sent it to the band under the hours, nowhere near where it had been put.
+ * Between two times it gets one about halfway, unless its own already falls
+ * between them. Put down among the stops under the divider, it is one of them,
+ * and a time it had goes.
+ */
+function listDropTime(drag) {
+  if (drag.afterStopId === undefined || drag.targetDayId === null) return undefined;
+  const day = dayById(drag.targetDayId);
+  const moving = findStop(drag.stopId);
+  if (!day || !moving || moving.accommodation) return undefined;
+
+  const order = mapOrder(day);
+  const rows = order.listed.concat(order.untimed).filter((stop) => stop.id !== drag.stopId);
+  const at = drag.afterStopId === null ? -1 : rows.findIndex((stop) => stop.id === drag.afterStopId);
+  if (drag.afterStopId !== null && at === -1) return undefined;
+  const before = rows.slice(0, at + 1).filter((stop) => !stop.accommodation).pop();
+  const after = rows.slice(at + 1).find((stop) => !stop.accommodation);
+
+  const from = before ? PLAN.minutesOf(before.time) : null;
+  const to = after ? PLAN.minutesOf(after.time) : null;
+  const own = PLAN.minutesOf(moving.time);
+  if (from !== null && to !== null) {
+    if (own !== null && own >= Math.min(from, to) && own <= Math.max(from, to)) return undefined;
+    return PLAN.formatClock(PLAN.timeBetween(from, to));
+  }
+  if (own !== null && before && from === null) return "";
+  return undefined;
+}
+
 /** One op: the day it landed on, and a key between the rows either side. */
 function commitDrag(drag) {
   const onGrid = drag.gridTime !== undefined;
@@ -3884,6 +4005,7 @@ function commitDrag(drag) {
     && drag.afterStopId === undefined
     && !onGrid;
   if (unchanged) { render(); return; }
+  const newTime = onGrid ? drag.gridTime : listDropTime(drag);
 
   optimistic(
     () => {
@@ -3902,7 +4024,7 @@ function commitDrag(drag) {
       target.splice(index, 0, at.stop);
 
       const wasTime = at.stop.time;
-      if (onGrid) at.stop.time = drag.gridTime;
+      if (newTime !== undefined) at.stop.time = newTime;
       if (drag.targetDayId !== null) {
         state.openDayId = drag.targetDayId;
         if (planning()) state.planDayId = drag.targetDayId;
@@ -3918,7 +4040,7 @@ function commitDrag(drag) {
       drag.afterStopId === undefined
         ? { dayId: drag.targetDayId }
         : { dayId: drag.targetDayId, afterStopId: drag.afterStopId },
-      onGrid ? { startTime: drag.gridTime } : {},
+      newTime !== undefined ? { startTime: newTime } : {},
     )),
     "That did not move",
   );
@@ -4964,7 +5086,7 @@ function renderResults(container) {
   if (!container) return;
   const s = state.search;
   container.replaceChildren();
-  if (s.busy) { container.append(searchSkeleton("Searching for places")); return; }
+  if (s.busy) { container.append(searchSkeleton(MAPS_LINK.test(s.query.trim()) ? "Finding the place in that link" : "Searching for places")); return; }
 
   if (s.note && !s.rows.length) {
     container.append(h("div", { class: "result-hint", text: s.note }, []));
@@ -4972,15 +5094,12 @@ function renderResults(container) {
 
   for (const row of s.rows) container.append(resultRow(row));
 
-  // Always last, as on the artboard: the way in for somewhere search misses.
+  // A Google Maps link is searched for like anything else: the Worker reads
+  // the place out of it and it comes back as one row above, so the artboard's
+  // "Paste a Google Maps link" row, and the second field it opened, are gone.
+  // A link is not a sensible title for a note either, so that row goes too.
+  if (MAPS_LINK.test(s.query.trim())) return;
   container.append(
-    h("button", { class: "result", onclick: pasteLink }, [
-      h("div", { class: "result-tile grey" }, [icon("linkGrey")]),
-      h("div", { class: "result-text" }, [
-        h("span", { style: "font-size:13px;font-weight:600", text: "Paste a Google Maps link" }, []),
-        h("span", { style: "font-size:10.5px;color:#A0978A", text: "for somewhere search cannot find" }, []),
-      ]),
-    ]),
     // And the thing that is not a place at all. Half of what is on a day is
     // not somewhere Google knows about: picking up the car, getting ready,
     // the two hours before a concert.
@@ -4993,6 +5112,9 @@ function renderResults(container) {
     ]),
   );
 }
+
+/** The same test as isMapsLink in src/lib/maps-link.ts. */
+const MAPS_LINK = /^(?:https?:\/\/)?(?:(?:www\.)?google\.[a-z.]+\/maps(?:[/?]|$)|maps\.google\.[a-z.]+(?:[/?]|$)|maps\.app\.goo\.gl\/|goo\.gl\/maps\/)/i;
 
 /** The row reads back what has been typed, so it is obvious what it will make. */
 function noteRowTitle() {
@@ -5114,30 +5236,6 @@ async function addNoteStop() {
     renderResults($("results"));
   }
 }
-
-async function pasteLink() {
-  const s = state.search;
-  const results = $("results");
-  const field = h("input", { type: "url", placeholder: "https://maps.google.com/…", "aria-label": "Google Maps link", class: "time-field" }, []);
-  const errorLine = h("p", { role: "alert", class: "field-error" }, []);
-  const submit = h("button", { class: "save", onclick: async () => {
-    const url = field.value.trim();
-    if (!url) { errorLine.textContent = "Paste a Google Maps link."; field.focus(); return; }
-    submit.disabled = true;
-    errorLine.textContent = "Adding place…";
-    try {
-      await post("/api/trips/" + state.trip.trip.id + "/stops/link", { url, dayId: s.dayId });
-      state.trip = await api("/api/trips/" + state.trip.trip.id);
-      render();
-    } catch (error) {
-      errorLine.textContent = error.message;
-      submit.disabled = false;
-    }
-  } }, ["Add place"]);
-  results.replaceChildren(h("div", { class: "note-editor" }, [field, errorLine, h("div", { class: "note-actions" }, [submit, h("button", { class: "cancel", onclick: () => renderResults(results) }, ["Cancel"])])]));
-  field.focus();
-}
-
 
 /* ------------------------------------------------------------- plan view */
 
@@ -5344,14 +5442,25 @@ function swipeDays(el) {
 
 function trayCard(stop, full) {
   const dragging = state.drag && state.drag.stopId === stop.id;
-  return h("div", {
-    class: "tray-card order-row" + (dragging ? " ghost" : ""),
+  const selected = full && stop.id === state.selectedStopId;
+  const card = h("div", {
+    class: "tray-card order-row" + (dragging ? " ghost" : "") + (selected ? " selected" : ""),
     "data-stop-id": stop.id,
   }, [
     dragHandle({ id: null }, stop),
-    h("div", { class: "stop-text" }, [
-      h("span", { class: "tray-name", text: stop.title }, []),
-      h("span", { class: "tray-meta", text: displayDistance(stop.description) }, []),
+    // The card itself opens the same menu a card on the grid does, which is
+    // the only way anything in here can be noted or taken off the trip.
+    h(full && state.manualNoteId !== stop.id ? "button" : "div", {
+      class: "stop-text" + (full ? " tray-tap" : ""),
+      "aria-expanded": full ? String(selected) : null,
+      onclick: full ? () => {
+        if (suppressTap) { suppressTap = false; return; }
+        const select = () => { state.selectedStopId = selected ? null : stop.id; render(); };
+        if (state.search) closeThen(1, select); else select();
+      } : null,
+    }, [
+      stopTitle(stop, "tray-name"),
+      h("span", { class: "tray-meta", text: stop.note || displayDistance(stop.description) }, []),
     ]),
     full
       ? h("button", {
@@ -5360,6 +5469,24 @@ function trayCard(stop, full) {
           onclick: () => putOnDay(stop),
         }, [icon("plusGrey")])
       : null,
+  ]);
+  if (!selected || dragging || state.manualNoteId === stop.id) return card;
+  return h("div", { class: "tray-card-wrap" }, [card, trayPopover(stop)]);
+}
+
+/**
+ * The grid card's menu, for a card in To be planned.
+ *
+ * No time: a time on something with no day is not a plan, and Smart Plan
+ * passes over anything that already has one. It hangs under the card rather
+ * than beside it, because the list scrolls and a popover beside it would be
+ * cut off by the list's own edge.
+ */
+function trayPopover(stop) {
+  return h("div", { class: "gpop tray-pop", onclick: (event) => event.stopPropagation() }, [
+    gpopItem("pencilInk", stop.manual || stop.note ? "Edit note" : "Add note", () => editNote(stop)),
+    gpopMaps(stop),
+    gpopItem("trash", "Delete", () => removeStop(stop), true),
   ]);
 }
 
@@ -5996,12 +6123,30 @@ function gridCard(day, stop, box, kind) {
  * design/PlannerStop.dc.html. At a desk there is nothing to navigate to and
  * nothing to tick off (PLAN.md section 4e), so the popover is the three edits.
  */
+function gpopItem(iconName, label, onclick, danger) {
+  return h("button", {
+    class: "gpop-item" + (danger ? " danger" : ""),
+    onclick: (event) => { event.stopPropagation(); onclick(); },
+  }, [icon(iconName, "gpop-icon"), h("span", { text: label }, [])]);
+}
+
+/**
+ * The place's own Maps listing, from the popover. A stop with no place has no
+ * listing, so it has no item either.
+ */
+function gpopMaps(stop) {
+  if (!stop.mapsUrl) return null;
+  return h("a", {
+    class: "gpop-item",
+    href: stop.mapsUrl,
+    target: "_blank",
+    rel: "noreferrer",
+    onclick: (event) => event.stopPropagation(),
+  }, [icon("navigateInk", "gpop-icon"), h("span", { text: "View in Maps" }, [])]);
+}
+
 function gridPopover(day, stop) {
-  const item = (iconName, label, onclick, danger) =>
-    h("button", {
-      class: "gpop-item" + (danger ? " danger" : ""),
-      onclick: (event) => { event.stopPropagation(); onclick(); },
-    }, [icon(iconName), h("span", { text: label }, [])]);
+  const item = gpopItem;
 
   // The hours travel into the popover as the bar, and the notice's one-tap fix
   // as the first item, in the notice's words and with its struck clock.
@@ -6022,7 +6167,8 @@ function gridPopover(day, stop) {
     // "Edit" on the artboard, and the time is what there is to edit: the name
     // comes from the place and the note has its own item.
     item("calendar", stop.time ? "Edit time" : "Set a time", () => openTime(stop)),
-    item("pencil", stop.manual || stop.note ? "Edit note" : "Add note", () => editNote(stop)),
+    item("pencilInk", stop.manual || stop.note ? "Edit note" : "Add note", () => editNote(stop)),
+    gpopMaps(stop),
     item("trash", "Delete", () => removeStop(stop), true),
   ]);
 }
@@ -6061,7 +6207,7 @@ function smartPlanButton(dayId) {
       const result = await post("/api/trips/" + tripId + "/smart-plan", { dayId });
       if (state.trip && state.trip.trip.id === tripId) {
         await refreshTrip();
-        state.error = result.placements.length + (result.placements.length === 1 ? " place scheduled" : " places scheduled") + " with estimated visit and travel time." + (result.remaining ? " " + result.remaining + " did not fit and remain unscheduled." : "");
+        inform(result.placements.length + (result.placements.length === 1 ? " place scheduled" : " places scheduled") + " with estimated visit and travel time." + (result.remaining ? " " + result.remaining + " did not fit and remain unscheduled." : ""));
       }
     } catch (error) { state.error = "Smart Plan could not finish: " + error.message; }
     finally { smartPlanBusy = false; render(); }

@@ -1,3 +1,4 @@
+import { isMapsLink, isShortMapsLink, placeNameInMapsUrl, withScheme } from "../lib/maps-link.ts";
 import { smartPlan } from "../lib/smart-plan.ts";
 import { orderKeyAppend } from "../lib/order.ts";
 import { Hono, type Context } from "hono";
@@ -727,7 +728,9 @@ app.post("/api/trips/:tripId/smart-plan", async (c) => {
   const dayId = body.dayId ?? null;
   const [days, stops] = await Promise.all([listDays(c.env.DB, tripId), listStops(c.env.DB, tripId)]);
   if (dayId !== null && !days.some((d) => d.id === dayId)) return c.json({ error: "That day is not on this trip" }, 400);
-  const result = smartPlan(days, stops, dayId);
+  // Each place's hours ride along, so nothing is put somewhere at a time it
+  // is shut.
+  const result = smartPlan(days, stops.map((s) => ({ ...s, hours: parseHours(s.opening_hours) })), dayId);
   const statements = [];
   const planned = new Map(result.placements.map((p) => [p.id, p]));
   for (const id of new Set(result.placements.map((p) => p.dayId))) {
@@ -917,7 +920,15 @@ app.get("/api/trips/:tripId/place-search", async (c) => {
 
   let places: PlaceDetails[];
   try {
-    places = await cachedSearch(c.env, query, bias);
+    if (isMapsLink(query)) {
+      // A Maps link is the place it names, found the way "Paste a link" used
+      // to find it: follow it, read the name, and take the first match.
+      const name = await placeNameFromUrl(query).catch(() => null);
+      if (!name) return c.json({ error: "That link does not name a place." }, 400);
+      places = await textSearch(placesConfig(c.env), { query: name, maxResults: 1 });
+    } else {
+      places = await cachedSearch(c.env, query, bias);
+    }
   } catch (error) {
     if (error instanceof PlacesError) {
       return c.json({ error: error.message, upstreamStatus: error.status }, 502);
@@ -1156,24 +1167,15 @@ app.post("/api/trips/:tripId/stops/link", async (c) => {
 
 async function placeNameFromUrl(raw: string): Promise<string | null> {
   let url = raw.trim();
+  // Not a link at all: whatever was pasted is the name.
+  if (!isMapsLink(url) && !/^https?:\/\//i.test(url)) return url || null;
 
   // Short links carry nothing useful until they are followed.
-  if (/^https?:\/\/(maps\.app\.goo\.gl|goo\.gl)\//.test(url)) {
-    const response = await fetch(url, { redirect: "follow" });
+  if (isShortMapsLink(url)) {
+    const response = await fetch(withScheme(url), { redirect: "follow" });
     url = response.url;
   }
-
-  const inPath = /\/maps\/place\/([^/@?]+)/.exec(url);
-  if (inPath?.[1]) return decodeURIComponent(inPath[1].replace(/\+/g, " "));
-
-  try {
-    const query = new URL(url).searchParams.get("q");
-    if (query) return query;
-  } catch {
-    // Not a URL at all. Treat whatever was pasted as the name.
-    return url || null;
-  }
-  return null;
+  return placeNameInMapsUrl(url);
 }
 
 /**

@@ -1,6 +1,7 @@
 import { haversineMetres } from "./geo.ts";
 import { isAccommodation } from "./derive.ts";
 import { minutesOf, formatClock } from "./plan.ts";
+import { weekdayOf, type Week } from "./hours.ts";
 
 export interface SmartStop {
   id: string;
@@ -10,6 +11,37 @@ export interface SmartStop {
   status: string;
   lat: number | null;
   lng: number | null;
+  /** The place's regular hours, when Google has them. */
+  hours?: Week | null;
+}
+
+export interface SmartDay {
+  id: string;
+  /** `2026-10-07`. Without it a day's hours cannot be looked up, so none are. */
+  date?: string | null;
+}
+
+const DAY_START = 9 * 60;
+const DAY_END = 20 * 60;
+const quarter = (minutes: number) => Math.ceil(minutes / 15) * 15;
+
+/**
+ * The earliest start at or after `from` when the whole visit fits inside one
+ * of the day's open hours, or null when it fits in none of them.
+ *
+ * A place with no hours, or a day with no date, is open whenever the day is.
+ * A place Google says is shut that weekday gets no start at all — Smart Plan
+ * would rather leave it in the band than put it somewhere closed, which is
+ * exactly what the Planner would then flag.
+ */
+export function openStart(hours: Week | null | undefined, date: string | null | undefined, from: number, duration: number): number | null {
+  if (!hours || !date) return from;
+  const pieces = hours[weekdayOf(date)] ?? [];
+  for (const [open, close] of pieces) {
+    const start = quarter(Math.max(from, open));
+    if (start + duration <= close) return start;
+  }
+  return null;
 }
 
 export function visitMinutes(category: string | null): number {
@@ -35,7 +67,7 @@ export function travelMinutes(a: SmartStop | undefined, b: SmartStop): number {
   return Math.ceil((metres < 1800 ? metres * 1.3 / 75 + 5 : metres * 1.4 / 350 + 20) / 15) * 15;
 }
 
-export function smartPlan(days: readonly { id: string }[], stops: readonly SmartStop[], dayId: string | null) {
+export function smartPlan(days: readonly SmartDay[], stops: readonly SmartStop[], dayId: string | null) {
   const candidates = stops.filter((s) => s.day_id === dayId && minutesOf(s.start_time) === null && s.status !== "visited" && !isAccommodation(s.category));
   const available = days.filter((d) => dayId === null || d.id === dayId);
   const schedules = new Map(available.map((d) => [d.id, stops.filter((s) => s.day_id === d.id && !isAccommodation(s.category) && minutesOf(s.start_time) !== null).map((s) => ({ stop: s, start: minutesOf(s.start_time)!, end: minutesOf(s.start_time)! + visitMinutes(s.category) })).sort((a, b) => a.start - b.start)]));
@@ -50,11 +82,13 @@ export function smartPlan(days: readonly { id: string }[], stops: readonly Smart
         for (let slot = 0; slot <= schedule.length; slot++) {
           const previous = schedule[slot - 1];
           const next = schedule[slot];
-          const start = Math.ceil(Math.max(9 * 60, previous ? previous.end + travelMinutes(previous.stop, stop) : 9 * 60) / 15) * 15;
-          if (start + duration > 20 * 60 || (next && start + duration + travelMinutes(stop, next.stop) > next.start)) continue;
+          const earliest = quarter(Math.max(DAY_START, previous ? previous.end + travelMinutes(previous.stop, stop) : DAY_START));
+          // Pushed on to the place's opening when it opens later than that.
+          const start = openStart(stop.hours, day.date, earliest, duration);
+          if (start === null || start + duration > DAY_END || (next && start + duration + travelMinutes(stop, next.stop) > next.start)) continue;
           const neighbours = schedule.map((s) => distance(s.stop, stop)).filter((d): d is number => d !== null);
           const proximity = neighbours.length ? Math.min(...neighbours) / 1000 : 5;
-          const score = proximity * 45 + schedule.length * 12 + (start - 540) / 15;
+          const score = proximity * 45 + schedule.length * 12 + (start - DAY_START) / 15;
           if (!best || score < best.score) best = { stop, dayId: day.id, start, score };
           break;
         }

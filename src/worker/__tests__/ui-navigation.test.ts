@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { CLIENT } from "../ui/client.ts";
 import { HOURS_CLIENT } from "../ui/hours-client.ts";
+import { PLAN_CLIENT } from "../ui/plan-client.ts";
 import { weekFromPeriods } from "../../lib/hours.ts";
 import { RAMEN } from "../../lib/__tests__/hours.fixtures.ts";
 
@@ -15,6 +16,12 @@ function definition(name: string) {
   }
   return CLIENT.slice(start, end);
 }
+
+const PLAN = (() => {
+  const w: { __PLAN__?: unknown } = {};
+  new Function("window", PLAN_CLIENT)(w);
+  return w.__PLAN__;
+})();
 
 function load(names: string[], context: Record<string, unknown>, setup = "") {
   return new Function(...Object.keys(context), setup + names.map(definition).join("\n") + "\nreturn {" + names.join(",") + "};")(...Object.values(context));
@@ -218,7 +225,7 @@ describe("bug bash regressions", () => {
     const arriving = { id: "b", check_in: "2026-10-04", check_out: "2026-10-07", lat: 36, lng: 131 };
     const day = { date: "2026-10-04", stops: [{ location: { lat: 35.5, lng: 130.5 } }] };
     const state = { trip: { lodging: [arriving, departing] } };
-    const api = load(["dayStays", "dayRoutePoints"], { state });
+    const api = load(["dayStays", "mapOrder", "routeNumbers", "dayRoutePoints"], { state, PLAN });
     expect(api.dayStays(day)).toEqual([departing, arriving]);
     expect(api.dayRoutePoints(day, state.trip.lodging)).toEqual([{ lat: 35, lng: 130 }, day.stops[0]!.location, { lat: 36, lng: 131 }]);
   });
@@ -441,7 +448,7 @@ describe("search and drag transitions", () => {
   });
 
   it("builds a smooth trail from the current accommodation through every destination in order", () => {
-    const api = load(["dayRoutePoints", "smoothTrail"], {});
+    const api = load(["mapOrder", "routeNumbers", "dayRoutePoints", "smoothTrail"], { PLAN });
     const day = { date: "2026-10-02", stops: [
       { location: { lat: 35.1, lng: 130.1 } }, { location: null },
       { location: { lat: 35.2, lng: 130.2 } }, { location: { lat: 35.3, lng: 130.1 } },
@@ -460,6 +467,43 @@ describe("search and drag transitions", () => {
     expect(api.dayRoutePoints(day, [])).toHaveLength(3);
     const crossing = api.smoothTrail([{ lat: 0, lng: 179.9 }, { lat: 0, lng: -179.9 }]);
     expect(Math.abs(crossing.at(-1).lng - crossing[0].lng)).toBeCloseTo(.2);
+  });
+
+  it("runs the trail through the timed stops by the clock, and not the ones waiting for a time", () => {
+    const api = load(["mapOrder", "routeNumbers", "dayRoutePoints"], { PLAN });
+    const day = { date: "2026-10-02", stops: [
+      { id: "b", time: "14:00", location: { lat: 2, lng: 2 } },
+      { id: "x", time: "", location: { lat: 9, lng: 9 } },
+      { id: "a", time: "10:00", location: { lat: 1, lng: 1 } },
+    ] };
+    expect(api.dayRoutePoints(day, [])).toEqual([{ lat: 1, lng: 1 }, { lat: 2, lng: 2 }]);
+  });
+
+  it("gives a stop dropped between two times one about halfway, and takes it away under the divider", () => {
+    const day = { id: "d", date: "2026-10-02", stops: [
+      { id: "a", time: "09:00" }, { id: "b", time: "11:00" }, { id: "c", time: "" }, { id: "e", time: "" },
+    ] };
+    const moving: Record<string, { id: string; time: string }> = {
+      loose: { id: "loose", time: "" }, timed: { id: "timed", time: "16:00" }, fits: { id: "fits", time: "10:30" },
+    };
+    const api = load(["mapOrder", "listDropTime"], {
+      PLAN, dayById: (id: string) => (id === "d" ? day : null), findStop: (id: string) => moving[id],
+    });
+    const drop = (stopId: string, afterStopId: string | null | undefined, targetDayId: string | null = "d") =>
+      api.listDropTime({ stopId, afterStopId, targetDayId });
+
+    expect(drop("loose", "a")).toBe("10:00");
+    expect(drop("timed", "a")).toBe("10:00");
+    // Its own time already sits between them, so it is left alone.
+    expect(drop("fits", "a")).toBeUndefined();
+    // Among the untimed, a time it had goes; one it did not have is not made up.
+    expect(drop("timed", "c")).toBe("");
+    expect(drop("loose", "c")).toBeUndefined();
+    // Past the last time, before the first, onto a header, or into To be planned: no guess.
+    expect(drop("loose", "b")).toBeUndefined();
+    expect(drop("loose", null)).toBeUndefined();
+    expect(drop("loose", undefined)).toBeUndefined();
+    expect(drop("timed", "a", null)).toBeUndefined();
   });
 
   it("moves a subtle opacity crest forward one node every four seconds", () => {
