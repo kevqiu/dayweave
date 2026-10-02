@@ -358,7 +358,7 @@ describe("search and drag transitions", () => {
     const render = vi.fn();
     const h = (_tag: string, attrs: any, children: any[]) => ({ attrs, children });
     const api = load(["gridCard"], {
-      state, h, render, statusOf: () => "planned", gridSub: () => "", mutedHue: () => "gray", dragHandle: () => null, stopTitle: () => null,
+      state, h, render, statusOf: () => "planned", gridSub: () => "", mutedHue: () => "gray", dragHandle: () => null, stopTitle: () => null, noteMark: () => null,
       hoursFor: () => null,
       closeThen: (_depth: number, callback: () => void) => { afterClose = callback; },
     }, "let suppressTap=false;");

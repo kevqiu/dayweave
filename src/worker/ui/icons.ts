@@ -136,6 +136,18 @@ export const clockOff = (o: IconOptions = {}) =>
     'stroke-linecap="round" stroke-linejoin="round"',
   );
 
+/**
+ * A rolled scroll with two lines on it: the stop has a note. Drawn after a
+ * stop's name on a row or a card, so a note can be found without opening
+ * every stop to look.
+ */
+export const scroll = (o: IconOptions = {}) =>
+  svg(
+    `<path d="M19 17V5a2 2 0 0 0-2-2H4"></path><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"></path><path d="M15 8h-5"></path><path d="M15 12h-5"></path>`,
+    { width: 2, ...o },
+    'stroke-linecap="round" stroke-linejoin="round"',
+  );
+
 export const kebab = ({ size = 15, color = "#6B645B" }: IconOptions = {}) =>
   `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="${color}"><circle cx="12" cy="5" r="1.5"></circle><circle cx="12" cy="12" r="1.5"></circle><circle cx="12" cy="19" r="1.5"></circle></svg>`;
 

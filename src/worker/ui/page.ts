@@ -51,6 +51,10 @@ function iconSet(): Record<string, string> {
     clockOff: icons.clockOff({ size: 10, color: C.shut }),
     clockOffNotice: icons.clockOff({ size: 13, color: C.shut }),
     clock: icons.clock({ size: 11, color: C.grey }),
+    // After a stop's name when it has a note: the row's size, and the
+    // smaller one for the Planner's cards and the To be planned list.
+    note: icons.scroll({ size: 11, color: C.grey }),
+    noteSmall: icons.scroll({ size: 10, color: C.grey }),
     grip: icons.grip(),
     gripDark: icons.grip({ color: C.inkSoft }),
     trash: icons.trash({ size: 15 }),

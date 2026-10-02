@@ -114,7 +114,7 @@ describe("pinLook", () => {
     const look = api.pinLook(past, stop("d"), false, undefined);
     expect(look.fill).toBe(past.hue);
     expect(look.size).toBeLessThan(api.PIN.mini);
-    expect(look.opacity).toBe(1);
+    expect(look.opacity).toBe(0.7);
   });
 
   it("shrinks a visited stop on the open day without recoloring it", () => {
@@ -125,6 +125,12 @@ describe("pinLook", () => {
     // Still full size and numbered: it is on the day you are looking at.
     expect(look.size).toBeLessThan(api.PIN.full);
     expect(look.number).toBe(1);
+    expect(look.opacity).toBe(0.7);
+  });
+
+  it("brings a visited stop back to full strength when it is the one selected", () => {
+    state.selectedStopId = "a";
+    expect(api.pinLook(today, stop("a", { status: "visited" }), true, 1).opacity).toBe(1);
   });
 
   describe("when something is selected", () => {
@@ -147,8 +153,8 @@ describe("pinLook", () => {
     });
 
     it("never lifts a faded day back up", () => {
-      // A day gone by is already at 0.5; a selection elsewhere may only take
-      // it further back, never return it to half.
+      // A day gone by is already at 0.7; a selection elsewhere may only take
+      // it further back, never return it to 0.7.
       state.selectedStopId = "a";
       expect(api.pinLook(past, stop("d"), false, undefined).opacity).toBe(0.3);
     });
