@@ -401,6 +401,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .sheet.stops { height: 46.8%; transition: height 160ms ease; }
 .sheet.stops.full { height: calc(100% - 50px); }
 .sheet.stops.dragging { transition: none; }
+/* Pulled all the way down: the handle, one 44px day header, and the phone's
+   bottom inset under them. The header keeps the open day's highlight but not
+   the full sheet's square corners: it is the whole of the card now. */
+.sheet.stops.peek { height: calc(65px + env(safe-area-inset-bottom, 0px)); overflow: hidden; }
+.sheet.stops.peek .day-head { margin: 0 8px; border-radius: 10px; }
 
 /* Pulling a sheet down to put it away, iOS-style: the handle follows the
    thumb, and a pull that does not get far enough springs back. The transform
@@ -579,6 +584,14 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .stop.done .stop-name { text-decoration: line-through; color: ${C.greyer}; }
+/* The scroll after a name that has a note. Inline in a name that wraps, so it
+   follows the last word; beside one that truncates, so it is never cut. */
+.note-mark { display: inline-block; vertical-align: -1px; margin-left: 4px; line-height: 0; flex-shrink: 0; }
+.note-mark > svg { display: block; }
+.gcard-top > .note-mark { margin-left: 0; }
+.title-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.title-row > .note-mark { margin-left: 0; }
+.title-row > .tray-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .stop-meta {
   font-size: 9.5px; color: ${C.meta};
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -719,6 +732,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   border-radius: 1px; background: ${C.ink};
 }
 .hours-tick.shut { background: ${C.shut}; }
+.hours-now {
+  position: absolute; top: -5px; bottom: -5px; width: 0; margin-left: -1px;
+  border-left: 2px dotted ${C.today}; pointer-events: none;
+}
 .hours-scale { position: relative; height: 12px; font-size: 9px; color: ${C.greyer}; font-variant-numeric: tabular-nums; }
 .hours-scale > span { position: absolute; top: 0; }
 .hours-notice {

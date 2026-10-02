@@ -121,6 +121,11 @@ wheel as the palette's register allows.
 
 ## Rules the artboards imply
 
+- **A stop with a note carries a scroll after its name** — an icon from
+  `icons.ts`, never an emoji — on the sheet's rows, the desk rail, the
+  Planner's cards and To be planned. Inline where the name wraps, beside it
+  where the name truncates, so an ellipsis never cuts it off. A stop with no
+  place is its own note and carries none.
 - **A stop's second line is derived, never typed.** `Main.dc.html` writes it as
   `meta`: `ramen`, `park · 12 min walk`, `izakaya · 4 min walk`. Lowercase
   category, then the walk from the previous stop, joined by ` · `. The note is
@@ -287,6 +292,8 @@ wheel as the palette's register allows.
   - **Opened, the day's hours are a bar**: six to midnight, open hours filled
     in the "fine" green, shut hours hatched, the stop's time a tick. The day
     shown is always the day the stop is on, so moving it changes the bar.
+    On the day that is today, a dotted line in the "today" green (`#6F9A6B`)
+    marks the time it is now, so *is it open yet* reads at a glance.
     It sits above the actions on the phone, in an HOURS block between NOTES
     and TIME on the desk panel, and in the Planner's popover.
   - **When it is wrong, a notice under the bar carries the fix** in the warm
@@ -318,6 +325,14 @@ wheel as the palette's register allows.
   38x4 bar the artboard draws. Expanded, the sheet grows the Filter pill from
   `SheetFull.dc.html`.
 
+  **Pulled all the way down it has a third height**, which no artboard draws:
+  the handle and one day's header — the open day's, else today's, else the
+  first — and nothing else, so the map gets the screen and the day is still
+  named. The header loses its pencil and its chevron turns up; tapping it, or
+  the handle, brings the list back at 312. Picking a pin on the map does too,
+  because the stop it selects has to be seen. The drag snaps to whichever of
+  the three heights it is left nearest.
+
   **`SheetFull.dc.html` titles that row "All stops" and we deliberately do
   not.** The collapsed sheet has no header at all, so a heading that appears
   only on expanding reads as the sheet turning into a different screen rather
@@ -329,6 +344,12 @@ wheel as the palette's register allows.
   draws a green thread where it would land labelled with the walk it adds.
   A collapsed day header turns `#FCF6E6` with a dashed edge and says
   `DROP HERE TO MOVE`.
+
+  **Holding the card near the top or bottom of the list scrolls it**, faster
+  the closer to the edge, so a stop can be carried to a day that is off
+  screen. It works on whichever list is under the finger — the sheet, the desk
+  rail, the Planner's hours, the drawer — and is run every frame rather than
+  on `pointermove`, because a finger held still at the edge fires nothing.
 - **The search view has no top bar.** `PlaceSearch.dc.html` runs the map to the
   top of the frame with the sheet over its lower 28px. The map there shows the
   trip's stops as small green pins, the bias circle dashed in terracotta, and
@@ -581,7 +602,8 @@ wheel as the palette's register allows.
   arithmetic. In short:
 
   - the open day is full size and **numbered**, every other day is a mini dot
-    of its own colour, and a day in the past is mini, grey and at 50%. A bed is
+    of its own colour, and anything done — a day in the past, or a stop
+    ticked off — is smaller and at 70%, unless it is the one selected. A bed is
     exempt from every part of that, size included — it is never mini;
   - selecting a stop pushes the rest of that day to 75% and every other day to
     30%, and leaves the selected pin itself at full strength — dimming the

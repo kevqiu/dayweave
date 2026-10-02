@@ -89,6 +89,8 @@ const state = {
   newTrip: null,
   tripMenu: false,
   sheetFull: false,
+  /* Pulled all the way down: the sheet is its handle and one day's header. */
+  sheetPeek: false,
   /* The sheet's two tabs: the day list, and the stays that span days. */
   sheetTab: "stops",
   /* The day whose pencil is open, and the panel under its header. */
@@ -1660,7 +1662,9 @@ function pinLook(day, stop, open, number) {
   }
 
   const past = st === "done";
-  let opacity = 1;
+  // Done, whether ticked off or on a day gone by, is small and faint at once;
+  // a selection elsewhere may push it further back, never bring it up.
+  let opacity = past && !selected ? 0.7 : 1;
   if (anySelected && !selected) opacity = Math.min(opacity, open ? 0.75 : 0.3);
 
   return {
@@ -1947,7 +1951,7 @@ function railStop(day, stop) {
       }, []),
       stop.time ? h("span", { class: "rail-time", style: "color:" + day.hue, text: displayTime(stop.time) }, []) : null,
       h("div", { class: "stop-text" }, [
-        h("span", { class: "rail-name", text: stop.title }, []),
+        h("span", { class: "rail-name" }, [stop.title, noteMark(stop)]),
         metaLine("rail-meta", hoursFor(day, stop), stop.note || displayDistance(stop.description)),
       ]),
     ]),
@@ -2019,7 +2023,10 @@ function screenTrip() {
   const trip = state.trip;
   const hasStops = trip.days.some((d) => d.stops.length) || trip.unplanned.length;
   const openDay = trip.days.find((d) => d.id === state.openDayId);
-  const full = state.sheetFull;
+  // A stop picked on the map has to be seen, so it brings the list back.
+  if (state.revealStopId) state.sheetPeek = false;
+  const peek = state.sheetPeek;
+  const full = !peek && state.sheetFull;
 
   return h("div", { class: "screen" + (state.search ? " searching" : "") }, [
     h("div", { class: "trip-bar" }, [
@@ -2055,12 +2062,14 @@ function screenTrip() {
       state.search || hasStops || locatedStays().length ? null : emptyMapChip(),
       ...mapControls(),
     ]),
-    h("div", { class: "sheet stops" + (full ? " full" : ""), id: "sheet" }, [
-      grabber(),
-      sheetTabs(),
-      h("div", { class: "sheet-scroll" },
-        state.sheetTab === "stays" ? staysPanel() : sheetContents(hasStops)),
-    ]),
+    h("div", { class: "sheet stops" + (full ? " full" : "") + (peek ? " peek" : ""), id: "sheet" }, peek
+      ? [grabber(), peekHead()]
+      : [
+          grabber(),
+          sheetTabs(),
+          h("div", { class: "sheet-scroll" },
+            state.sheetTab === "stays" ? staysPanel() : sheetContents(hasStops)),
+        ]),
     noticeToast(),
     ...dragLayer(),
   ]);
@@ -2071,8 +2080,12 @@ function screenTrip() {
  *
  * Main.dc.html puts a click on it that toggles the sheet between 312 and 617
  * of its 667. A handle on a phone also has to actually drag, so it does both:
- * a drag follows the thumb and snaps to whichever end it is nearer, and a
+ * a drag follows the thumb and snaps to whichever height it is nearest, and a
  * press that barely moves is treated as the tap the artboard specifies.
+ *
+ * No artboard draws a third height, and the sheet has one: pulled all the way
+ * down it keeps only the handle and the day's header, so the map gets the
+ * screen and the day is still named. A tap there brings the list back.
  */
 function grabber() {
   let startY = 0;
@@ -2099,7 +2112,7 @@ function grabber() {
     const delta = startY - event.clientY;
     moved = Math.max(moved, Math.abs(delta));
     const limits = sheetLimits(frame);
-    const height = Math.min(limits.full, Math.max(limits.collapsed, startHeight + delta));
+    const height = Math.min(limits.full, Math.max(limits.peek, startHeight + delta));
     sheet.style.height = height + "px";
   });
 
@@ -2111,13 +2124,16 @@ function grabber() {
     sheet.style.height = "";
 
     if (moved < 6) {
-      // Barely moved: this was the tap the artboard draws.
-      state.sheetFull = !state.sheetFull;
+      // Barely moved: this was the tap the artboard draws. Pulled down, it
+      // brings the list back to the height it opens at.
+      if (state.sheetPeek) { state.sheetPeek = false; state.sheetFull = false; }
+      else state.sheetFull = !state.sheetFull;
     } else {
-      // Snap to whichever end the thumb left it nearer.
+      // Snap to whichever of the three heights the thumb left it nearest.
       const limits = sheetLimits(frame);
       const height = sheet.getBoundingClientRect().height;
-      state.sheetFull = height > (limits.collapsed + limits.full) / 2;
+      state.sheetPeek = height < (limits.peek + limits.collapsed) / 2;
+      state.sheetFull = !state.sheetPeek && height > (limits.collapsed + limits.full) / 2;
     }
     // Rendering replaces this very element, so let the gesture finish first.
     setTimeout(render, 0);
@@ -2188,10 +2204,44 @@ function dismissGrabber(sheetId, close) {
   return el;
 }
 
-/** The two heights the sheet snaps between, in pixels of the current frame. */
+/** The three heights the sheet snaps between, in pixels of the current frame. */
 function sheetLimits(frame) {
   const height = frame ? frame.getBoundingClientRect().height : window.innerHeight;
-  return { collapsed: height * 0.468, full: height - 50 };
+  return { peek: peekHeight(frame), collapsed: height * 0.468, full: height - 50 };
+}
+
+/**
+ * The pulled-down sheet's height, measured rather than written twice: the
+ * stylesheet adds the phone's bottom inset to it, which only CSS can read.
+ */
+function peekHeight(frame) {
+  const probe = h("div", { class: "sheet stops peek", style: "visibility:hidden;transition:none;pointer-events:none" }, []);
+  (frame || document.body).append(probe);
+  const height = probe.getBoundingClientRect().height;
+  probe.remove();
+  return height;
+}
+
+/**
+ * The one header the pulled-down sheet keeps: the open day's, else today's,
+ * else the first. Tapping it brings the list back with that day open.
+ */
+function peekHead() {
+  const days = state.trip.days;
+  const day = days.find((d) => d.id === state.openDayId)
+    || days.find((d) => d.date === todayIso())
+    || days[0];
+  if (!day) return null;
+  return dayHead(day, {
+    open: true,
+    peek: true,
+    toggle: () => {
+      state.sheetPeek = false;
+      state.sheetFull = false;
+      if (state.openDayId !== day.id) switchMapDay(day.id);
+      else render();
+    },
+  });
 }
 
 function emptyMapChip() {
@@ -2902,6 +2952,52 @@ function weatherChip(day) {
   ]);
 }
 
+/**
+ * A day's header in the sheet. Pulled down, the sheet keeps it alone, with
+ * no pencil (the panel it opens has nowhere to go) and the chevron turned up
+ * to say the list is above it.
+ */
+function dayHead(day, { open, editing, toggle, peek }) {
+  // The progress count stays honest: it counts the day, not what is shown.
+  const done = day.stops.filter((s) => statusOf(day, s) === "done").length;
+  // What a person called the day, then where it is. Both are optional and
+  // neither is invented, so the line is absent rather than empty.
+  const second = [day.name, day.place_label].filter(Boolean).join(" · ");
+  return h("div", {
+    class: open ? "day-head open" : "day-head",
+    "data-day-id": day.id,
+  }, [
+    h("button", { class: "day-head-tap", onclick: toggle }, [
+      h("span", {
+        class: "day-hue",
+        style: "background:" + day.hue,
+        title: "Day colour",
+      }, []),
+      h("div", { class: "day-head-text" }, [
+        h("div", { class: "day-head-top" }, [
+          h("span", { class: "day-label", text: day.label }, []),
+          day.date === todayIso() ? h("span", { class: "today-tag", text: "TODAY" }, []) : null,
+        ]),
+        second ? h("span", { class: "day-place", text: second }, []) : null,
+      ]),
+      h("span", { class: "drop-here", text: "DROP HERE TO MOVE", hidden: true }, []),
+      weatherChip(day),
+      h("span", { class: "day-progress", text: done + "/" + day.stops.length }, []),
+    ]),
+    // To the right of the count, as the one thing on the row that changes
+    // the day itself rather than opening it.
+    peek ? null : h("button", {
+      class: editing ? "day-pencil on" : "day-pencil",
+      title: "Name this day, or change its colour",
+      "aria-pressed": editing ? "true" : "false",
+      onclick: () => toggleDayEdit(day.id),
+    }, [icon("pencilDay")]),
+    h("button", { class: "day-chevron", onclick: toggle, title: peek ? "Show the day" : open ? "Close" : "Open" }, [
+      h("span", { style: "display:flex;transform:rotate(" + (peek ? 180 : open ? 0 : -90) + "deg)", html: ICONS.chevron }, []),
+    ]),
+  ]);
+}
+
 function sheetContents(hasStops) {
   const trip = state.trip;
   const out = [];
@@ -2912,8 +3008,6 @@ function sheetContents(hasStops) {
       class: open ? "day-wrap drop-zone open" : "day-wrap drop-zone",
       "data-day-id": day.id,
     }, []);
-    const done = day.stops.filter((s) => statusOf(day, s) === "done").length;
-    // The progress count stays honest: it counts the day, not what is shown.
     const shown = state.hideVisited
       ? day.stops.filter((s) => statusOf(day, s) !== "done")
       : day.stops;
@@ -2922,45 +3016,8 @@ function sheetContents(hasStops) {
       switchMapDay(open ? null : day.id);
     };
     const editing = state.dayEdit === day.id;
-    // What a person called the day, then where it is. Both are optional and
-    // neither is invented, so the line is absent rather than empty.
-    const second = [day.name, day.place_label].filter(Boolean).join(" · ");
 
-    wrap.append(
-      h("div", {
-        class: open ? "day-head open" : "day-head",
-        "data-day-id": day.id,
-      }, [
-        h("button", { class: "day-head-tap", onclick: toggle }, [
-          h("span", {
-            class: "day-hue",
-            style: "background:" + day.hue,
-            title: "Day colour",
-          }, []),
-          h("div", { class: "day-head-text" }, [
-            h("div", { class: "day-head-top" }, [
-              h("span", { class: "day-label", text: day.label }, []),
-              day.date === todayIso() ? h("span", { class: "today-tag", text: "TODAY" }, []) : null,
-            ]),
-            second ? h("span", { class: "day-place", text: second }, []) : null,
-          ]),
-          h("span", { class: "drop-here", text: "DROP HERE TO MOVE", hidden: true }, []),
-          weatherChip(day),
-          h("span", { class: "day-progress", text: done + "/" + day.stops.length }, []),
-        ]),
-        // To the right of the count, as the one thing on the row that changes
-        // the day itself rather than opening it.
-        h("button", {
-          class: editing ? "day-pencil on" : "day-pencil",
-          title: "Name this day, or change its colour",
-          "aria-pressed": editing ? "true" : "false",
-          onclick: () => toggleDayEdit(day.id),
-        }, [icon("pencilDay")]),
-        h("button", { class: "day-chevron", onclick: toggle, title: open ? "Close" : "Open" }, [
-          h("span", { style: "display:flex;transform:rotate(" + (open ? 0 : -90) + "deg)", html: ICONS.chevron }, []),
-        ]),
-      ]),
-    );
+    wrap.append(dayHead(day, { open, editing, toggle }));
 
     if (editing) wrap.append(dayEditPanel(day));
     const stays = dayStays(day);
@@ -3476,7 +3533,7 @@ function stopCard(day, stop, showTimes, number) {
             }, [])
           : null,
         h("div", { class: "stop-text" }, [
-          stopTitle(stop, "stop-name"),
+          stopTitle(stop, "stop-name", true),
           metaLine("stop-meta", hoursFor(day, stop), displayDistance(stop.description)),
         ]),
         h("span", {
@@ -3592,18 +3649,24 @@ function dragHandle(day, stop) {
       else render();
     };
 
+    // Holding the card near the top or bottom of the list it is over scrolls
+    // that list, faster the closer it gets, so a stop can be carried to a day
+    // that is not on screen. Run every frame rather than on pointermove,
+    // because a finger held still at the edge fires no events at all.
     let autoScrollFrame = 0;
     let lastFrame = 0;
     const autoScroll = (now) => {
       if (!state.drag) return;
-      const scroll = document.querySelector(".grid-scroll");
-      if (scroll && state.drag.moved) {
+      const x = state.drag.x;
+      const y = state.drag.y;
+      const scroll = state.drag.moved ? dragScroller(x, y) : null;
+      if (scroll) {
         const rect = scroll.getBoundingClientRect();
-        const x = state.drag.x;
-        const y = state.drag.y;
-        if (x >= rect.left && x <= rect.right) {
-          const speed = y < rect.top + 56 ? -Math.min(1, (rect.top + 56 - y) / 56) : y > rect.bottom - 56 ? Math.min(1, (y - rect.bottom + 56) / 56) : 0;
-          scroll.scrollTop += speed * Math.min(32, now - (lastFrame || now)) * 0.65;
+        const edge = Math.min(56, rect.height / 4);
+        const speed = y < rect.top + edge ? -Math.min(1, (rect.top + edge - y) / edge) : y > rect.bottom - edge ? Math.min(1, (y - rect.bottom + edge) / edge) : 0;
+        const before = scroll.scrollTop;
+        if (speed) scroll.scrollTop += speed * Math.min(32, now - (lastFrame || now)) * 0.65;
+        if (scroll.scrollTop !== before) {
           resolveDropTarget(x, y);
           paintDrag();
         }
@@ -3619,6 +3682,25 @@ function dragHandle(day, stop) {
   });
 
   return el;
+}
+
+/**
+ * The list a dragged card would scroll: the sheet on a phone, the rail at a
+ * desk, the Planner's hours, or the To be planned drawer. Whichever spans the
+ * finger's x, and of those the one nearest it vertically, so carrying a card
+ * up out of the sheet and over the map still scrolls the sheet. The drawer is
+ * listed first because it sits over the grid, and the one on top wins a tie.
+ */
+function dragScroller(x, y) {
+  let best = null;
+  let bestGap = Infinity;
+  for (const el of document.querySelectorAll(".tray-side-list, .grid-scroll, .sheet-scroll, .rail-list")) {
+    const rect = el.getBoundingClientRect();
+    if (!rect.height || x < rect.left || x > rect.right) continue;
+    const gap = y < rect.top ? rect.top - y : y > rect.bottom ? y - rect.bottom : 0;
+    if (gap < bestGap) { best = el; bestGap = gap; }
+  }
+  return best;
 }
 
 /**
@@ -4086,9 +4168,11 @@ function metaLine(className, check, text) {
 /**
  * The day's hours, drawn: a strip from six in the morning to midnight, the
  * open hours filled, the shut ones hatched, and the stop's time a tick. The
- * strip starts earlier when the place or the stop does.
+ * strip starts earlier when the place or the stop does. When the day is
+ * today, a dotted green line marks the time it is now, as the Planner's
+ * now-line does.
  */
-function hoursBar(check, time) {
+function hoursBar(check, time, date) {
   const at = PLAN.minutesOf(time);
   const starts = check.open.map((p) => p[0]).filter((m) => m > 0);
   if (at !== null) starts.push(at);
@@ -4103,6 +4187,13 @@ function hoursBar(check, time) {
   }
   if (at !== null) {
     track.append(h("span", { class: "hours-tick" + (check.ok ? "" : " shut"), style: "left:" + pct(at) + "%" }, []));
+  }
+  if (date === todayIso()) {
+    const nowAt = new Date();
+    const minutes = nowAt.getHours() * 60 + nowAt.getMinutes();
+    if (minutes >= from && minutes <= to) {
+      track.append(h("span", { class: "hours-now", style: "left:" + pct(minutes) + "%", "aria-label": "Now" }, []));
+    }
   }
 
   const marks = [from];
@@ -4190,7 +4281,7 @@ function deskHours(day, stop) {
   if (!check) return null;
   return h("div", { class: "detail-block" }, [
     h("div", { class: "detail-label", text: "HOURS" }, []),
-    hoursBar(check, stop.time),
+    hoursBar(check, stop.time, day.date),
     hoursNotice(day, stop, check),
   ]);
 }
@@ -4275,7 +4366,7 @@ function stopActions(day, stop, done, showTimes) {
 
   const check = hoursFor(day, stop);
   if (check) {
-    wrap.append(hoursBar(check, stop.time));
+    wrap.append(hoursBar(check, stop.time, day.date));
     const notice = hoursNotice(day, stop, check);
     if (notice) wrap.append(notice);
   }
@@ -4349,8 +4440,23 @@ function editNote(stop) {
   if (field) { field.focus(); field.setSelectionRange(field.value.length, field.value.length); }
 }
 
-function stopTitle(stop, className) {
-  if (!stop.manual || state.manualNoteId !== stop.id) return h("span", { class: className, text: stop.title }, []);
+/**
+ * The scroll after a stop's name when somebody has written it a note. A stop
+ * with no place is its own note — its title is the text — so it carries none.
+ */
+function noteMark(stop, small) {
+  if (!stop.note || stop.manual) return null;
+  return h("span", {
+    class: "note-mark", title: "Has a note", "aria-label": "Has a note", role: "img",
+    html: small ? ICONS.noteSmall : ICONS.note,
+  }, []);
+}
+
+/** A name with the note's scroll after it, in the text so it wraps with it. */
+function stopTitle(stop, className, marked) {
+  if (!stop.manual || state.manualNoteId !== stop.id) {
+    return h("span", { class: className }, [stop.title, marked ? noteMark(stop) : null]);
+  }
   const finish = (save) => {
     if (state.manualNoteId !== stop.id) return;
     const title = field.value.trim();
@@ -5459,7 +5565,9 @@ function trayCard(stop, full) {
         if (state.search) closeThen(1, select); else select();
       } : null,
     }, [
-      stopTitle(stop, "tray-name"),
+      // The name truncates here, so the scroll sits beside it rather than in
+      // it, where an ellipsis would cut it off.
+      h("div", { class: "title-row" }, [stopTitle(stop, "tray-name"), noteMark(stop, true)]),
       h("span", { class: "tray-meta", text: stop.note || displayDistance(stop.description) }, []),
     ]),
     full
@@ -6091,6 +6199,7 @@ function gridCard(day, stop, box, kind) {
     h("div", { class: "gcard-text" }, [
       h("div", { class: "gcard-top" }, [
         stopTitle(stop, "gcard-title"),
+        noteMark(stop, true),
         h("span", {
           class: "gcard-author",
           style: "background:" + stop.authorColor,
@@ -6160,7 +6269,7 @@ function gridPopover(day, stop) {
     h("div", { class: "gpop-head" }, [
       h("div", { class: "gpop-title", text: stop.title }, []),
       h("div", { class: "gpop-sub", text: displayTime(stop.time) || "no time yet" }, []),
-      check ? hoursBar(check, stop.time) : null,
+      check ? hoursBar(check, stop.time, day.date) : null,
       check && !check.ok ? h("div", { class: "gpop-shut" }, [hoursFlag(check)]) : null,
     ]),
     fix ? item("clockOffNotice", fix.label, fix.run) : null,
