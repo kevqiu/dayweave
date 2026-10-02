@@ -719,6 +719,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   border-radius: 1px; background: ${C.ink};
 }
 .hours-tick.shut { background: ${C.shut}; }
+.hours-now {
+  position: absolute; top: -5px; bottom: -5px; width: 0; margin-left: -1px;
+  border-left: 2px dotted ${C.today}; pointer-events: none;
+}
 .hours-scale { position: relative; height: 12px; font-size: 9px; color: ${C.greyer}; font-variant-numeric: tabular-nums; }
 .hours-scale > span { position: absolute; top: 0; }
 .hours-notice {

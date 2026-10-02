@@ -4086,9 +4086,11 @@ function metaLine(className, check, text) {
 /**
  * The day's hours, drawn: a strip from six in the morning to midnight, the
  * open hours filled, the shut ones hatched, and the stop's time a tick. The
- * strip starts earlier when the place or the stop does.
+ * strip starts earlier when the place or the stop does. When the day is
+ * today, a dotted green line marks the time it is now, as the Planner's
+ * now-line does.
  */
-function hoursBar(check, time) {
+function hoursBar(check, time, date) {
   const at = PLAN.minutesOf(time);
   const starts = check.open.map((p) => p[0]).filter((m) => m > 0);
   if (at !== null) starts.push(at);
@@ -4103,6 +4105,13 @@ function hoursBar(check, time) {
   }
   if (at !== null) {
     track.append(h("span", { class: "hours-tick" + (check.ok ? "" : " shut"), style: "left:" + pct(at) + "%" }, []));
+  }
+  if (date === todayIso()) {
+    const nowAt = new Date();
+    const minutes = nowAt.getHours() * 60 + nowAt.getMinutes();
+    if (minutes >= from && minutes <= to) {
+      track.append(h("span", { class: "hours-now", style: "left:" + pct(minutes) + "%", "aria-label": "Now" }, []));
+    }
   }
 
   const marks = [from];
@@ -4190,7 +4199,7 @@ function deskHours(day, stop) {
   if (!check) return null;
   return h("div", { class: "detail-block" }, [
     h("div", { class: "detail-label", text: "HOURS" }, []),
-    hoursBar(check, stop.time),
+    hoursBar(check, stop.time, day.date),
     hoursNotice(day, stop, check),
   ]);
 }
@@ -4275,7 +4284,7 @@ function stopActions(day, stop, done, showTimes) {
 
   const check = hoursFor(day, stop);
   if (check) {
-    wrap.append(hoursBar(check, stop.time));
+    wrap.append(hoursBar(check, stop.time, day.date));
     const notice = hoursNotice(day, stop, check);
     if (notice) wrap.append(notice);
   }
@@ -6160,7 +6169,7 @@ function gridPopover(day, stop) {
     h("div", { class: "gpop-head" }, [
       h("div", { class: "gpop-title", text: stop.title }, []),
       h("div", { class: "gpop-sub", text: displayTime(stop.time) || "no time yet" }, []),
-      check ? hoursBar(check, stop.time) : null,
+      check ? hoursBar(check, stop.time, day.date) : null,
       check && !check.ok ? h("div", { class: "gpop-shut" }, [hoursFlag(check)]) : null,
     ]),
     fix ? item("clockOffNotice", fix.label, fix.run) : null,

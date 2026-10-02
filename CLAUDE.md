@@ -287,6 +287,8 @@ wheel as the palette's register allows.
   - **Opened, the day's hours are a bar**: six to midnight, open hours filled
     in the "fine" green, shut hours hatched, the stop's time a tick. The day
     shown is always the day the stop is on, so moving it changes the bar.
+    On the day that is today, a dotted line in the "today" green (`#6F9A6B`)
+    marks the time it is now, so *is it open yet* reads at a glance.
     It sits above the actions on the phone, in an HOURS block between NOTES
     and TIME on the desk panel, and in the Planner's popover.
   - **When it is wrong, a notice under the bar carries the fix** in the warm
