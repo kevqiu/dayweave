@@ -234,17 +234,31 @@ wheel as the palette's register allows.
 
 - **Search rows are 52px** with a 30px rounded icon tile, and read
   `Ramen · 4.3 · 450 m from Ohori Park` — category, rating, then distance from
-  the named bias anchor. A place already on the trip gets the `#F6EFE2` row,
-  `Already on Sat Oct 3`, and no add button. A result outside the circle is
-  dimmed to 0.65 and says `outside the day`.
-- **The bias never gates anything — it ranks.** A result outside the circle is
-  dimmed to 0.65 and says how far, and is added by the same button as any
-  other. `PlaceSearch.dc.html` happens to draw its far row without a control,
-  and an earlier pass read that as a prohibition and wrote it down here as
-  deliberate. It was wrong: PLAN.md §4b picks `locationBias` over
-  `locationRestriction` precisely so a Hakone teahouse stays findable from
-  Fukuoka, and a UI that refuses to add one has reimposed the restriction the
-  API call was chosen to avoid.
+  the nearest stop already on the day (else the bias anchor). A place already
+  on the trip gets the `#F6EFE2` row, `Already on Sat Oct 3`. **The list shows
+  five**, and a *Show N more* row under them reveals the rest; the map's
+  suggestion pins follow what is showing. Google is asked for twenty, which
+  costs the same request as ten.
+- **A search keeps to the trip, and to the day when the day has stops.**
+  This reverses the rule that used to be here, that the bias only ranks and
+  never gates: on a day with something on it, "ramen" coming back with a shop
+  in Tokyo or Ohio is noise, not choice. `src/lib/nearby.ts` is the rule, and
+  it is two ranges:
+
+  - **The day.** When the day being added to has located stops, a result more
+    than 30 km from all of them is dropped, and the rest are ordered by the
+    distance to whichever stop is nearest. An empty day — or To be planned —
+    has nothing to measure from, so it keeps Google's order and can reach
+    anywhere on the trip. That is where planning the Hakone day from Fukuoka
+    still works.
+  - **The trip.** Whatever the day, a result has to be in a country the trip
+    already has a stop or a stay in, or within 500 km of one. Another city in
+    Japan is a fair thing to add to a Japan trip; the same name in the USA is
+    not. A trip with nothing located on it keeps everything.
+
+  A pasted Maps link is never dropped: it is one place somebody chose. When
+  everything Google found was out of range the list says so — *Nothing within
+  30 km of this day's stops* — rather than *Nothing found*.
 - **A Google Maps link is a search.** The artboard's *Paste a Google Maps
   link* row opened a second field for the link, a step that only existed
   because the first field did not know a link when it saw one. Now a query
@@ -263,11 +277,6 @@ wheel as the palette's register allows.
   returned identical results with and without the bias, because a name is
   specific enough on its own. The bias only orders generic queries, and
   ordering those by the day you are planning is the whole point.
-- **"Outside the day" is only said when the circle came from the open day** —
-  its own stops or its lodging. When the circle fell back to a neighbouring day
-  or the viewport (§4b's third and fourth cases), the open day has no location
-  of its own, so nothing can be outside it and the row says only how far away
-  it is.
 - **Move to day explains itself in words** (§8): a green BEST FIT card naming
   the stops it would slot between, then every other day with the reason it is
   not the answer — *already past*, *different city · 290 km away*, *travel day

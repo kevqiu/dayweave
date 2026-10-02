@@ -14,6 +14,7 @@ import { describeStop, isAccommodation, tripCities } from "../lib/derive.ts";
 import type { PlaceDetails } from "../lib/places.ts";
 import type { Week } from "../lib/hours.ts";
 import type { DayGeo, LatLng } from "../lib/geo.ts";
+import type { TripPoint } from "../lib/nearby.ts";
 import { AVATAR_COLORS, avatarColor, dayColor } from "./ui/tokens.ts";
 
 export { dayColor };
@@ -236,6 +237,32 @@ export async function listStops(db: D1Database, tripId: string): Promise<StopRow
     .bind(tripId)
     .all<StopRow>();
   return results ?? [];
+}
+
+/**
+ * Everywhere the trip already is: every located stop, on a day or not, and
+ * every stay, each with its country. A place search keeps to this
+ * (`nearTrip` in src/lib/nearby.ts), so a generic query cannot add somewhere
+ * on the other side of the world.
+ */
+export async function tripFootprint(db: D1Database, tripId: string): Promise<TripPoint[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT p.lat, p.lng, p.country_code
+         FROM stops s JOIN places p ON p.id = s.place_id
+        WHERE s.trip_id = ? AND s.deleted_at IS NULL
+       UNION
+       SELECT p.lat, p.lng, p.country_code
+         FROM lodging l JOIN places p ON p.id = l.place_id
+        WHERE l.trip_id = ?`,
+    )
+    .bind(tripId, tripId)
+    .all<{ lat: number | null; lng: number | null; country_code: string | null }>();
+  return (results ?? []).flatMap((r) =>
+    typeof r.lat === "number" && typeof r.lng === "number"
+      ? [{ lat: r.lat, lng: r.lng, countryCode: r.country_code }]
+      : [],
+  );
 }
 
 /**

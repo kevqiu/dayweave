@@ -2394,7 +2394,7 @@ function goToMe() {
 function searchMapLayer() {
   const search = state.search;
   if (!search || mapsKey()) return [];
-  return search.rows.filter((row) => row.location && !row.onTrip).map((row) => h("button", {
+  return shownRows(search).filter((row) => row.location && !row.onTrip).map((row) => h("button", {
     class: "suggestion-pin" + (row.placeId === search.lookingAt ? " selected" : ""),
     "aria-label": row.name,
     "data-lat": String(row.location.lat),
@@ -2751,7 +2751,7 @@ function paintSuggestionPins(maps) {
   suggestionMarkers = [];
   const search = state.search;
   if (!search) return;
-  const rows = search.rows.filter((row) => row.location && !row.onTrip);
+  const rows = shownRows(search).filter((row) => row.location && !row.onTrip);
   const bounds = new maps.LatLngBounds();
   for (const row of rows) {
     const selected = row.placeId === search.lookingAt;
@@ -5067,7 +5067,7 @@ function openSearch(dayId, atTime) {
     // time the gap started at rather than at the end of the day.
     startTime: atTime || null,
     query: "", rows: [], pins: [], bias: null,
-    note: null, busy: false, lookingAt: null,
+    note: null, busy: false, lookingAt: null, expanded: false,
   };
   render();
   const field = $("q");
@@ -5135,6 +5135,7 @@ function onSearchInput(event) {
   clearTimeout(debounceTimer);
   searchTicket++;
   s.rows = [];
+  s.expanded = false;
   s.lookingAt = null;
   clearLookMarker();
   for (const pin of document.querySelectorAll(".suggestion-pin")) pin.remove();
@@ -5164,11 +5165,12 @@ async function runSearch(query) {
     // Defensive: a reply without results is not something the Worker sends,
     // and a client that throws on one shows the stack where the rows go.
     s.rows = data.results || [];
+    s.expanded = false;
     s.bias = data.bias;
     s.pins = data.pins || [];
     // A new set of results is a new set of places; nothing is being looked at.
     if (!s.rows.some((r) => r.placeId === s.lookingAt)) s.lookingAt = null;
-    s.note = s.rows.length ? null : "Nothing found for that.";
+    s.note = s.rows.length ? null : emptySearchNote(data);
   } catch (error) {
     if (ticket !== searchTicket || state.search !== s) return;
     s.rows = [];
@@ -5198,7 +5200,14 @@ function renderResults(container) {
     container.append(h("div", { class: "result-hint", text: s.note }, []));
   }
 
-  for (const row of s.rows) container.append(resultRow(row));
+  for (const row of shownRows(s)) container.append(resultRow(row));
+  const more = s.rows.length - shownRows(s).length;
+  if (more > 0) {
+    container.append(h("button", {
+      class: "result-more",
+      onclick: () => { s.expanded = true; render(); },
+    }, [h("span", { text: "Show " + more + " more" }, []), icon("chevron")]));
+  }
 
   // A Google Maps link is searched for like anything else: the Worker reads
   // the place out of it and it comes back as one row above, so the artboard's
@@ -5217,6 +5226,28 @@ function renderResults(container) {
       ]),
     ]),
   );
+}
+
+/**
+ * The rows the list draws: the first five, nearest first, until somebody asks
+ * for the rest. The map's suggestion pins read the same list, so a pin is
+ * never drawn for a row that is not showing.
+ */
+const SHOWN_RESULTS = 5;
+
+function shownRows(search) {
+  return search.expanded ? search.rows : search.rows.slice(0, SHOWN_RESULTS);
+}
+
+/**
+ * Why the list is empty. When Google did find places and every one of them was
+ * too far from the day or the trip, "nothing found" would be untrue.
+ */
+function emptySearchNote(data) {
+  if (!data.outOfRange) return "Nothing found for that.";
+  return data.rangeMetres
+    ? displayDistance("Nothing within " + Math.round(data.rangeMetres / 1000) + " km of this day\u2019s stops.")
+    : "Nothing found near this trip.";
 }
 
 /** The same test as isMapsLink in src/lib/maps-link.ts. */

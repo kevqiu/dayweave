@@ -875,6 +875,14 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 .result-tag { font-size: 11px; font-weight: 600; color: ${C.grey}; flex-shrink: 0; }
 .result-hint { padding: 14px 16px; font-size: 11.5px; color: ${C.grey}; }
+/* The rest of the results, behind the first five. Its words sit on the line
+   the result names start on: 16px of padding, the 30px tile, the 11px gap. */
+.result-more {
+  display: flex; align-items: center; gap: 4px; width: 100%; height: 40px; padding: 0 16px 0 57px;
+  border: 0; border-top: 1px solid ${C.line}; background: transparent; font-family: ${SANS};
+  font-size: 12px; font-weight: 600; color: ${C.inkSoft}; text-align: left;
+}
+.result-more svg { width: 13px; height: 13px; }
 
 /* ---- Move to day (design/MoveToDay.dc.html) ---- */
 .scrim { position: absolute; inset: 0; background: rgba(51,48,43,0.34); z-index: 40; }
