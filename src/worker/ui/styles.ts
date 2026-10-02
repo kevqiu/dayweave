@@ -368,7 +368,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 .map-controls button.busy { opacity: 0.5; }
 /*
- * Where you are: an accent dot on a cream ring, and while the position is
+ * Where you are: a light blue dot on a cream ring, and while the position is
  * live a halo that swells and fades every three seconds. A position that has
  * stopped coming in is drawn grey and still where it was last seen.
  */
@@ -381,9 +381,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   background: ${C.faint}; border: 2.5px solid ${C.card};
   box-shadow: 0 1px 4px rgba(70,58,40,0.28);
 }
-.me-dot.live > i { background: ${C.accent}; }
+.me-dot.live > i { background: ${C.here}; }
 .me-dot.live::before {
-  content: ""; background: ${C.accent}; opacity: 0;
+  content: ""; background: ${C.here}; opacity: 0;
   animation: me-pulse 3s ease-out infinite;
 }
 @keyframes me-pulse {

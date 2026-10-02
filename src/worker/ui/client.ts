@@ -2348,7 +2348,7 @@ let locating = false;
  * camera when asked and places one dot, and it is gone on the next reload.
  *
  * The dot is live while the browser is following the phone: watchPosition is
- * running and its last answer was a position. Live, the accent dot has a halo
+ * running and its last answer was a position. Live, the light blue dot has a halo
  * that pulses slowly. Once that stops being true — the signal is lost in a
  * basement, the tab is put away, the trip is closed — the dot stays where it
  * was last seen and goes grey and still, because a pulsing dot that is not
@@ -2360,6 +2360,7 @@ let locating = false;
  */
 let me = null;
 let meOverlay = null;
+let meCircle = null;
 let meWatch = null;
 let meWanted = false;
 let meCentreNext = false;
@@ -2407,7 +2408,11 @@ function stopFollowingMe() {
 }
 
 function sawMe(position) {
-  me = { at: { lat: position.coords.latitude, lng: position.coords.longitude }, live: true };
+  me = {
+    at: { lat: position.coords.latitude, lng: position.coords.longitude },
+    accuracy: position.coords.accuracy,
+    live: true,
+  };
   paintMe();
   if (!meCentreNext) return;
   meCentreNext = false;
@@ -2474,9 +2479,12 @@ function paintMe() {
   const maps = window.google && window.google.maps;
   if (!maps || !gmap || !me) {
     if (meOverlay) meOverlay.setMap(null);
+    if (meCircle) meCircle.setMap(null);
     meOverlay = null;
+    meCircle = null;
     return;
   }
+  paintMyAccuracy(maps);
   if (!meOverlay) {
     const el = document.createElement("div");
     el.className = "me-dot";
@@ -2497,6 +2505,27 @@ function paintMe() {
   }
   if (meOverlay.getMap() !== gmap) meOverlay.setMap(gmap);
   else meOverlay.draw();
+}
+
+/**
+ * How sure the phone is: a circle of the radius it reports, in metres, so it
+ * scales with the map. Blue and faint while live, grey once the dot is. Drawn
+ * under the pins and never in the way of a tap on one.
+ */
+function paintMyAccuracy(maps) {
+  const radius = Number(me.accuracy);
+  if (!(radius > 0)) {
+    if (meCircle) meCircle.setMap(null);
+    meCircle = null;
+    return;
+  }
+  const colour = me.live ? window.__HERE__.live : window.__HERE__.stale;
+  const look = {
+    center: me.at, radius, map: gmap, clickable: false, zIndex: 1,
+    fillColor: colour, fillOpacity: 0.12, strokeColor: colour, strokeOpacity: 0.35, strokeWeight: 1,
+  };
+  if (meCircle) meCircle.setOptions(look);
+  else meCircle = new maps.Circle(look);
 }
 
 /* ------------------------------------------------------- the search map */

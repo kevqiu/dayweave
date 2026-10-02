@@ -209,16 +209,18 @@ wheel as the palette's register allows.
   has no camera to move, and a control that responds to nothing is worse than
   one that is not there.
 
-  **Where you are is a dot, and it pulses only while it is live.** An accent
-  dot on a cream ring, drawn as an overlay rather than a pin because it is not
-  a thing on the trip. Live means `watchPosition` is running and its last
-  answer was a position; then a halo swells and fades every three seconds
-  (held still under reduced motion). When the signal is lost, the tab is
-  hidden or the map is left, the watch stops or errors and the dot stays where
-  it was last seen, grey and still — a pulsing dot that is not moving with you
-  is lying. Opening a trip never prompts: the browser is asked only by the
-  locate button, and after that, or when the site is already allowed, the map
-  follows by itself. A refusal takes the dot away. Nothing is stored or sent.
+  **Where you are is a dot, and it pulses only while it is live.** A light blue
+  dot (`here` in `tokens.ts`) on a cream ring, drawn as an overlay rather than
+  a pin because it is not a thing on the trip. Live means `watchPosition` is
+  running and its last answer was a position; then a halo swells and fades
+  every three seconds (held still under reduced motion). Under it sits a faint
+  circle of the accuracy the phone reports, in metres, so it scales with the
+  map. When the signal is lost, the tab is hidden or the map is left, the watch
+  stops or errors and the dot stays where it was last seen, grey and still — a
+  pulsing dot that is not moving with you is lying. Opening a trip never
+  prompts: the browser is asked only by the locate button, and after that, or
+  when the site is already allowed, the map follows by itself. A refusal takes
+  the dot away. Nothing is stored or sent.
 
   **The camera is only fitted when what it is showing changes.** It used to be
   re-fitted on every render, so ticking a stop off or saving a note threw away

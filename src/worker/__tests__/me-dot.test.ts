@@ -17,7 +17,7 @@ function definition(name: string) {
   return CLIENT.slice(start, end);
 }
 
-const NAMES = ["goToMe", "centreOnMe", "followMe", "stopFollowingMe", "sawMe", "lostMe", "keepUpWithMe", "paintMe"];
+const NAMES = ["goToMe", "centreOnMe", "followMe", "stopFollowingMe", "sawMe", "lostMe", "keepUpWithMe", "paintMe", "paintMyAccuracy"];
 
 function setup({ permission = "prompt" as string, hidden = false } = {}) {
   const watches: { ok: (p: unknown) => void; fail: (e: unknown) => void }[] = [];
@@ -46,26 +46,33 @@ function setup({ permission = "prompt" as string, hidden = false } = {}) {
     getProjection() { return { fromLatLngToDivPixel: (at: { lat: number; lng: number }) => ({ x: at.lng, y: at.lat }) }; }
   }
   class LatLng { constructor(public lat: number, public lng: number) {} }
+  const circles: Circle[] = [];
+  class Circle {
+    options: any;
+    constructor(options: any) { this.options = options; circles.push(this); }
+    setOptions(options: any) { this.options = options; }
+    setMap(map: unknown) { this.options = { ...this.options, map }; }
+  }
 
   const state: Record<string, unknown> = { error: null };
   const render = vi.fn();
   const context = {
     state, render, navigator, gmap,
-    window: { google: { maps: { OverlayView, LatLng } } },
+    window: { google: { maps: { OverlayView, LatLng, Circle } }, __HERE__: { live: "blue", stale: "grey" } },
     document: { hidden, createElement: () => el },
     $: () => ({}), wideNow: () => true, fitPadding: () => ({}), dayFitKey: () => "day-key",
     paddedMapCenter: (at: unknown) => at,
   };
   const prelude =
     "let me = null; let meOverlay = null; let meWatch = null; let meWanted = false;\n" +
-    "let meCentreNext = false; let mePermission = null; let locating = false; let mapFitted = null;\n";
+    "let meCircle = null; let meCentreNext = false; let mePermission = null; let locating = false; let mapFitted = null;\n";
   const api = new Function(...Object.keys(context),
     prelude + NAMES.map(definition).join("\n") +
     "\nreturn {" + NAMES.join(",") + ", peek: () => ({ me, meWatch, locating, mapFitted, meWanted }) };",
   )(...Object.values(context));
 
-  const fix = (lat: number, lng: number) => ({ coords: { latitude: lat, longitude: lng } });
-  return { api, watches, geolocation, permissionStatus, el, gmap, state, fix };
+  const fix = (lat: number, lng: number, accuracy = 25) => ({ coords: { latitude: lat, longitude: lng, accuracy } });
+  return { api, watches, geolocation, permissionStatus, el, gmap, state, fix, circles };
 }
 
 describe("where you are", () => {
@@ -122,6 +129,21 @@ describe("where you are", () => {
     expect(api.peek().meWanted).toBe(true);
     api.keepUpWithMe();
     expect(geolocation.watchPosition).toHaveBeenCalledTimes(2);
+  });
+
+  it("rings the dot with how sure the phone is, grey once it is not live", () => {
+    const { api, watches, fix, circles, gmap } = setup();
+    api.goToMe();
+    watches[0]!.ok(fix(33.59, 130.4, 40));
+    expect(circles).toHaveLength(1);
+    expect(circles[0]!.options).toMatchObject({ center: { lat: 33.59, lng: 130.4 }, radius: 40, map: gmap, fillColor: "blue", clickable: false });
+    watches[0]!.ok(fix(33.6, 130.41, 12));
+    expect(circles).toHaveLength(1);
+    expect(circles[0]!.options).toMatchObject({ center: { lat: 33.6, lng: 130.41 }, radius: 12 });
+    watches[0]!.fail({ code: 3 });
+    expect(circles[0]!.options.fillColor).toBe("grey");
+    watches[0]!.fail({ code: 1 });
+    expect(circles[0]!.options.map).toBeNull();
   });
 
   it("takes the dot away when refused, and says so when asked", () => {

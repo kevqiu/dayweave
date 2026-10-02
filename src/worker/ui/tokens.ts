@@ -90,6 +90,12 @@ export const COLOR = {
   wxSun: "#C48F12",
   wxCloud: "#8C8479",
   wxBolt: "#B78B26",
+
+  /**
+   * Where you are on the map, and its pulse. A light sky blue, kept well
+   * lighter than the day palette's #1976D2 so the dot never reads as a day.
+   */
+  here: "#5BAEEA",
 } as const;
 
 /** The day palette follows red, orange, yellow, green, blue, indigo, violet. */
