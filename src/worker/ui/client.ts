@@ -190,6 +190,7 @@ function render() {
   if (state.drag) paintDrag();
   if (state.search) paintSearchMap();
   if (state.screen === "trip" && !planning()) paintMap();
+  else stopFollowingMe();
   // A resize can cross the breakpoint while the Plan view is showing; the
   // paint above only runs for the map, and settleGrid only for the grid.
   if (planning() && !grid) scrollRailToDay();
@@ -2338,16 +2339,32 @@ function fitPadding() {
   return { top: 60, right: 40, bottom: covered + 20, left: 40 };
 }
 
-let meMarker = null;
 let locating = false;
 
-/**
- * Where the phone is.
+/*
+ * Where the phone is, drawn as a dot on the real map.
  *
- * Nothing is stored and nothing is sent anywhere: the coordinate is used to
- * move the camera and draw one dot, and it is gone on the next reload. A
- * refusal is said out loud rather than left as a button that did nothing.
+ * Nothing is stored and nothing is sent anywhere: the coordinate moves the
+ * camera when asked and places one dot, and it is gone on the next reload.
+ *
+ * The dot is live while the browser is following the phone: watchPosition is
+ * running and its last answer was a position. Live, the accent dot has a halo
+ * that pulses slowly. Once that stops being true — the signal is lost in a
+ * basement, the tab is put away, the trip is closed — the dot stays where it
+ * was last seen and goes grey and still, because a pulsing dot that is not
+ * moving with you is a dot that is lying about where you are.
+ *
+ * Nobody is asked for their location by opening a trip. The browser is only
+ * asked when the locate button is pressed; after that, or when the site was
+ * already allowed, the map follows by itself whenever it is showing.
  */
+let me = null;
+let meOverlay = null;
+let meWatch = null;
+let meWanted = false;
+let meCentreNext = false;
+let mePermission = null;
+
 function goToMe() {
   if (!navigator.geolocation) {
     state.error = "This browser will not say where it is";
@@ -2355,38 +2372,131 @@ function goToMe() {
     return;
   }
   if (locating) return;
+  meWanted = true;
+  if (me && me.live && meWatch !== null) { centreOnMe(); return; }
   locating = true;
+  meCentreNext = true;
   render();
+  if (meWatch === null) followMe();
+}
 
-  navigator.geolocation.getCurrentPosition(
-    async (position) => {
-      locating = false;
-      const at = { lat: position.coords.latitude, lng: position.coords.longitude };
-      const maps = await loadMaps();
-      if (!maps || !gmap) { render(); return; }
+function centreOnMe() {
+  if (!gmap || !me) return;
+  const zoom = Math.max(gmap.getZoom() || 0, 16);
+  if (gmap.getZoom() !== zoom) gmap.setZoom(zoom);
+  gmap.panTo(wideNow() ? me.at : paddedMapCenter(me.at, zoom, fitPadding()));
+  // The camera is now somebody's, not the open day's.
+  mapFitted = dayFitKey();
+}
 
-      if (meMarker) meMarker.setMap(null);
-      meMarker = new maps.Marker({
-        position: at,
-        map: gmap,
-        title: "Where you are",
-        icon: { url: window.__ME_PIN__ },
-        zIndex: 4,
-      });
-      gmap.panTo(at);
-      gmap.setZoom(16);
-      mapFitted = dayFitKey();
-      render();
-    },
-    (error) => {
-      locating = false;
-      state.error = error.code === 1
-        ? "This phone is not sharing where it is"
-        : "Could not work out where you are";
-      render();
-    },
-    { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 },
-  );
+function followMe() {
+  if (meWatch !== null || !navigator.geolocation) return;
+  meWatch = navigator.geolocation.watchPosition(sawMe, lostMe, {
+    enableHighAccuracy: true, timeout: 30000, maximumAge: 10000,
+  });
+}
+
+function stopFollowingMe() {
+  if (meWatch === null) return;
+  navigator.geolocation.clearWatch(meWatch);
+  meWatch = null;
+  // Called from render() on the way off the map, so it must not render.
+  locating = false;
+  meCentreNext = false;
+  if (me && me.live) { me.live = false; paintMe(); }
+}
+
+function sawMe(position) {
+  me = { at: { lat: position.coords.latitude, lng: position.coords.longitude }, live: true };
+  paintMe();
+  if (!meCentreNext) return;
+  meCentreNext = false;
+  locating = false;
+  centreOnMe();
+  render();
+}
+
+function lostMe(error) {
+  const asked = meCentreNext;
+  meCentreNext = false;
+  locating = false;
+  if (error.code === 1) {
+    // Refused: the dot goes with the permission, and nothing asks again
+    // until the button is pressed.
+    meWanted = false;
+    stopFollowingMe();
+    me = null;
+  } else if (me) {
+    // The watch carries on, and the next position makes the dot live again.
+    me.live = false;
+  }
+  paintMe();
+  if (!asked) return;
+  state.error = error.code === 1
+    ? "This phone is not sharing where it is"
+    : "Could not work out where you are";
+  render();
+}
+
+/**
+ * Called by every paint of the real map. Starts following when the site is
+ * already allowed or the button was pressed, and puts the dot on whichever
+ * map is showing.
+ */
+function keepUpWithMe() {
+  if (mePermission === null && navigator.permissions && navigator.permissions.query) {
+    mePermission = navigator.permissions.query({ name: "geolocation" }).then((status) => {
+      const settle = () => {
+        if (status.state === "granted") meWanted = true;
+        if (status.state === "denied") { meWanted = false; stopFollowingMe(); me = null; paintMe(); }
+        if (meWanted && !document.hidden && $("gmap")) followMe();
+      };
+      status.onchange = settle;
+      settle();
+    }, () => {});
+  }
+  if (meWanted && !document.hidden) followMe();
+  paintMe();
+}
+
+// GPS is the battery's worst enemy, so nothing is followed from a tab nobody
+// is looking at. The dot goes still until the tab is back.
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) stopFollowingMe();
+  else if (meWanted && $("gmap") && gmap) followMe();
+});
+
+/**
+ * The dot itself: an element over the map rather than a Marker, so the pulse
+ * is a CSS animation and reduced motion is a media query.
+ */
+function paintMe() {
+  const maps = window.google && window.google.maps;
+  if (!maps || !gmap || !me) {
+    if (meOverlay) meOverlay.setMap(null);
+    meOverlay = null;
+    return;
+  }
+  if (!meOverlay) {
+    const el = document.createElement("div");
+    el.className = "me-dot";
+    el.setAttribute("aria-label", "Where you are");
+    el.append(document.createElement("i"));
+    const overlay = new maps.OverlayView();
+    overlay.onAdd = () => overlay.getPanes().overlayLayer.append(el);
+    overlay.onRemove = () => el.remove();
+    overlay.draw = () => {
+      const projection = overlay.getProjection();
+      if (!projection || !me) return;
+      const at = projection.fromLatLngToDivPixel(new maps.LatLng(me.at.lat, me.at.lng));
+      el.style.left = at.x + "px";
+      el.style.top = at.y + "px";
+      el.classList.toggle("live", me.live);
+    };
+    meOverlay = overlay;
+  }
+  if (meOverlay.getMap() !== gmap) meOverlay.setMap(gmap);
+  else meOverlay.draw();
 }
 
 /* ------------------------------------------------------- the search map */
@@ -2683,6 +2793,7 @@ async function paintMap() {
   }
 
   paintDayRoute(maps);
+  keepUpWithMe();
   if (state.search) { paintSuggestionPins(maps); return; }
   clearLookMarker();
   if (focusSelectedMapStop()) return;

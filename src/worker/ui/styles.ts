@@ -367,6 +367,32 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   display: flex; align-items: center; justify-content: center; padding: 0;
 }
 .map-controls button.busy { opacity: 0.5; }
+/*
+ * Where you are: an accent dot on a cream ring, and while the position is
+ * live a halo that swells and fades every three seconds. A position that has
+ * stopped coming in is drawn grey and still where it was last seen.
+ */
+.me-dot { position: absolute; width: 0; height: 0; pointer-events: none; }
+.me-dot > i, .me-dot::before {
+  position: absolute; left: -8px; top: -8px; width: 16px; height: 16px;
+  box-sizing: border-box; border-radius: 50%;
+}
+.me-dot > i {
+  background: ${C.faint}; border: 2.5px solid ${C.card};
+  box-shadow: 0 1px 4px rgba(70,58,40,0.28);
+}
+.me-dot.live > i { background: ${C.accent}; }
+.me-dot.live::before {
+  content: ""; background: ${C.accent}; opacity: 0;
+  animation: me-pulse 3s ease-out infinite;
+}
+@keyframes me-pulse {
+  0% { transform: scale(1); opacity: 0.4; }
+  75%, 100% { transform: scale(3.4); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .me-dot.live::before { animation: none; transform: scale(2.2); opacity: 0.2; }
+}
 /* Centred on the point, like the real map's markers. */
 .pin { position: absolute; transform: translate(-50%, -50%); }
 .pin > i {

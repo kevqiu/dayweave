@@ -249,7 +249,7 @@ describe("located accommodations", () => {
       state, mapsKey: () => true, $: () => host,
       loadMaps: async () => ({ LatLngBounds: Bounds, Marker, Size: class {}, Point: class {} }),
       gmap: map, routeNumbers: () => ({}), pinLook: () => ({}), pinUrl: () => ({ url: "pin", box: 32 }),
-      fitPadding: () => 24, dayFitKey: () => "day-key", selectStay: openStay, clearLookMarker: vi.fn(), focusSelectedMapStop: () => false, paintDayRoute: vi.fn(),
+      fitPadding: () => 24, dayFitKey: () => "day-key", selectStay: openStay, clearLookMarker: vi.fn(), focusSelectedMapStop: () => false, paintDayRoute: vi.fn(), keepUpWithMe: vi.fn(),
     }, "let gmarkers = []; let mapFitted = null;\n");
     await api.paintMap();
     expect(markers).toHaveLength(1);
