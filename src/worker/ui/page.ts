@@ -1,7 +1,7 @@
 import { CLIENT } from "./client.ts";
 import * as icons from "./icons.ts";
 import { cardMap, mapBackground, signInMap } from "./map.ts";
-import { lookPinIcon, mapStyle, meIcon } from "./gmap.ts";
+import { lookPinIcon, mapStyle } from "./gmap.ts";
 import { PLAN_CLIENT } from "./plan-client.ts";
 import { HOURS_CLIENT } from "./hours-client.ts";
 import { styles } from "./styles.ts";
@@ -148,7 +148,8 @@ window.__MAPS_KEY__ = ${JSON.stringify(mapsKey)};
 window.__LOCAL_DEV__ = ${JSON.stringify(localDev)};
 window.__MAP_STYLE__ = ${JSON.stringify(mapStyle())};
 window.__LOOK_PIN__ = ${JSON.stringify(lookPinIcon())};
-window.__ME_PIN__ = ${JSON.stringify(meIcon())};
+// The accuracy circle around where you are: blue while live, grey once not.
+window.__HERE__ = ${JSON.stringify({ live: C.here, stale: C.faint })};
 // The nine swatches a day's pencil offers: the palette, then white.
 window.__DAY_SWATCHES__ = ${JSON.stringify([...DAY_PALETTE, DAY_BLACK])};
 </script>
