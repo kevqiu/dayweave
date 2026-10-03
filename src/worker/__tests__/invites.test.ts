@@ -892,7 +892,7 @@ describe("membership is the permission", () => {
     const { mika, stayId, tripId } = await plannerFixture();
     const place = { googlePlaceId: "new-hotel", name: "Central stay", nameLocal: null, lat: 37.5, lng: 127,
       address: "Central street", city: "Seoul", countryCode: "KR", category: "hotel", mapsUrl: "https://maps.google.com/", rating: 4.3 };
-    env.PLACES_CACHE = { list: async () => ({ keys: [{ name: "ts:v2:hotel" }] }), get: async () => [place] };
+    env.PLACES_CACHE = { list: async () => ({ keys: [{ name: "ts:v3:hotel" }] }), get: async () => [place] };
     expect((await mika.post(`/api/lodging/${stayId}`, { name: place.name, placeId: place.googlePlaceId })).status).toBe(200);
     const trip = await (await mika.get(`/api/trips/${tripId}`)).json() as { lodging: object[] };
     expect(trip.lodging[0]).toMatchObject({ lat: 37.5, lng: 127, city: "Seoul", google_place_id: "new-hotel", note: "Keep this note" });
@@ -969,7 +969,7 @@ describe("opening hours", () => {
 
   it("keeps the hours a search came back with, and ranks the days by them", async () => {
     const { mika, tripId, days } = await tripInFukuoka();
-    env.PLACES_CACHE = { list: async () => ({ keys: [{ name: "ts:v2:ramen" }] }), get: async () => [place("kanetora", ramen)] };
+    env.PLACES_CACHE = { list: async () => ({ keys: [{ name: "ts:v3:ramen" }] }), get: async () => [place("kanetora", ramen)] };
 
     const added = await mika.post(`/api/trips/${tripId}/stops`, { placeId: "kanetora", dayId: days[0]!.id, startTime: "10:00" });
     expect(added.status).toBe(201);
@@ -1028,7 +1028,7 @@ describe("opening hours", () => {
 
   it("asks Google once for a place added before there were hours", async () => {
     const { mika, tripId, days } = await tripInFukuoka();
-    env.PLACES_CACHE = { list: async () => ({ keys: [{ name: "ts:v2:ramen" }] }), get: async () => [place("old")] };
+    env.PLACES_CACHE = { list: async () => ({ keys: [{ name: "ts:v3:ramen" }] }), get: async () => [place("old")] };
     expect((await mika.post(`/api/trips/${tripId}/stops`, { placeId: "old", dayId: days[4]!.id })).status).toBe(201);
 
     env.GOOGLE_PLACES_KEY = "server-key";
@@ -1059,6 +1059,82 @@ describe("opening hours", () => {
 });
 
 
+describe("how far a place search reaches", () => {
+  const kanetora = {
+    googlePlaceId: "kanetora", name: "Kanetora", nameLocal: null, lat: 33.59, lng: 130.4, address: "Hakata",
+    city: "Fukuoka", countryCode: "JP", category: "ramen", mapsUrl: null, rating: 4.3, hours: null,
+  };
+  /** As Text Search answers: Google's order, which is not the order of distance. */
+  const found = [
+    { id: "tokyo", name: "Ramen Tokyo", lat: 35.68, lng: 139.77, country: "JP" },
+    { id: "ohio", name: "Ramen Ohio", lat: 39.96, lng: -82.99, country: "US" },
+    { id: "dazaifu", name: "Ramen Dazaifu", lat: 33.52, lng: 130.53, country: "JP" },
+    { id: "tenjin", name: "Ramen Tenjin", lat: 33.591, lng: 130.399, country: "JP" },
+  ];
+
+  type Search = {
+    results: { placeId: string; meta: string }[];
+    outOfRange: number;
+    rangeMetres: number | null;
+  };
+
+  it("keeps to the day when it has stops, and to the trip when it has none", async () => {
+    const mika = browser(env);
+    await signIn(mika, MIKA);
+    const made = (await (await mika.post("/api/trips", {
+      name: "Fukuoka", startDate: "2030-09-30", endDate: "2030-10-03",
+    })).json()) as { trip: { id: string } };
+    const tripId = made.trip.id;
+    const { days } = await mika.json<{ days: { id: string }[] }>(`/api/trips/${tripId}`);
+
+    const store = new Map<string, string>([["ts:v3:seed", JSON.stringify([kanetora])]]);
+    env.PLACES_CACHE = {
+      list: async ({ prefix }: { prefix: string }) => ({ keys: [...store.keys()].filter((k) => k.startsWith(prefix)).map((name) => ({ name })) }),
+      get: async (key: string, type?: string) => {
+        const value = store.get(key) ?? null;
+        return value !== null && type === "json" ? JSON.parse(value) : value;
+      },
+      put: async (key: string, value: string) => void store.set(key, value),
+    };
+    expect((await mika.post(`/api/trips/${tripId}/stops`, { placeId: "kanetora", dayId: days[0]!.id })).status).toBe(201);
+
+    env.GOOGLE_PLACES_KEY = "server-key";
+    const asked: { maxResultCount: number }[] = [];
+    const before = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url !== "https://places.googleapis.com/v1/places:searchText") return before(input as never, init);
+      asked.push(JSON.parse(String(init?.body)));
+      return Response.json({ places: found.map((p) => ({
+        id: p.id, displayName: { text: p.name }, location: { latitude: p.lat, longitude: p.lng },
+        primaryType: "ramen_restaurant", addressComponents: [{ shortText: p.country, types: ["country"] }],
+      })) });
+    }) as typeof fetch;
+
+    try {
+      // The day with Kanetora on it: Tokyo and Ohio are dropped, and what is
+      // left is nearest first, measured from Kanetora.
+      const onDay = await mika.json<Search>(
+        `/api/trips/${tripId}/place-search?` + new URLSearchParams({ q: "ramen", dayId: days[0]!.id }),
+      );
+      expect(onDay.results.map((r) => r.placeId)).toEqual(["tenjin", "dazaifu"]);
+      expect(onDay.results[0]!.meta).toMatch(/from Kanetora$/);
+      expect(onDay).toMatchObject({ outOfRange: 2, rangeMetres: 30_000 });
+      expect(asked[0]!.maxResultCount).toBe(20);
+
+      // An empty day reaches the rest of Japan, in Google's order, but not Ohio.
+      const empty = await mika.json<Search>(
+        `/api/trips/${tripId}/place-search?` + new URLSearchParams({ q: "ramen", dayId: days[2]!.id }),
+      );
+      expect(empty.results.map((r) => r.placeId)).toEqual(["tokyo", "dazaifu", "tenjin"]);
+      expect(empty).toMatchObject({ outOfRange: 1, rangeMetres: null });
+    } finally {
+      globalThis.fetch = before;
+    }
+  });
+});
+
+
 describe("the day's weather", () => {
   const iso = (n: number) => {
     const d = new Date();
@@ -1072,7 +1148,7 @@ describe("the day's weather", () => {
 
   /** The places cache as a real KV: the search hit it already holds, and room for a forecast. */
   function cache() {
-    const store = new Map<string, string>([["ts:v2:ramen", JSON.stringify([ramen])]]);
+    const store = new Map<string, string>([["ts:v3:ramen", JSON.stringify([ramen])]]);
     return {
       store,
       list: async ({ prefix }: { prefix: string }) => ({ keys: [...store.keys()].filter((k) => k.startsWith(prefix)).map((name) => ({ name })) }),

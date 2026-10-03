@@ -11,6 +11,7 @@ import {
   type PlaceDetails,
 } from "../lib/places.ts";
 import { haversineMetres, resolveBias, roundedCentre, type Bias } from "../lib/geo.ts";
+import { DAY_RANGE_M, nearDay, nearTrip } from "../lib/nearby.ts";
 import {
   agoLabel,
   contributionLine,
@@ -53,6 +54,7 @@ import {
   placeCounts,
   placesNeedingHours,
   placesOnTrip,
+  tripFootprint,
   revokeInvites,
   setPlaceHours,
   stopsForDay,
@@ -916,7 +918,13 @@ app.get("/api/trips/:tripId/place-search", async (c) => {
    * its own. The bias only orders generic queries, and ordering those by the
    * day you are planning is the entire point of PLAN.md section 4b.
    */
-  const bias = biasFor(c.req.query("dayId") ?? null, days, stops);
+  const dayId = c.req.query("dayId") ?? null;
+  const dayGeo = toDayGeo(days, stops);
+  const bias = resolveBias({ dayId, days: dayGeo });
+  // The stops already on the day being added to. A day with some is somewhere,
+  // and the results are kept to its range and ordered by them (nearby.ts); an
+  // empty day, or To be planned, takes a search from anywhere.
+  const dayNodes = dayGeo.find((d) => d.id === dayId)?.stops ?? [];
 
   let places: PlaceDetails[];
   try {
@@ -936,8 +944,18 @@ app.get("/api/trips/:tripId/place-search", async (c) => {
     throw error;
   }
 
-  const onTrip = await placesOnTrip(c.env.DB, tripId);
+  const [onTrip, footprint] = await Promise.all([
+    placesOnTrip(c.env.DB, tripId),
+    tripFootprint(c.env.DB, tripId),
+  ]);
   const anchor = bias?.anchor ?? null;
+  // Two ranges (src/lib/nearby.ts): nothing from outside the trip's countries
+  // and far from all of it, whatever the day; and on a day that has stops,
+  // nothing far from them, nearest first. A pasted link is one place somebody
+  // chose rather than a list to rank, so it is never dropped for being far.
+  const link = isMapsLink(query);
+  const onTheTrip = nearTrip(places, link ? [] : footprint);
+  const nearby = nearDay(onTheTrip.kept, link ? [] : dayNodes);
 
   return c.json({
     bias: bias ? { ...bias, label: biasLabel(bias, days, stops) } : null,
@@ -946,8 +964,14 @@ app.get("/api/trips/:tripId/place-search", async (c) => {
     pins: stops
       .filter((s) => s.lat !== null && s.lng !== null)
       .map((s) => ({ lat: s.lat as number, lng: s.lng as number })),
-    results: places.map((place) => {
-      const metres = anchor ? haversineMetres(anchor.location, { lat: place.lat, lng: place.lng }) : null;
+    // How many Google returned that were too far from the day to show, so an
+    // empty list can say why rather than "nothing found".
+    outOfRange: onTheTrip.dropped + nearby.dropped,
+    // The day's range when it was the one applied, so the empty list can name it.
+    rangeMetres: dayNodes.length && !link ? DAY_RANGE_M : null,
+    results: nearby.kept.map(({ place, nearest }) => {
+      const metres = nearest?.metres ??
+        (anchor ? haversineMetres(anchor.location, { lat: place.lat, lng: place.lng }) : null);
       return {
         placeId: place.googlePlaceId,
         name: place.name,
@@ -961,7 +985,7 @@ app.get("/api/trips/:tripId/place-search", async (c) => {
         distanceMetres: metres,
         onTrip: onTrip.has(place.googlePlaceId),
         onTripDay: onTrip.get(place.googlePlaceId) ?? null,
-        meta: resultMeta(place, metres, anchor?.name ?? null),
+        meta: resultMeta(place, metres, nearest?.name ?? anchor?.name ?? null),
       };
     }),
   });
@@ -1003,31 +1027,32 @@ function biasLabel(bias: Bias, days: readonly DayRow[], stops: readonly StopRow[
   return city ? `Near ${dayLabel(day.date)}, ${city}` : `Near ${dayLabel(day.date)}`;
 }
 
-function biasFor(dayId: string | null, days: readonly DayRow[], stops: readonly StopRow[]) {
-  return resolveBias({ dayId, days: toDayGeo(days, stops) });
-}
-
 /**
  * Query plus rounded bias centre, cached for an hour (PLAN.md section 4b).
  *
  * The cached payload is the whole place, not just what a row shows, so picking
  * one costs no further call to Google.
  */
+const SEARCH_CACHE = "ts:v3:";
+
 async function cachedSearch(env: Env, query: string, bias: Bias | null): Promise<PlaceDetails[]> {
   // v2 carries opening hours. A v1 entry would add a place with no word on its
-  // hours at all, so it is left to expire rather than read.
-  const key = `ts:v2:${roundedCentre(bias)}:${query.toLowerCase()}`;
+  // hours at all, so it is left to expire rather than read. v3 asks for twenty
+  // rather than ten: the far ones are dropped from a day that has stops, and
+  // the list shows five with the rest behind "Show more". Text Search bills
+  // per request, not per result, so the extra ten cost nothing.
+  const key = `${SEARCH_CACHE}${roundedCentre(bias)}:${query.toLowerCase()}`;
   const cached = await env.PLACES_CACHE.get(key, "json");
   if (cached) return cached as PlaceDetails[];
 
-  const places = await textSearch(placesConfig(env), { query, bias });
+  const places = await textSearch(placesConfig(env), { query, bias, maxResults: 20 });
   await env.PLACES_CACHE.put(key, JSON.stringify(places), { expirationTtl: CACHE_TTL_SECONDS });
   return places;
 }
 
 /** The cache, read by place id, so a pick does not pay for a Details call. */
 async function placeFromCache(env: Env, placeId: string): Promise<PlaceDetails | null> {
-  const listed = await env.PLACES_CACHE.list({ prefix: "ts:v2:" });
+  const listed = await env.PLACES_CACHE.list({ prefix: SEARCH_CACHE });
   for (const key of listed.keys) {
     const places = (await env.PLACES_CACHE.get(key.name, "json")) as PlaceDetails[] | null;
     const hit = places?.find((p) => p.googlePlaceId === placeId);
@@ -1525,7 +1550,7 @@ app.get("/api/trips/:tripId/complete", async (c) => {
   if (!trip) return c.json({ error: "no such trip" }, 404);
 
   const [days, stops] = await Promise.all([listDays(c.env.DB, tripId), listStops(c.env.DB, tripId)]);
-  const bias = c.req.query("anywhere") === "1" ? null : biasFor(c.req.query("dayId") ?? null, days, stops);
+  const bias = c.req.query("anywhere") === "1" ? null : resolveBias({ dayId: c.req.query("dayId") ?? null, days: toDayGeo(days, stops) });
 
   try {
     const suggestions = await autocomplete(placesConfig(c.env), { query, sessionToken, bias });

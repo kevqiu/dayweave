@@ -636,7 +636,7 @@ describe("search and drag transitions", () => {
     }
     const maps = { Marker, LatLngBounds: Bounds, Size: class {}, Point: class {} };
     const gmap = { fitBounds: vi.fn(), setZoom: vi.fn() };
-    const api = load(["paintSuggestionPins"], { state, gmap, window: { __LOOK_PIN__: "pin" }, fitPadding: () => 24, lookAt: vi.fn() }, "let suggestionMarkers=[]; let suggestionFitKey=null;");
+    const api = load(["shownRows", "paintSuggestionPins"], { state, gmap, window: { __LOOK_PIN__: "pin" }, fitPadding: () => 24, lookAt: vi.fn() }, "const SHOWN_RESULTS=5; let suggestionMarkers=[]; let suggestionFitKey=null;");
     api.paintSuggestionPins(maps);
     expect(markers.map((marker) => marker.options.position)).toEqual(rows.map((row) => row.location));
     expect(gmap.fitBounds.mock.calls[0]![0].points).toEqual(rows.map((row) => row.location));
@@ -645,6 +645,24 @@ describe("search and drag transitions", () => {
     expect(markers[0].setMap).toHaveBeenCalledWith(null);
     expect(markers.slice(2).map((marker) => marker.options.zIndex)).toEqual([50, 60]);
     expect(gmap.fitBounds).toHaveBeenCalledOnce();
+  });
+
+  it("shows five results and pins only those until the list is expanded", () => {
+    const rows = Array.from({ length: 8 }, (_, i) => ({ placeId: "p" + i, name: "Place " + i, location: { lat: i, lng: i } }));
+    const state = { search: { rows, lookingAt: null as string | null, expanded: false } };
+    const markers: any[] = [];
+    class Marker {
+      setMap = vi.fn(); addListener = vi.fn();
+      constructor(public options: any) { markers.push(this); }
+    }
+    const maps = { Marker, LatLngBounds: class { extend() {} }, Size: class {}, Point: class {} };
+    const gmap = { fitBounds: vi.fn(), setZoom: vi.fn() };
+    const api = load(["shownRows", "paintSuggestionPins"], { state, gmap, window: { __LOOK_PIN__: "pin" }, fitPadding: () => 24, lookAt: vi.fn() }, "const SHOWN_RESULTS=5; let suggestionMarkers=[]; let suggestionFitKey=null;");
+    expect(api.shownRows(state.search).map((r: any) => r.placeId)).toEqual(["p0", "p1", "p2", "p3", "p4"]);
+    api.paintSuggestionPins(maps);
+    expect(markers).toHaveLength(5);
+    state.search.expanded = true;
+    expect(api.shownRows(state.search)).toHaveLength(8);
   });
 });
 
