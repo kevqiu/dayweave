@@ -446,6 +446,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
    inside a button. */
 .day-head { display: flex; align-items: center; padding: 0 10px 0 14px; height: 44px; }
 .day-head.open { background: ${C.highlight}; }
+/* Today, on a trip that is happening: the list opens on it, and it is marked in
+   the today green so it is found again after scrolling away. */
+.day-head.today { background: ${C.greenTile}; box-shadow: inset 3px 0 0 ${C.today}; }
+.day-head.today .today-tag { background: ${C.card}; }
 .day-head-tap {
   display: flex; align-items: center; gap: 10px; flex-grow: 1; min-width: 0; height: 44px;
   background: transparent; border: 0; padding: 0; text-align: left; font-family: ${SANS};
@@ -660,6 +664,26 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   display: flex; align-items: center; gap: 8px; flex-grow: 1; min-width: 0; height: 42px;
   background: transparent; border: 0; padding: 0; text-align: left; font-family: ${SANS};
 }
+
+/* A row swiped left, over its time, note and delete. The row is opaque only so
+   it can cover them; the buttons are not drawn at all until a swipe starts. */
+.swipe-track { position: relative; overflow: hidden; border-radius: 10px; touch-action: pan-y; }
+.swipe-track > .stop-row {
+  position: relative; z-index: 1; background: ${C.paper}; transition: transform 180ms ease;
+}
+.stop.selected .swipe-track > .stop-row { background: ${C.card}; }
+.swipe-track.swiping > .stop-row { transition: none; }
+.swipe-track.open > .stop-row { transform: translateX(-168px); }
+.swipe-actions { position: absolute; top: 0; right: 0; bottom: 0; display: flex; }
+.swipe-track:not(.swiping):not(.open) > .swipe-actions { visibility: hidden; }
+.swipe-btn {
+  width: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px; border: 0; padding: 0; background: ${C.highlight}; color: ${C.inkSoft};
+  font-family: ${SANS}; font-size: 10px; font-weight: 600;
+}
+.swipe-btn + .swipe-btn { border-left: 1px solid ${C.line}; }
+.swipe-btn.delete { background: ${C.shut}; color: ${C.card}; }
+@media (prefers-reduced-motion: reduce) { .swipe-track > .stop-row { transition: none; } }
 
 /* The slot the row came from, held open while it is in the air. */
 .stop.ghost { opacity: 0.45; }
@@ -1053,6 +1077,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   height: 44px; background: ${C.highlight};
   border-top: 1px solid ${C.sheetEdge}; border-bottom: 1px solid ${C.sheetEdge};
 }
+.rail-day.today { background: ${C.greenTile}; box-shadow: inset 3px 0 0 ${C.today}; }
 .rail-day.past .rail-hue { opacity: 0.45; }
 .rail-day.past .rail-label { color: ${C.greyer}; }
 .rail-day.droppable { background: #FCF6E6; border-bottom: 1px dashed #C7B98F; }

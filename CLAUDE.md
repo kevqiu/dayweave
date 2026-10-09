@@ -187,6 +187,18 @@ wheel as the palette's register allows.
   the trip must never wait on a third party; and its reply never renders
   under a drag or a focused field.
 
+- **A trip that is happening opens on today.** The day is opened, scrolled to
+  the top of the list, and its header is marked: a `greenTile` ground with a
+  3px edge in the today green, on the sheet and on the desk rail. No artboard
+  draws a today header; `Main.dc.html` only opens the day.
+
+- **A row of the phone's list swipes left to Time, Note and Delete.** Three
+  56px buttons behind the row, Delete in the `shut` ink, the two others on the
+  highlight. One row is open at a time, and a tap on any row puts it back. The
+  gesture is settled in the DOM, not by a `render()`, so the row slides from
+  where the finger left it; `state.swipeStopId` only remembers which is open.
+  The grip still drags, because a swipe never starts on it.
+
 - **The sheet has two tabs: Destinations and Accommodations.** Everything else
   in the app is a place you go on a day. Where you sleep is not: it is one
   thing covering a run of days, and there is no honest way to put it in a
@@ -376,7 +388,8 @@ wheel as the palette's register allows.
   top of the frame with the sheet over its lower 28px. The map there shows the
   trip's stops as small green pins, the bias circle dashed in terracotta, and
   the result being looked at as one bigger terracotta pin. Tapping a row looks
-  at it; only the `+` adds it.
+  at it; only the `+` adds it. **Adding closes the search**: the list comes
+  back open on the day the place went to, with the new row scrolled into view.
 
   **The way out is a "Back to trip" button above the field, not the X the
   artboard draws inside it.** An X in a search field reads as "clear what I
@@ -872,6 +885,19 @@ in basements, and a round trip is the slowest part of typing six words.
 invite link on has nothing to put on the screen until the Worker mints the
 token, and Join has nothing to show until the trip it hands back has been read.
 A write whose whole result comes from the server cannot be applied first.
+
+**The re-read that follows a write is made once, by the last write to land.**
+Each write used to re-read the trip as it landed, so three quick edits made
+three reads, and each read put the screen back to what the server had said at
+that moment — undoing for a beat the edits still in the air behind it. Now a
+read is only owed while anything is in flight, a read overtaken by a newer one
+or by a new write is thrown away, and one that lands under a drag waits for the
+drop (`writeSettled`, `refreshTrip`, `flushRefresh` in `client.ts`).
+
+**A place added from search has a provisional id, `pending_…`, until the
+server answers**, and anything done to it before then — a drag, a tick, a note
+— is posted to the real one: `post` waits on the add for it. Posting the
+provisional id is what put *That did not move: no such stop* on the screen.
 
 When a write fails the screen goes **back to what it said before** and a notice
 in the palette says why. No artboard draws that notice — §4g settles on

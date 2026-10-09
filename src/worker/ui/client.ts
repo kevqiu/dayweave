@@ -53,8 +53,30 @@ async function api(path, options) {
   return data;
 }
 
-const post = (path, body) =>
-  api(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+/*
+ * A place added from search is on the screen before the server has given it an
+ * id, as "pending_" and a uuid. Anything done to it in that window — a drag, a
+ * tick, a note — used to be posted to /api/stops/pending_.../move and come back
+ * "no such stop". The add's own promise is kept here, so a write against a
+ * provisional id waits for the real one and goes there instead.
+ */
+const realStopIds = new Map();
+const provisionalStops = new Map();
+
+function settledStopId(id) {
+  if (typeof id !== "string" || !id.startsWith("pending_")) return Promise.resolve(id);
+  if (realStopIds.has(id)) return Promise.resolve(realStopIds.get(id));
+  return provisionalStops.get(id) || Promise.resolve(id);
+}
+
+async function post(path, body) {
+  const provisional = /\/api\/stops\/(pending_[^/]+)/.exec(path);
+  if (provisional) path = path.replace(provisional[1], await settledStopId(provisional[1]));
+  if (body && typeof body.afterStopId === "string" && body.afterStopId.startsWith("pending_")) {
+    body = Object.assign({}, body, { afterStopId: await settledStopId(body.afterStopId) });
+  }
+  return api(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+}
 
 /* ---------------------------------------------------------------- state */
 
@@ -91,6 +113,10 @@ const state = {
   sheetFull: false,
   /* Pulled all the way down: the sheet is its handle and one day's header. */
   sheetPeek: false,
+  /* A day to scroll to the top of the list on the next render: today's, on opening a trip. */
+  revealDayId: null,
+  /* The row of the phone's list swiped open to its time, note and delete. */
+  swipeStopId: null,
   /* The sheet's two tabs: the day list, and the stays that span days. */
   sheetTab: "stops",
   /* The day whose pencil is open, and the panel under its header. */
@@ -198,6 +224,12 @@ function render() {
   for (const saved of savedScroll) {
     const scroll = document.querySelector(saved.selector);
     if (scroll && scroll.dataset.scrollKey === saved.key) scroll.scrollTop = saved.top;
+  }
+  if (state.revealDayId) {
+    const wrap = [...document.querySelectorAll(".day-wrap")].find((el) => el.dataset.dayId === state.revealDayId);
+    const scroll = wrap ? wrap.closest(".sheet-scroll, .rail-list") : null;
+    if (scroll) scroll.scrollTop += wrap.getBoundingClientRect().top - scroll.getBoundingClientRect().top;
+    if (scroll || planning()) state.revealDayId = null;
   }
   if (state.revealStopId) {
     const row = [...document.querySelectorAll(".order-row")].find((el) => el.dataset.stopId === state.revealStopId);
@@ -1513,19 +1545,56 @@ async function openTrip(tripId, restoring, view) {
   const today = todayIso();
   const todayDay = state.trip.days.find((d) => d.date === today);
   state.openDayId = todayDay ? todayDay.id : (state.trip.days[0] || {}).id || null;
+  // A trip that is happening opens on today, scrolled to the top of the list,
+  // rather than on the first day with today somewhere below the fold.
+  state.revealDayId = todayDay ? todayDay.id : null;
   state.selectedStopId = null;
   state.screen = "trip";
   if (state.view === "plan") planDay();
   render();
 }
 
+/*
+ * The re-read that follows a write, and only the last one.
+ *
+ * Every write used to re-read the trip the moment it landed, so three quick
+ * edits made three reads, and each one that came back put the screen back to
+ * what the server had said at the time — undoing, for a beat, the edits still
+ * in the air behind it, then redoing them as their own reads landed. Now a
+ * read is owed rather than made while anything is in flight, and the last
+ * write to land is the one that makes it. A read overtaken by a newer read or
+ * a newer write is thrown away, and one that lands under a drag waits for the
+ * drop, because a render then would replace the card under the finger.
+ */
+let writesInFlight = 0;
+let refreshOwed = false;
+let refreshGen = 0;
+
+function writeSettled(ok) {
+  writesInFlight = Math.max(0, writesInFlight - 1);
+  if (ok) refreshOwed = true;
+  if (!writesInFlight && refreshOwed) refreshTrip().catch(() => {});
+}
+
+/** Runs a read that was put off by a drag, once the drag is over. */
+function flushRefresh() {
+  if (refreshOwed && !writesInFlight && !state.drag) refreshTrip().catch(() => {});
+}
+
 async function refreshTrip() {
   if (!state.trip) return;
+  refreshOwed = true;
+  if (writesInFlight) return;
+  refreshOwed = false;
+  const gen = ++refreshGen;
   const id = state.trip.trip.id;
   const trip = await api("/api/trips/" + id);
   if (!state.trip || state.trip.trip.id !== id) return;
+  if (gen !== refreshGen) return;
+  if (writesInFlight || state.drag) { refreshOwed = true; return; }
   state.trip = trip;
   settleOpenDay();
+  if (state.selectedStopId) state.selectedStopId = realStopIds.get(state.selectedStopId) || state.selectedStopId;
   render();
 }
 
@@ -1859,7 +1928,7 @@ function deskRail() {
       "data-day-id": day.id,
     }, [
       h("button", {
-        class: "rail-day" + (open ? " open" : "") + (past ? " past" : ""),
+        class: "rail-day" + (open ? " open" : "") + (past ? " past" : "") + (day.date === today ? " today" : ""),
         "data-day-id": day.id,
         onclick: () => switchMapDay(open ? null : day.id),
       }, [
@@ -3104,7 +3173,7 @@ function dayHead(day, { open, editing, toggle, peek }) {
   // neither is invented, so the line is absent rather than empty.
   const second = [day.name, day.place_label].filter(Boolean).join(" · ");
   return h("div", {
-    class: open ? "day-head open" : "day-head",
+    class: "day-head" + (open ? " open" : "") + (day.date === todayIso() ? " today" : ""),
     "data-day-id": day.id,
   }, [
     h("button", { class: "day-head-tap", onclick: toggle }, [
@@ -3637,7 +3706,12 @@ function stopCard(day, stop, showTimes, number) {
     class: "stop order-row" + (selected ? " selected" : "") + (done ? " done" : "")
       + (dragging ? " ghost" : ""),
     "data-stop-id": stop.id,
+  }, []);
+
+  const track = h("div", {
+    class: "swipe-track" + (state.swipeStopId === stop.id && !dragging ? " open" : ""),
   }, [
+    swipeActions(stop),
     h("div", { class: "stop-row" }, [
       dragHandle(day, stop),
       h(state.manualNoteId === stop.id ? "div" : "button", {
@@ -3645,6 +3719,8 @@ function stopCard(day, stop, showTimes, number) {
         onclick: () => {
           // A drag ends on this same element, so a click it produced is not a tap.
           if (suppressTap) { suppressTap = false; return; }
+          // A tap with a row swiped open puts that row back, and nothing else.
+          if (state.swipeStopId) { closeSwipe(); return; }
           state.selectedStopId = selected ? null : stop.id;
           state.menuOpen = false;
           render();
@@ -3685,9 +3761,103 @@ function stopCard(day, stop, showTimes, number) {
       ]),
     ]),
   ]);
+  if (!dragging) swipeable(track, stop);
+  card.append(track);
 
   if (selected && !dragging) card.append(stopActions(day, stop, done, showTimes));
   return card;
+}
+
+/* -------------------------------------------------------------- swiping */
+
+/**
+ * Swiping a row of the phone's list to the left uncovers three buttons behind
+ * it: the time, the note, and taking it off the list. They are the three
+ * things done to a stop most often, and each was otherwise two taps away —
+ * open the row, then find it in the actions or behind the kebab. Opening the
+ * row is still where everything else lives.
+ *
+ * One row is open at a time. The gesture is settled in the DOM rather than
+ * with a render, so the row slides from where the finger left it instead of
+ * jumping there; state only remembers which row is open, so a render that
+ * happens meanwhile draws it the same way.
+ */
+const SWIPE_WIDTH = 168;
+
+function swipeActions(stop) {
+  const act = (run) => (event) => {
+    event.stopPropagation();
+    state.swipeStopId = null;
+    run();
+  };
+  return h("div", { class: "swipe-actions" }, [
+    h("button", { class: "swipe-btn", onclick: act(() => openTime(stop)) }, [
+      icon("swipeClock"), h("span", { text: "Time" }, []),
+    ]),
+    h("button", { class: "swipe-btn", onclick: act(() => editNote(stop)) }, [
+      icon("swipeNote"), h("span", { text: "Note" }, []),
+    ]),
+    h("button", { class: "swipe-btn delete", onclick: act(() => removeStop(stop)) }, [
+      icon("swipeTrash"), h("span", { text: "Delete" }, []),
+    ]),
+  ]);
+}
+
+function closeSwipe() {
+  state.swipeStopId = null;
+  for (const open of document.querySelectorAll(".swipe-track.open")) open.classList.remove("open");
+}
+
+function swipeable(track, stop) {
+  track.addEventListener("pointerdown", (event) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    if (event.target.closest(".grip, .swipe-actions")) return;
+    const row = track.querySelector(".stop-row");
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const from = track.classList.contains("open") ? -SWIPE_WIDTH : 0;
+    let dx = from;
+    let axis = null;
+
+    // On the window, as a drag's are: a render under the finger replaces the row.
+    const move = (e) => {
+      const mx = e.clientX - startX;
+      const my = e.clientY - startY;
+      if (axis === null) {
+        if (Math.abs(mx) < 8 && Math.abs(my) < 8) return;
+        axis = Math.abs(mx) > Math.abs(my) ? "x" : "y";
+        if (axis === "y") { detach(); return; }
+        track.classList.add("swiping");
+        // Another row left open goes back as this one comes out.
+        for (const other of document.querySelectorAll(".swipe-track.open")) {
+          if (other !== track) other.classList.remove("open");
+        }
+      }
+      // Past the buttons it gives a little and no more.
+      dx = Math.max(-SWIPE_WIDTH - 24, Math.min(0, from + mx));
+      row.style.transform = "translateX(" + dx + "px)";
+    };
+    const detach = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+    };
+    const end = (e) => {
+      detach();
+      if (axis !== "x") return;
+      suppressTap = true;
+      setTimeout(() => { suppressTap = false; }, 0);
+      const open = e.type !== "pointercancel" && dx < -SWIPE_WIDTH / 2;
+      track.classList.remove("swiping");
+      row.style.transform = "";
+      track.classList.toggle("open", open);
+      if (open) state.swipeStopId = stop.id;
+      else if (state.swipeStopId === stop.id) state.swipeStopId = null;
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+  });
 }
 
 /* ------------------------------------------------------------- dragging */
@@ -3787,6 +3957,8 @@ function dragHandle(day, stop) {
       // back where it came from. A drop has to land on something.
       if (endEvent.type !== "pointercancel" && drag.moved && !drag.outside) commitDrag(drag);
       else render();
+      // A re-read that landed while the card was in the air was held for this.
+      flushRefresh();
     };
 
     // Holding the card near the top or bottom of the list it is over scrolls
@@ -4227,6 +4399,8 @@ function commitDrag(drag) {
     && drag.afterStopId === undefined
     && !onGrid;
   if (unchanged) { render(); return; }
+  // A stop a re-read has taken away is not one to post a move for.
+  if (!locateStop(drag.stopId)) { render(); return; }
   const newTime = onGrid ? drag.gridTime : listDropTime(drag);
 
   optimistic(
@@ -4708,21 +4882,29 @@ function toggleVisited(stop, done) {
   );
 }
 
+/** The same stop under its provisional id or the one the server gave it. */
+const sameStop = (stopId) => {
+  const real = realStopIds.get(stopId);
+  return (s) => s.id === stopId || (real !== undefined && s.id === real);
+};
+
 function findStop(stopId) {
   if (!state.trip) return null;
+  const match = sameStop(stopId);
   for (const day of state.trip.days) {
-    const hit = day.stops.find((s) => s.id === stopId);
+    const hit = day.stops.find(match);
     if (hit) return hit;
   }
-  return state.trip.unplanned.find((s) => s.id === stopId) || null;
+  return state.trip.unplanned.find(match) || null;
 }
 
 /** The list a stop sits in, and where in it, so a failed write can put it back. */
 function locateStop(stopId) {
   if (!state.trip) return null;
+  const match = sameStop(stopId);
   const lists = state.trip.days.map((d) => d.stops).concat([state.trip.unplanned]);
   for (const list of lists) {
-    const index = list.findIndex((s) => s.id === stopId);
+    const index = list.findIndex(match);
     if (index !== -1) return { list, index, stop: list[index] };
   }
   return null;
@@ -4741,12 +4923,14 @@ function optimistic(apply, request, whatFailed) {
   const undo = apply();
   render();
 
+  writesInFlight++;
   request()
-    .then(() => refreshTrip())
+    .then(() => writeSettled(true))
     .catch((error) => {
       undo();
       state.error = whatFailed + ": " + error.message;
       render();
+      writeSettled(false);
     });
 }
 
@@ -5449,13 +5633,15 @@ function addPlace(row) {
   const s = state.search;
   const day = state.trip.days.find((d) => d.id === s.dayId);
   const list = day ? day.stops : state.trip.unplanned;
+  const provisionalId = "pending_" + crypto.randomUUID();
+  let provisional = null;
 
   optimistic(
     () => {
       const wasOnTrip = row.onTrip;
       const wasOnTripDay = row.onTripDay;
-      const provisional = {
-        id: "pending_" + crypto.randomUUID(),
+      provisional = {
+        id: provisionalId,
         title: row.name,
         description: row.category || "",
         note: "",
@@ -5478,11 +5664,39 @@ function addPlace(row) {
         row.onTripDay = wasOnTripDay;
       };
     },
-    () => post("/api/trips/" + state.trip.trip.id + "/stops", {
-      placeId: row.placeId, dayId: s.dayId, startTime: s.startTime,
-    }),
+    () => {
+      const saved = post("/api/trips/" + state.trip.trip.id + "/stops", {
+        placeId: row.placeId, dayId: s.dayId, startTime: s.startTime,
+      }).then((result) => {
+        // The row keeps its place on the screen and takes its real name, so
+        // whatever is done to it next goes to a stop the server knows.
+        realStopIds.set(provisionalId, result.stopId);
+        if (provisional) provisional.id = result.stopId;
+        const drag = state.drag;
+        if (drag && drag.stopId === provisionalId) drag.stopId = result.stopId;
+        if (drag && drag.afterStopId === provisionalId) drag.afterStopId = result.stopId;
+        if (state.selectedStopId === provisionalId) state.selectedStopId = result.stopId;
+        return result;
+      });
+      provisionalStops.set(provisionalId, saved.then((result) => result.stopId));
+      provisionalStops.get(provisionalId).catch(() => {});
+      return saved;
+    },
     "That place did not save",
   );
+
+  // Adding is what the search was opened for, so it is done: back to the
+  // list, open on the day it went to, with the new row scrolled into view.
+  const dayId = s.dayId;
+  closeThen(1, () => {
+    if (!state.trip) return;
+    if (!planning()) {
+      state.openDayId = dayId || "unplanned";
+      state.sheetTab = "stops";
+    }
+    state.revealStopId = realStopIds.get(provisionalId) || provisionalId;
+    render();
+  });
 }
 
 /**

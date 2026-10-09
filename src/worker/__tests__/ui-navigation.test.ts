@@ -168,13 +168,16 @@ describe("bug bash regressions", () => {
     const day = { id: "day", label: "Thursday", stops: [original] };
     const state = { search: { dayId: "day" }, trip: { trip: { id: "trip" }, days: [day] } };
     const undo: Function[] = [];
-    const post = vi.fn();
-    const api = load(["addPlace"], { state, crypto, post, optimistic: (apply: Function, request: Function) => { undo.push(apply()); request(); } });
+    const post = vi.fn(() => new Promise(() => {}));
+    const closeThen = vi.fn();
+    const api = load(["addPlace"], { state, crypto, post, closeThen, realStopIds: new Map(), provisionalStops: new Map(), planning: () => false, render: vi.fn(), optimistic: (apply: Function, request: Function) => { undo.push(apply()); request(); } });
     const row = { placeId: "place", name: "Cafe", onTrip: true, onTripDay: "Wednesday" };
     api.addPlace(row);
     api.addPlace(row);
     expect(new Set(day.stops.map((stop) => stop.id)).size).toBe(3);
     expect(post).toHaveBeenCalledTimes(2);
+    // Adding is done with the search: each add goes back to the list.
+    expect(closeThen).toHaveBeenCalledTimes(2);
     undo[1]!();
     undo[0]!();
     expect(day.stops).toEqual([original]);
@@ -676,7 +679,7 @@ describe("planner gesture regressions", () => {
       let down: Function = () => {};
       const handle = { closest: () => null, addEventListener: (_: string, fn: Function) => { down = fn; } };
       const commitDrag = vi.fn();
-      const context = { state, h: () => handle, ICONS: {}, window: { addEventListener: (name: string, fn: Function) => { handlers[name] = fn; }, removeEventListener: vi.fn() }, render: vi.fn(), endHover: vi.fn(), commitDrag, requestAnimationFrame: vi.fn(), cancelAnimationFrame: vi.fn(), setTimeout };
+      const context = { state, h: () => handle, ICONS: {}, window: { addEventListener: (name: string, fn: Function) => { handlers[name] = fn; }, removeEventListener: vi.fn() }, render: vi.fn(), endHover: vi.fn(), flushRefresh: vi.fn(), commitDrag, requestAnimationFrame: vi.fn(), cancelAnimationFrame: vi.fn(), setTimeout };
       const api = new Function(...Object.keys(context), "let suppressTap=false;" + definition("dragHandle") + ";return {dragHandle, suppressed:()=>suppressTap};")(...Object.values(context));
       api.dragHandle({ id: "a" }, { id: "s" });
       down({ clientX: 50, clientY: 100, preventDefault() {}, stopPropagation() {} });
@@ -864,3 +867,52 @@ describe("opening hours on a stop", () => {
   });
 });
 
+
+describe("writes and the re-read behind them", () => {
+  it("sends a write on a just-added place to the id the server gave it, not the provisional one", async () => {
+    let resolveAdd: (value: unknown) => void = () => {};
+    const added = new Promise((resolve) => { resolveAdd = resolve; });
+    const calls: string[] = [];
+    const bodies: string[] = [];
+    const api = vi.fn(async (path: string, options: { body: string }) => { calls.push(path); bodies.push(options.body); return {}; });
+    const provisionalStops = new Map([["pending_1", added.then(() => "stop_real")]]);
+    const lib = load(["settledStopId", "post"], { api, realStopIds: new Map(), provisionalStops });
+    const move = lib.post("/api/stops/pending_1/move", { dayId: "d", afterStopId: "pending_1" });
+    expect(api).not.toHaveBeenCalled();
+    resolveAdd({});
+    await move;
+    expect(calls).toEqual(["/api/stops/stop_real/move"]);
+    expect(JSON.parse(bodies[0]!)).toEqual({ dayId: "d", afterStopId: "stop_real" });
+  });
+
+  it("re-reads the trip once, after the last of several writes lands", async () => {
+    const releases: Function[] = [];
+    const state: any = { trip: { trip: { id: "t" }, days: [], unplanned: [] }, drag: null };
+    const api = vi.fn(async () => ({ trip: { id: "t" }, days: [], unplanned: [] }));
+    const render = vi.fn();
+    const lib = load(["writeSettled", "refreshTrip", "optimistic"], {
+      state, api, render, settleOpenDay: () => {}, realStopIds: new Map(),
+    }, "let writesInFlight=0; let refreshOwed=false; let refreshGen=0;");
+    for (let i = 0; i < 3; i++) {
+      lib.optimistic(() => () => {}, () => new Promise((resolve) => releases.push(resolve)), "x");
+    }
+    releases[0]!(); releases[1]!();
+    await Promise.resolve(); await Promise.resolve();
+    expect(api).not.toHaveBeenCalled();
+    releases[2]!();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(api).toHaveBeenCalledOnce();
+  });
+
+  it("holds a re-read that lands under a drag rather than rendering over the card", async () => {
+    const state: any = { trip: { trip: { id: "t" }, days: [], unplanned: [] }, drag: { stopId: "s" } };
+    const fresh = { trip: { id: "t" }, days: [{ id: "new" }], unplanned: [] };
+    const render = vi.fn();
+    const lib = load(["refreshTrip"], {
+      state, api: async () => fresh, render, settleOpenDay: () => {}, realStopIds: new Map(),
+    }, "let writesInFlight=0; let refreshOwed=false; let refreshGen=0;");
+    await lib.refreshTrip();
+    expect(render).not.toHaveBeenCalled();
+    expect(state.trip).not.toBe(fresh);
+  });
+});
