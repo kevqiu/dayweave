@@ -58,6 +58,10 @@ function iconSet(): Record<string, string> {
     grip: icons.grip(),
     gripDark: icons.grip({ color: C.inkSoft }),
     trash: icons.trash({ size: 15 }),
+    // Behind a row swiped left: its time, its note, and taking it off.
+    swipeClock: icons.clock({ size: 16, color: C.inkSoft }),
+    swipeNote: icons.pencil({ size: 16, color: C.inkSoft }),
+    swipeTrash: icons.trash({ size: 16, color: C.card }),
     door: icons.door({ size: 15, color: "currentColor" }),
     frameAll: icons.frameAll({ size: 17, color: C.inkSoft }),
     locate: icons.locate({ size: 18, color: C.inkSoft }),
